@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Matrix: Deep Dive Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --error: #ef4444;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #10b981; 
+            --code-bg: #0b1120;
+            --highlight-bg: #1e1b4b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- LAYOUT --- */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        .header {
+            width: 100%; max-width: 1400px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 20px;
+        }
+        h1 { margin: 0; font-weight: 300; letter-spacing: -1px; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            position: relative; overflow: hidden;
+        }
+
+        /* --- DIAGRAM --- */
+        #networkSvg { width: 100%; height: 350px; }
+        .synapse { stroke: #64748b; stroke-width: 2; opacity: 0.3; transition: 0.3s; }
+        .pulse { fill: none; stroke-width: 6; stroke-linecap: round; opacity: 0; pointer-events: none; }
+        .pulse.forward { stroke: var(--primary); filter: drop-shadow(0 0 5px var(--primary)); }
+        .pulse.backward { stroke: var(--error); filter: drop-shadow(0 0 5px var(--error)); }
+        .neuron { fill: var(--panel); stroke: var(--text-dim); stroke-width: 2; transition: all 0.3s; }
+        .neuron.active-fwd { stroke: var(--primary); fill: rgba(59, 130, 246, 0.1); box-shadow: 0 0 15px var(--primary); }
+        .neuron.active-bwd { stroke: var(--error); fill: rgba(239, 68, 68, 0.1); }
+        text { font-family: 'JetBrains Mono', monospace; font-size: 12px; fill: var(--text); pointer-events: none; text-anchor: middle; dominant-baseline: middle;}
+
+        /* --- MATRIX MATH STYLES --- */
+        .math-container {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--code-bg);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+            color: #e2e8f0;
+            overflow-x: auto;
+            min-height: 250px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .equation-block {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #334155;
+        }
+        .equation-block:last-child { border-bottom: none; }
+
+        .equation-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Sub-calculation box for the derivative breakdown */
+        .sub-calc {
+            background: rgba(255,255,255,0.05);
+            border: 1px dashed var(--text-dim);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 0.85rem;
+        }
+
+        .matrix {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            padding: 0 8px;
+            border-left: 2px solid var(--text-dim);
+            border-right: 2px solid var(--text-dim);
+            border-radius: 6px;
+            vertical-align: middle;
+            margin: 0 4px;
+            background: rgba(255,255,255,0.02);
+        }
+        .matrix::before, .matrix::after {
+            content: ''; position: absolute; height: 100%; width: 6px;
+            border-top: 2px solid var(--text-dim);
+            border-bottom: 2px solid var(--text-dim);
+        }
+        .matrix::before { left: 0; border-right: none; }
+        .matrix::after { right: 0; border-left: none; }
+
+        .mat-row { display: flex; gap: 12px; padding: 2px 0; justify-content: center; }
+        .mat-val { min-width: 45px; text-align: center; font-size: 0.9rem; }
+        
+        .sym { color: #f472b6; font-weight: bold; } 
+        .op { color: #94a3b8; margin: 0 5px; } 
+        .res { color: #34d399; font-weight: bold; } 
+        .err { color: #f87171; } 
+        .deriv { color: #fbbf24; font-weight: bold; } /* New color for derivatives */
+        
+        /* Educational Callout */
+        .edu-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #93c5fd;
+            margin: 10px 0;
+            display: inline-block;
+        }
+        .edu-box strong { color: white; }
+
+        /* --- CONTROLS --- */
+        .action-bar {
+            grid-column: 1 / -1; display: flex; gap: 10px; align-items: center;
+            background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid var(--border);
+            position: sticky; bottom: 20px; z-index: 100;
+        }
+        button { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; gap: 8px; align-items: center; }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 0 15px var(--primary-glow); }
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-secondary:disabled { opacity: 0.5; }
+        
+        .step-indicator { display: flex; gap: 6px; margin-left: auto; }
+        .step-dot { width: 8px; height: 8px; background: var(--border); border-radius: 50%; transition: 0.3s; }
+        .step-dot.active { background: var(--primary); box-shadow: 0 0 8px var(--primary); transform: scale(1.3); }
+
+        /* Sliders */
+        .control-group { margin-bottom: 15px; }
+        .slider-row { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--primary); cursor: pointer; box-shadow: 0 0 10px var(--primary-glow); }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>Neural <span style="font-weight:600; color: white;">Matrix</span></h1>
+            <div style="color: var(--text-dim); font-size: 0.9rem;">Deep Dive: Backpropagation Breakdown</div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-size:0.8rem; color:var(--accent); font-weight:bold;">SYSTEM READY</div>
+            <div style="font-size:0.7rem; color:var(--text-dim);">v4.0.0 CALCULUS_CORE</div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+
+        <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="card">
+                <div style="font-size:0.85rem; color:var(--text-dim); margin-bottom:15px; text-transform:uppercase; letter-spacing:1px; font-weight:bold;">Input Vector X</div>
+                <div class="control-group">
+                    <div class="slider-row"><span>x₁</span><span id="val-x1" class="num">0.5</span></div>
+                    <input type="range" id="slider-x1" min="0" max="1" step="0.1" value="0.5" oninput="updateParams()">
+                </div>
+                <div class="control-group">
+                    <div class="slider-row"><span>x₂</span><span id="val-x2" class="num">1.0</span></div>
+                    <input type="range" id="slider-x2" min="0" max="1" step="0.1" value="1.0" oninput="updateParams()">
+                </div>
+                <hr style="border-color:var(--border); opacity:0.3; margin:15px 0;">
+                <div class="control-group">
+                    <div class="slider-row"><span style="color:var(--accent)">Target Y</span><span id="val-y" class="num" style="color:var(--accent)">1.0</span></div>
+                    <input type="range" id="slider-y" min="0" max="1" step="0.1" value="1.0" oninput="updateParams()">
+                </div>
+            </div>
+
+            <div class="card" style="flex-grow:1;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span style="font-size:0.85rem; color:var(--text-dim); text-transform:uppercase; font-weight:bold;">Network Topology</span>
+                    <span id="status-badge" style="background:var(--code-bg); padding:2px 8px; border-radius:4px; font-size:0.7rem; color:var(--primary);">IDLE</span>
+                </div>
+                <svg id="networkSvg" viewBox="0 0 400 250">
+                    <defs>
+                        <marker id="arrow" markerWidth="6" markerHeight="6" refX="16" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b" /></marker>
+                    </defs>
+                    <line x1="60" y1="70" x2="200" y2="70" class="synapse" id="w1_11" />
+                    <line x1="60" y1="70" x2="200" y2="170" class="synapse" id="w1_21" />
+                    <line x1="60" y1="170" x2="200" y2="70" class="synapse" id="w1_12" />
+                    <line x1="60" y1="170" x2="200" y2="170" class="synapse" id="w1_22" />
+                    <line x1="200" y1="70" x2="340" y2="120" class="synapse" id="w2_11" />
+                    <line x1="200" y1="170" x2="340" y2="120" class="synapse" id="w2_12" />
+
+                    <path id="pulse_w1_11" d="M60,70 L200,70" class="pulse" />
+                    <path id="pulse_w1_21" d="M60,70 L200,170" class="pulse" />
+                    <path id="pulse_w1_12" d="M60,170 L200,70" class="pulse" />
+                    <path id="pulse_w1_22" d="M60,170 L200,170" class="pulse" />
+                    <path id="pulse_w2_11" d="M200,70 L340,120" class="pulse" />
+                    <path id="pulse_w2_12" d="M200,170 L340,120" class="pulse" />
+
+                    <circle cx="60" cy="70" r="18" class="neuron" id="n_x1" /><text x="60" y="70">x₁</text>
+                    <circle cx="60" cy="170" r="18" class="neuron" id="n_x2" /><text x="60" y="170">x₂</text>
+                    <circle cx="200" cy="70" r="18" class="neuron" id="h1" /><text x="200" y="70">h₁</text>
+                    <circle cx="200" cy="170" r="18" class="neuron" id="h2" /><text x="200" y="170">h₂</text>
+                    <circle cx="340" cy="120" r="18" class="neuron" id="o1" /><text x="340" y="120">ŷ</text>
+                </svg>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <div style="font-size:0.85rem; color:var(--text-dim); text-transform:uppercase; font-weight:bold;">Calculation Engine</div>
+                <div id="step-name" style="color:var(--text); font-weight:600;">Initialization</div>
+            </div>
+
+            <div id="math-panel" class="math-container">
+                </div>
+
+            <div id="expl-panel" style="margin-top:20px; font-size:0.95rem; line-height:1.6; color:var(--text-dim); border-top:1px solid var(--border); padding-top:15px;">
+                </div>
+        </div>
+
+        <div class="action-bar">
+            <button class="btn-secondary" id="prevBtn" onclick="step(-1)">Back</button>
+            <div style="flex-grow:1; display:flex; flex-direction:column; align-items:center;">
+                <div class="step-indicator">
+                    <div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div>
+                    <div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div>
+                </div>
+            </div>
+            <button class="btn-primary" id="nextBtn" onclick="step(1)">Compute Forward <span>&rarr;</span></button>
+            <button class="btn-secondary" id="autoBtn" onclick="toggleAuto()"><span>&#9658;</span></button>
+        </div>
+
+    </div>
+
+<script>
+    // --- UTILS ---
+    function mat(data, type = 'val') {
+        let rows = '';
+        data.forEach(row => {
+            let cols = '';
+            row.forEach(cell => {
+                let val = cell;
+                if(typeof cell === 'number') val = cell.toFixed(3); // 3 decimals
+                cols += `<div class="mat-val ${type}">${val}</div>`;
+            });
+            rows += `<div class="mat-row">${cols}</div>`;
+        });
+        return `<div class="matrix">${rows}</div>`;
+    }
+    const sym = (txt) => `<span class="sym">${txt}</span>`;
+    const op = (txt) => `<span class="op">${txt}</span>`;
+
+    // --- MATH LIB ---
+    const sigmoid = x => 1 / (1 + Math.exp(-x));
+    
+    // THE DERIVATIVE FUNCTION
+    // If we have 'a' (the output), the derivative is just a * (1 - a)
+    const dSigmoidFromA = a => a * (1 - a);
+
+    function dot(A, B) {
+        let result = new Array(A.length).fill(0).map(() => new Array(B[0].length).fill(0));
+        return result.map((row, i) => {
+            return row.map((val, j) => {
+                return A[i].reduce((sum, elm, k) => sum + (elm * B[k][j]), 0);
+            })
+        });
+    }
+    function add(A, B) { return A.map((row, i) => row.map((val, j) => val + B[i][j])); }
+    function subtract(A, B) { return A.map((row, i) => row.map((val, j) => val - B[i][j])); }
+    function scale(A, s) { return A.map(row => row.map(val => val * s)); }
+    function multiply(A, B) { return A.map((row, i) => row.map((val, j) => val * B[i][j])); }
+    function transpose(A) { return A[0].map((_, colIndex) => A.map(row => row[colIndex])); }
+    function matMap(A, func) { return A.map(row => row.map(val => func(val))); }
+
+    // --- STATE ---
+    let P = { x1: 0.5, x2: 1.0, y: 1.0, lr: 0.5 };
+    let W1 = [[0.15, 0.25], [0.20, 0.30]]; 
+    let b1 = [[0.35], [0.35]]; 
+    let W2 = [[0.40, 0.50]]; 
+    let b2 = [[0.60]];
+    let Z1, A1, Z2, A2, Loss;
+    let dZ2, dW2, db2, dZ1, dW1, db1;
+    let stepIndex = 0;
+    let autoInt = null;
+
+    // --- STEPS ---
+    const steps = [
+        {
+            name: "0. Initialization",
+            run: () => ({ X: [[P.x1], [P.x2]] }),
+            render: (s) => `
+                <div class="equation-row">${sym('X')} ${op('=')} ${mat(s.X)} <span style="font-size:0.8em; color:#64748b">(Inputs)</span></div>
+                <div class="equation-row">${sym('W')}<sup>[1]</sup> ${op('=')} ${mat(W1)}</div>
+                <div class="equation-row">${sym('W')}<sup>[2]</sup> ${op('=')} ${mat(W2)}</div>
+            `,
+            expl: "Initializing vectors and matrices. Adjust sliders on the left to change inputs."
+        },
+        {
+            name: "1. Forward (Hidden)",
+            run: () => {
+                let X = [[P.x1], [P.x2]];
+                let Z = add(dot(W1, X), b1);
+                let A = matMap(Z, sigmoid);
+                Z1 = Z; A1 = A;
+                pulse(['w1_11','w1_21','w1_12','w1_22'], 'forward');
+                highlight('h1', 'h2', 'active-fwd');
+                return { X, Z, A };
+            },
+            render: (s) => `
+                <div class="equation-block">
+                    <div style="margin-bottom:5px; color:#94a3b8; font-size:0.8em;">Linear Step</div>
+                    <div class="equation-row">${sym('Z')}<sup>[1]</sup> ${op('=')} ${mat(W1)} ${op('·')} ${mat(s.X)} ${op('+')} ${mat(b1)} ${op('=')} ${mat(s.Z)}</div>
+                </div>
+                <div class="equation-block">
+                    <div style="margin-bottom:5px; color:#94a3b8; font-size:0.8em;">Activation Step (Sigmoid)</div>
+                    <div class="equation-row">${sym('A')}<sup>[1]</sup> ${op('=')} &sigma;(${mat(s.Z)}) ${op('=')} ${mat(s.A, 'res')}</div>
+                </div>
+            `,
+            expl: "We calculate the hidden state. First, the weighted sum (Linear Step), then we squash it between 0 and 1 using Sigmoid."
+        },
+        {
+            name: "2. Forward (Output)",
+            run: () => {
+                let Z = add(dot(W2, A1), b2);
+                let A = matMap(Z, sigmoid);
+                Z2 = Z; A2 = A;
+                pulse(['w2_11','w2_12'], 'forward');
+                highlight('o1', 'active-fwd');
+                return { Z, A };
+            },
+            render: (s) => `
+                <div class="equation-row">${sym('Z')}<sup>[2]</sup> ${op('=')} ${mat(W2)} ${op('·')} ${mat(A1)} ${op('=')} ${mat(s.Z)}</div>
+                <div class="equation-row" style="margin-top:15px">${sym('Ŷ')} ${op('=')} &sigma;(${mat(s.Z)}) ${op('=')} ${mat(s.A, 'res')}</div>
+            `,
+            expl: "The output neuron takes the hidden layer values as input and produces the final prediction Ŷ."
+        },
+        {
+            name: "3. Loss",
+            run: () => {
+                Loss = 0.5 * Math.pow((P.y - A2[0][0]), 2);
+                highlight('o1', 'active-bwd');
+                return { L: Loss };
+            },
+            render: (s) => `
+                <div class="equation-row">Target ${sym('Y')} ${op('=')} <span class="num">${P.y}</span></div>
+                <div class="equation-row">Prediction ${sym('Ŷ')} ${op('=')} <span class="res">${A2[0][0].toFixed(3)}</span></div>
+                <div class="equation-row" style="margin-top:15px">Loss ${op('=')} 0.5 · (${P.y} - ${A2[0][0].toFixed(3)})² ${op('=')} <span class="err" style="font-size:1.4em">${s.L.toFixed(5)}</span></div>
+            `,
+            expl: "We use Mean Squared Error to measure how wrong the network is."
+        },
+        // --- DETAILED BACKPROP STEP ---
+        {
+            name: "4. Backprop (Output)",
+            run: () => {
+                // 1. Error Term: (A - Y)
+                let errorPart = [[ A2[0][0] - P.y ]]; 
+                
+                // 2. Derivative of Sigmoid: a * (1-a)
+                // Note: We use the already calculated 'A' to make this easy
+                let sigPrime = matMap(A2, dSigmoidFromA); 
+
+                // 3. dZ (Delta)
+                let dZ_val = multiply(errorPart, sigPrime);
+                dZ2 = dZ_val;
+
+                // 4. dW
+                dW2 = dot(dZ2, transpose(A1));
+                db2 = dZ2;
+
+                pulse(['w2_11','w2_12'], 'backward');
+                highlight('h1', 'h2', 'active-bwd');
+
+                return { errorPart, sigPrime, dZ2, dW2 };
+            },
+            render: (s) => `
+                <div class="edu-box">
+                    <strong>What is σ'?</strong> It is the "Derivative" or slope of the activation. <br>
+                    For Sigmoid, the formula is simply: <code>output · (1 - output)</code>.
+                </div>
+
+                <div class="sub-calc">
+                    <strong>1. The Error Term (Predicted - Target):</strong><br>
+                    ${A2[0][0].toFixed(3)} - ${P.y.toFixed(1)} = <span class="err">${s.errorPart[0][0].toFixed(3)}</span>
+                </div>
+                
+                <div class="sub-calc">
+                    <strong>2. The Derivative &sigma;' (The Slope):</strong><br>
+                    Formula: a &middot; (1 - a)<br>
+                    ${A2[0][0].toFixed(3)} &middot; (1 - ${A2[0][0].toFixed(3)}) = <span class="deriv">${s.sigPrime[0][0].toFixed(3)}</span>
+                </div>
+
+                <div class="equation-block">
+                    <div class="equation-row">
+                        ${sym('dZ')}<sup>[2]</sup> ${op('=')} Diff &odot; Slope ${op('=')} ${mat(s.dZ2, 'err')}
+                    </div>
+                </div>
+
+                <div class="equation-block">
+                    <div style="font-size:0.8em; color:#f87171;">Calculate Weight Gradient (dW)</div>
+                    <div class="equation-row">
+                        ${sym('dW')}<sup>[2]</sup> ${op('=')} ${sym('dZ')} ${op('·')} A<sup>T</sup>
+                    </div>
+                    <div class="equation-row">
+                        ${sym('dW')}<sup>[2]</sup> ${op('=')} ${mat(s.dZ2, 'err')} ${op('·')} ${mat(transpose(A1))} ${op('=')} ${mat(s.dW2, 'err')}
+                    </div>
+                </div>
+            `,
+            expl: "We broke dZ into two parts: how far off we were (Diff) and how sensitive the neuron is (Slope). Multiplying them gives the 'Delta'. Then we multiply Delta by the inputs to find which weights contributed to the error."
+        },
+        {
+            name: "5. Backprop (Hidden)",
+            run: () => {
+                // 1. Pull Error Back: W_trans * dZ_next
+                let errorProp = dot(transpose(W2), dZ2);
+                
+                // 2. Slope of Hidden Layer: A1 * (1 - A1)
+                let sigPrime = matMap(A1, dSigmoidFromA);
+
+                // 3. dZ Hidden
+                dZ1 = multiply(errorProp, sigPrime);
+
+                // 4. dW Hidden
+                dW1 = dot(dZ1, transpose([[P.x1], [P.x2]]));
+                db1 = dZ1;
+
+                pulse(['w1_11','w1_21','w1_12','w1_22'], 'backward');
+                highlight('n_x1', 'n_x2', 'active-bwd');
+
+                return { errorProp, sigPrime, dZ1, dW1 };
+            },
+            render: (s) => `
+                <div class="equation-block">
+                    <div style="font-size:0.8em; color:#f87171;">1. Pull Error Back & Calculate Delta</div>
+                    <div class="equation-row">
+                        Err ${op('=')} W<sup>T</sup> · dZ<sub>next</sub> ${op('=')} ${mat(s.errorProp)}
+                    </div>
+                    <div class="equation-row">
+                        Slope ${op('=')} A<sub>1</sub>(1-A<sub>1</sub>) ${op('=')} ${mat(s.sigPrime, 'deriv')}
+                    </div>
+                    <div class="equation-row">
+                        ${sym('dZ')}<sup>[1]</sup> ${op('=')} Err &odot; Slope ${op('=')} ${mat(s.dZ1, 'err')}
+                    </div>
+                </div>
+                <div class="equation-block">
+                    <div style="font-size:0.8em; color:#f87171;">2. Calculate Gradients</div>
+                    <div class="equation-row">
+                        ${sym('dW')}<sup>[1]</sup> ${op('=')} ${mat(s.dZ1, 'err')} ${op('·')} X<sup>T</sup> ${op('=')} ${mat(s.dW1, 'err')}
+                    </div>
+                </div>
+            `,
+            expl: "We perform the same process for the hidden layer. However, since we don't have a 'Target Y' for hidden neurons, we calculate their error by looking at the weighted error coming from the output layer."
+        },
+        {
+            name: "6. Update Weights",
+            run: () => {
+                W1 = add(W1, scale(dW1, -P.lr));
+                b1 = add(b1, scale(db1, -P.lr));
+                W2 = add(W2, scale(dW2, -P.lr));
+                b2 = add(b2, scale(db2, -P.lr));
+                return { W1, W2 };
+            },
+            render: (s) => `
+                <div class="equation-row">${sym('W')} ${op('←')} ${sym('W')} ${op('-')} (${P.lr} · ${sym('dW')})</div>
+                <div class="equation-row" style="margin-top:15px">${sym('W')}<sup>[1]</sup> ${op('=')} ${mat(s.W1, 'res')}</div>
+                <div class="equation-row">${sym('W')}<sup>[2]</sup> ${op('=')} ${mat(s.W2, 'res')}</div>
+            `,
+            expl: "Finally, we update the weights. We subtract the gradient (scaled by learning rate) from the original weights to gently push the network towards lower error."
+        }
+    ];
+
+    // --- VIEW CONTROLLER ---
+    function pulse(ids, type) {
+        document.querySelectorAll('.pulse').forEach(p => {
+            p.style.strokeDasharray = "0, 1000"; p.style.opacity = 0;
+            p.classList.remove('forward', 'backward');
+        });
+        ids.forEach(id => {
+            const el = document.getElementById('pulse_' + id);
+            if(!el) return;
+            const len = el.getTotalLength();
+            el.style.strokeDasharray = len; el.style.strokeDashoffset = len;
+            el.classList.add(type); el.style.opacity = 1;
+            el.getBoundingClientRect(); 
+            el.style.transition = 'stroke-dashoffset 0.6s ease-out';
+            el.style.strokeDashoffset = 0;
+        });
+    }
+
+    function highlight(...ids) {
+        document.querySelectorAll('.neuron').forEach(n => n.classList.remove('active-fwd', 'active-bwd'));
+        ids.forEach(id => document.getElementById(id)?.classList.add(id.includes('bwd') ? 'active-bwd' : 'active-fwd'));
+    }
+
+    function updateParams() {
+        if(stepIndex > 0) return;
+        P.x1 = parseFloat(document.getElementById('slider-x1').value);
+        P.x2 = parseFloat(document.getElementById('slider-x2').value);
+        P.y = parseFloat(document.getElementById('slider-y').value);
+        document.getElementById('val-x1').innerText = P.x1;
+        document.getElementById('val-x2').innerText = P.x2;
+        document.getElementById('val-y').innerText = P.y;
+        render();
+    }
+
+    function render() {
+        const step = steps[stepIndex];
+        const data = step.run();
+        
+        document.getElementById('step-name').innerText = step.name;
+        document.getElementById('math-panel').innerHTML = step.render(data);
+        document.getElementById('expl-panel').innerHTML = step.expl;
+        
+        // Update Dots
+        document.querySelectorAll('.step-dot').forEach((d, i) => d.classList.toggle('active', i === stepIndex));
+        
+        // Buttons
+        document.getElementById('prevBtn').disabled = stepIndex === 0;
+        const nextBtn = document.getElementById('nextBtn');
+        if(stepIndex === 6) {
+            nextBtn.innerHTML = "Next Epoch <span>&#8635;</span>";
+            nextBtn.classList.add('btn-primary');
+        } else {
+            nextBtn.innerHTML = "Next Step <span>&rarr;</span>";
+            nextBtn.classList.remove('btn-primary');
+        }
+
+        // Thickness
+        const thick = w => Math.max(1, Math.abs(w)*6);
+        document.getElementById('w1_11').style.strokeWidth = thick(W1[0][0]);
+        document.getElementById('w1_21').style.strokeWidth = thick(W1[0][1]);
+        document.getElementById('w1_12').style.strokeWidth = thick(W1[1][0]);
+        document.getElementById('w1_22').style.strokeWidth = thick(W1[1][1]);
+        document.getElementById('w2_11').style.strokeWidth = thick(W2[0][0]);
+        document.getElementById('w2_12').style.strokeWidth = thick(W2[0][1]);
+    }
+
+    function step(dir) {
+        if(dir === 1) stepIndex = (stepIndex >= 6) ? 1 : stepIndex + 1;
+        else if(stepIndex > 0) stepIndex--;
+        render();
+    }
+
+    function toggleAuto() {
+        if(autoInt) { clearInterval(autoInt); autoInt = null; }
+        else autoInt = setInterval(() => step(1), 1500);
+    }
+
+    render();
+</script>
+</body>
+</html>

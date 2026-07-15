@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive PCA Visualization: Maximizing Variance vs. Minimizing Error</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f9;
+            padding: 20px;
+        }
+        #container {
+            display: flex;
+            width: 1150px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #vis {
+            flex-grow: 1;
+        }
+        #sidebar {
+            width: 350px;
+            padding-left: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+        .slider-container {
+            margin-bottom: 20px;
+            background-color: #f0f0f5;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        svg {
+            background-color: #ffffff;
+            border: 1px solid #eee;
+        }
+        /* Axis Styling */
+        .axis path, .axis line {
+            fill: none;
+            stroke: #ccc;
+        }
+        .axis text {
+            font-size: 10px;
+            fill: #666;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        .instruction {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .stat-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 16px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+        .explanation {
+             font-size: 13px;
+             color: #444;
+             line-height: 1.4;
+        }
+        /* Dynamic Element Colors */
+        .data-point {
+             fill: #1d3557; /* Dark Blue */
+        }
+        .error-square {
+            fill: #e76f51; /* Reddish for Error */
+            stroke: #e76f51;
+        }
+        .error-line {
+             stroke: #e76f51;
+        }
+        .projection-point {
+            fill: #2a9d8f; /* Greenish for Variance */
+        }
+
+    </style>
+</head>
+<body>
+    <h2>Interactive PCA Explorer: Maximizing Variance, Minimizing Error, and the Pythagorean View</h2>
+    <div id="container">
+        <div id="vis">
+            <svg id="pca-svg" width="750" height="600"></svg>
+        </div>
+        <div id="sidebar">
+            <div class="instruction">
+                Drag the slider to rotate the black projection line and find the optimal fit.
+            </div>
+
+            <div class="slider-container">
+                <label for="angle-slider">Rotation Angle: <span id="angle-display">0</span>°</label>
+                <input type="range" id="angle-slider" min="0" max="180" value="0" step="0.5" style="width: 100%;">
+            </div>
+
+            <div class="stat-title" style="border-top: none; margin-top: 0; padding-top: 0;">The Optimization Tradeoff</div>
+             <p class="explanation">The visualization tracks two metrics:</p>
+             <ol class="explanation">
+                <li><strong>Retained Variance (Green):</strong> The spread of the green points. Goal: <strong>MAXIMIZE</strong>.</li>
+                <li><strong>Squared Error (Red):</strong> The sum of the areas of the red squares (Least Squares). Goal: <strong>MINIMIZE</strong>.</li>
+            </ol>
+
+            <!-- Dynamic Stacked Bar Chart -->
+            <svg id="statsChart" width="350" height="200"></svg>
+
+            <div class="stat-title">The Insight: Pythagorean Theorem</div>
+            <p class="explanation">
+                A² (Error) + B² (Retained Variance) = C² (Total Variance).
+            </p>
+            <p class="explanation">
+                Since the Total Variance (C²) of the data is constant (the gray dashed line), maximizing the green bar automatically minimizes the red bar. They are the same optimization problem.
+            </p>
+             <div class="stat-title">Why the Covariance Matrix?</div>
+            <p class="explanation">
+                The shape of the data cloud is defined by the <strong>Covariance Matrix</strong>. The direction that maximizes variance is the longest axis of this shape, which is mathematically found by calculating the first <strong>Eigenvector</strong> of the Covariance Matrix.
+            </p>
+        </div>
+    </div>
+
+    <script>
+    // Use an IIFE (Immediately Invoked Function Expression) to prevent polluting the global scope
+    (function() {
+        // Check if D3 is loaded
+        if (typeof d3 === 'undefined') {
+            alert("Error: D3.js library failed to load. Please check your internet connection.");
+            return;
+        }
+
+        // --- 1. Setup ---
+        const width = 750;
+        const height = 600;
+        const margin = {top: 20, right: 20, bottom: 20, left: 20};
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+
+        const svg = d3.select("#pca-svg");
+        const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+        // --- 2. Generate Synthetic Data (Centered and Correlated) ---
+        function generateData(n, variance1, variance2, angle) {
+            const data = [];
+            const rotationMatrix = [
+                [Math.cos(angle), -Math.sin(angle)],
+                [Math.sin(angle), Math.cos(angle)]
+            ];
+            for (let i = 0; i < n; i++) {
+                const x = d3.randomNormal(0, Math.sqrt(variance1))();
+                const y = d3.randomNormal(0, Math.sqrt(variance2))();
+                
+                const rotatedX = rotationMatrix[0][0] * x + rotationMatrix[0][1] * y;
+                const rotatedY = rotationMatrix[1][0] * x + rotationMatrix[1][1] * y;
+                
+                data.push({x: rotatedX, y: rotatedY});
+            }
+            // Ensure data is precisely centered (mean = 0)
+            const meanX = d3.mean(data, d => d.x);
+            const meanY = d3.mean(data, d => d.y);
+            return data.map(d => ({x: d.x - meanX, y: d.y - meanY}));
+        }
+
+        const dataAngle = Math.PI / 6; // Data spread primarily along 30 degrees
+        const dataset = generateData(50, 30, 5, dataAngle);
+
+        // Calculate Total Variance (C^2). It is constant.
+        const totalVarianceSum = d3.sum(dataset, d => d.x * d.x + d.y * d.y);
+
+
+        // --- 3. Scales and Axes (Robust Scaling Logic) ---
+        const extentX = d3.extent(dataset, d => d.x);
+        const extentY = d3.extent(dataset, d => d.y);
+        const maxExtent = Math.max(Math.abs(extentX[0]), Math.abs(extentX[1]), Math.abs(extentY[0]), Math.abs(extentY[1])) * 1.2; // Add padding
+
+        // Determine the dimension to constrain the visualization to keep aspect ratio 1:1
+        const constrainingDim = Math.min(innerWidth, innerHeight);
+
+        // Calculate paddings to center the visualization within the SVG area
+        const xPadding = (innerWidth - constrainingDim) / 2;
+        const yPadding = (innerHeight - constrainingDim) / 2;
+
+        // Create scales centered around (0,0). 
+        // This ensures both X and Y use the same scaling factor (pixels per unit of data).
+        // We incorporate the padding directly into the range definition.
+        const scaleX = d3.scaleLinear()
+            .domain([-maxExtent, maxExtent])
+            .range([xPadding, innerWidth - xPadding]);
+            
+        const scaleY = d3.scaleLinear()
+            .domain([-maxExtent, maxExtent])
+            .range([innerHeight - yPadding, yPadding]); // Y axis is inverted in SVG (0 is top)
+
+        // Axes (Centered at 0,0)
+        g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0, ${scaleY(0)})`)
+            .call(d3.axisBottom(scaleX).ticks(5));
+        
+        g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(${scaleX(0)}, 0)`)
+            .call(d3.axisLeft(scaleY).ticks(5));
+
+        // --- 4. Drawing Initial Elements ---
+        
+        // The rotating line (Principal Component candidate)
+        const pcLine = g.append("line")
+            .attr("class", "pc-line")
+            .attr("stroke", "black")
+            .attr("stroke-width", 2);
+
+        // Data points (drawn last so they are on top)
+        const points = g.selectAll(".data-point")
+            .data(dataset)
+            .enter()
+            .append("circle")
+            .attr("class", "data-point")
+            .attr("cx", d => scaleX(d.x))
+            .attr("cy", d => scaleY(d.y))
+            .attr("r", 5)
+            .attr("opacity", 0.8)
+            .attr("stroke", "white");
+
+        // --- 5. Setup Stats Chart (Sidebar) ---
+        const statsSvg = d3.select("#statsChart");
+        const statsHeight = 200;
+        const statsWidth = 350;
+        const statsMargin = {top: 20, right: 20, bottom: 20, left: 50};
+
+        // The Y scale is based on the constant total variance
+        const statsYScale = d3.scaleLinear()
+            .domain([0, totalVarianceSum * 1.1]) // A little padding
+            .range([statsHeight - statsMargin.bottom, statsMargin.top]);
+
+        statsSvg.append("g")
+            .attr("transform", `translate(${statsMargin.left}, 0)`)
+            .call(d3.axisLeft(statsYScale).ticks(4).tickFormat(d3.format(".2s")));
+
+        // Total Variance Line (Constant C^2)
+        statsSvg.append("line")
+            .attr("x1", statsMargin.left)
+            .attr("x2", statsWidth - statsMargin.right)
+            .attr("y1", statsYScale(totalVarianceSum))
+            .attr("y2", statsYScale(totalVarianceSum))
+            .attr("stroke", "#666")
+            .attr("stroke-dasharray", "5 5");
+
+        statsSvg.append("text")
+            .attr("x", statsWidth - statsMargin.right)
+            .attr("y", statsYScale(totalVarianceSum) - 5)
+            .attr("text-anchor", "end")
+            .text("Total Variance (C²)")
+            .style("font-size", "12px")
+            .style("fill", "#666");
+
+
+        // --- 6. Update Function (The Core Logic) ---
+        function updateVisualization(angle) {
+            const radians = angle * Math.PI / 180;
+            // Unit vector (u) representing the direction of the line
+            const u = {x: Math.cos(radians), y: Math.sin(radians)};
+
+            let currentTotalVariance = 0;
+            let currentTotalSquaredError = 0;
+
+            const projections = dataset.map(d => {
+                // Projection length (dot product: d . u)
+                const projectionLength = d.x * u.x + d.y * u.y;
+                
+                // Projection coordinates (P = length * u)
+                const projX = projectionLength * u.x;
+                const projY = projectionLength * u.y;
+
+                // Error calculation (E = d - P)
+                const errorX = d.x - projX;
+                const errorY = d.y - projY;
+                // Least Squares: The squared error
+                const squaredError = errorX * errorX + errorY * errorY;
+
+                // Variance calculation (squared projection length, since data is centered)
+                const variance = projectionLength * projectionLength;
+
+                currentTotalVariance += variance;
+                currentTotalSquaredError += squaredError;
+
+                return {
+                    original: d,
+                    projection: {x: projX, y: projY},
+                };
+            });
+
+            // Update Angle Display
+            d3.select("#angle-display").text(angle.toFixed(1));
+
+            const duration = 50; // Animation speed (ms)
+
+            // --- A. Update Main Visualization ---
+
+            // Update the PC Line
+            // We extend the line far beyond the data extent so it covers the whole visualization area
+            const lineExtensionFactor = maxExtent * 2; 
+            pcLine
+                .transition().duration(duration)
+                .attr("x1", scaleX(-lineExtensionFactor * u.x))
+                .attr("y1", scaleY(-lineExtensionFactor * u.y))
+                .attr("x2", scaleX(lineExtensionFactor * u.x))
+                .attr("y2", scaleY(lineExtensionFactor * u.y));
+
+            // Update Error Squares (Visualizing Least Squares)
+            const errorSquares = g.selectAll(".error-square")
+                .data(projections);
+
+            errorSquares.enter()
+                .insert("polygon", ".data-point") // Insert before data points so they don't overlap
+                .attr("class", "error-square")
+                .attr("opacity", 0.2)
+                .attr("stroke-width", 0.5)
+                .merge(errorSquares)
+                .transition().duration(duration)
+                .attr("points", d => {
+                    // We calculate the 4 corners of the square based on the error vector
+                    // Crucial: Apply the correct scales (scaleX and scaleY)
+                    const p1x = scaleX(d.original.x);
+                    const p1y = scaleY(d.original.y);
+                    const p2x = scaleX(d.projection.x);
+                    const p2y = scaleY(d.projection.y);
+                    
+                    // The error vector in screen coordinates
+                    const dx = p2x - p1x;
+                    const dy = p2y - p1y;
+
+                    // Perpendicular vector (-dy, dx) defines the other sides of the square
+                    // This works because scaleX and scaleY maintain a 1:1 ratio.
+                    const p3x = p2x - dy;
+                    const p3y = p2y + dx;
+                    const p4x = p1x - dy;
+                    const p4y = p1y + dx;
+
+                    return `${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y} ${p4x},${p4y}`;
+                });
+
+            // Update Error Lines (Dashed)
+            const errorLines = g.selectAll(".error-line")
+                .data(projections);
+
+            errorLines.enter()
+                .insert("line", ".data-point")
+                .attr("class", "error-line")
+                .attr("stroke-dasharray", "3,3")
+                .merge(errorLines)
+                .transition().duration(duration)
+                .attr("x1", d => scaleX(d.original.x))
+                .attr("y1", d => scaleY(d.original.y))
+                .attr("x2", d => scaleX(d.projection.x))
+                .attr("y2", d => scaleY(d.projection.y));
+
+            // Update Projected Points (Green)
+            const projPoints = g.selectAll(".projection-point")
+                .data(projections);
+
+            projPoints.enter()
+                .insert("circle", ".data-point")
+                .attr("class", "projection-point")
+                .attr("r", 4)
+                .merge(projPoints)
+                .transition().duration(duration)
+                .attr("cx", d => scaleX(d.projection.x))
+                .attr("cy", d => scaleY(d.projection.y));
+
+            // --- B. Update Stats Chart (The Pythagorean Tradeoff) ---
+
+             const barData = [
+                // Error (A^2) starts where Variance (B^2) ends
+                {name: "Error (A²)", value: currentTotalSquaredError, color: "#e76f51", yStart: currentTotalVariance},
+                // Variance (B^2) starts at 0
+                {name: "Variance (B²)", value: currentTotalVariance, color: "#2a9d8f", yStart: 0}
+            ];
+
+            const barWidth = 120;
+            const barX = statsMargin.left + 50;
+
+            // Stacked Bars
+            statsSvg.selectAll(".stat-bar")
+                .data(barData)
+                .join("rect")
+                .attr("class", "stat-bar")
+                .attr("x", barX)
+                .attr("width", barWidth)
+                .attr("fill", d => d.color)
+                .transition().duration(duration)
+                // Y position is based on the top of the stack (yStart + value)
+                .attr("y", d => statsYScale(d.yStart + d.value))
+                // Height is the magnitude of the value
+                .attr("height", d => Math.max(0, statsYScale(0) - statsYScale(d.value)));
+            
+            // Labels inside the bars
+             statsSvg.selectAll(".stat-label")
+                .data(barData)
+                .join("text")
+                .attr("class", "stat-label")
+                .attr("x", barX + barWidth/2)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#fff")
+                .style("font-weight", "bold")
+                .transition().duration(duration)
+                 // Position label in the middle of the bar
+                .attr("y", d => statsYScale(d.yStart + d.value / 2) + 4)
+                .text(d => `${d.name}: ${d.value.toFixed(0)}`)
+                // Hide label if the bar is too small to fit the text
+                .style("opacity", d => (statsYScale(0) - statsYScale(d.value)) < 15 ? 0 : 1);
+
+        }
+
+        // --- 7. Interaction Handler and Initialization ---
+        const slider = d3.select("#angle-slider");
+        slider.on("input", function() {
+            // Update visualization in real-time as the slider moves
+            updateVisualization(parseFloat(this.value));
+        });
+
+        // BONUS: Calculate the true first principal component angle (Eigenvector of Covariance Matrix)
+        function calculateOptimalAngle(data) {
+            const n = data.length;
+            if (n < 2) return 0; // Need at least 2 points for covariance
+
+            // Calculate Covariance Matrix elements (cov(X,X), cov(Y,Y), cov(X,Y))
+            // Since data is centered, E[X]=0 and E[Y]=0.
+            let covXX = d3.sum(data, d => d.x * d.x) / (n - 1);
+            let covYY = d3.sum(data, d => d.y * d.y) / (n - 1);
+            let covXY = d3.sum(data, d => d.x * d.y) / (n - 1);
+
+            // The angle of the first eigenvector in 2D can be derived from the Eigen decomposition:
+            const angleRad = 0.5 * Math.atan2(2 * covXY, covXX - covYY);
+            let angleDeg = angleRad * 180 / Math.PI;
+
+            // Normalize angle to 0-180 range for the slider (since the line is symmetrical)
+            if (angleDeg < 0) angleDeg += 180;
+            
+            return angleDeg;
+        }
+
+        // Initialize visualization at the mathematically optimal angle
+        try {
+            const optimalAngle = calculateOptimalAngle(dataset);
+            slider.property("value", optimalAngle);
+            updateVisualization(optimalAngle);
+        } catch (error) {
+            console.error("Error during visualization initialization:", error);
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height / 2)
+                .attr("text-anchor", "middle")
+                .text("An error occurred during rendering. Please check the browser console.")
+                .style("fill", "red");
+        }
+    })(); // End of IIFE
+    </script>
+</body>
+</html>

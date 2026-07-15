@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Fidelity Matrix Lab</title>
+    <!-- Load MathJax -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020202; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #eee; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* Glassmorphism Panel */
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 15, 0.7);
+            backdrop-filter: blur(12px);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            width: 380px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+            max-height: 95vh;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+        }
+
+        h1 { 
+            font-size: 18px; margin: 0 0 20px 0; 
+            color: #00f3ff; 
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+            font-weight: 700; letter-spacing: 1px; text-transform: uppercase; 
+            border-bottom: 1px solid rgba(0, 243, 255, 0.3); padding-bottom: 10px; 
+        }
+        
+        .control-group { margin-bottom: 20px; }
+        .control-label { font-size: 11px; color: #888; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; display: block; letter-spacing: 0.5px;}
+        
+        select {
+            width: 100%;
+            background: rgba(0,0,0,0.4);
+            color: #fff;
+            border: 1px solid #333;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        select:hover { border-color: #00f3ff; box-shadow: 0 0 8px rgba(0, 243, 255, 0.2); }
+
+        /* Dynamic Matrix HUD */
+        .matrix-hud {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #00ff9d;
+            text-align: right;
+            margin-bottom: 5px;
+        }
+        .matrix-cell { padding: 4px; background: rgba(0, 255, 157, 0.05); border-radius: 3px; }
+        
+        /* Determinant Display */
+        .det-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #ff00ff;
+            text-align: right;
+            margin-top: 5px;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(255, 0, 255, 0.5);
+        }
+
+        .tex-container {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #ddd;
+            min-height: 40px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 10px;
+            color: #666;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        input[type=range] {
+            width: 100%;
+            margin-bottom: 0;
+            cursor: pointer;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #333; border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #00f3ff; margin-top: -6px; box-shadow: 0 0 15px #00f3ff;
+        }
+
+        .status-box {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 15px;
+            border-left: 3px solid #00f3ff;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #ccc;
+            margin-top: 15px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        /* Legend Styling */
+        .legend { margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; }
+        .legend-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; color: #aaa; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; box-shadow: 0 0 8px currentColor; }
+        
+        .mode-spectral { border-left-color: #ffcc00; }
+        .mode-diag { border-left-color: #ff4444; }
+        .mode-svd { border-left-color: #00ff00; }
+        .mode-reduction { border-left-color: #ff00ff; }
+
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <h1>Lecture 5: Decomposition <span style="font-size:10px; vertical-align: super; color:#ff00ff;"></span></h1>
+        
+        <div class="control-group">
+            <span class="control-label">Decomposition Engine</span>
+            <select id="decompSelect">
+                <option value="spectral">Spectral (Symmetric Only)</option>
+                <option value="diagonalization">Diagonalization (General)</option>
+                <option value="svd">SVD (Singular Value Decomp)</option>
+                <option value="svd_reduction">SVD (Dim Reduction / PCA)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Visualization Mode</span>
+            <select id="modeSelect">
+                <option value="3d_particles">Volumetric Particle Cloud</option>
+                <option value="3d_sphere">Geometric Sphere</option>
+                <option value="2d_view">2D Plane Analysis</option>
+            </select>
+        </div>
+
+        <div class="tex-container" id="matrixTex">
+            \[ A = Q \Lambda Q^T \]
+        </div>
+
+        <!-- Real-time Matrix Values -->
+        <span class="control-label">Current Matrix \( M(t) \)</span>
+        <div class="matrix-hud" id="matrixHud">
+            <!-- 4x4 matrix cells generated by JS -->
+        </div>
+        <div class="det-display" id="detDisplay">det: 1.000</div>
+
+        <span class="control-label" style="margin-top:15px">Transformation Timeline</span>
+        <div class="step-indicator">
+            <span>Start</span>
+            <span>Step 1</span>
+            <span>Step 2</span>
+            <span>Step 3</span>
+        </div>
+        <input type="range" id="animSlider" min="0" max="3" step="0.005" value="0">
+
+        <div class="status-box mode-spectral" id="statusText">
+            Initializing System...
+        </div>
+        
+        <div class="legend">
+            <div class="legend-row">
+                <div class="dot" style="background: #ffcc00; color: #ffcc00;"></div>
+                <span><strong>Traveler (Yellow):</strong> Takes the decomposition path.</span>
+            </div>
+            <div class="legend-row">
+                <div class="dot" style="background: #00ff9d; color: #00ff9d;"></div>
+                <span><strong>Target (Green):</strong> The direct \(Av\) result.</span>
+            </div>
+            <div class="legend-row">
+                <div class="dot" style="background: #ffffff; color: #ffffff; border: 1px solid #888;"></div>
+                <span><strong>Volume Cube:</strong> Shows Determinant scaling.</span>
+            </div>
+            <div id="legend-extras"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- CONFIG & STATE ---
+        const config = {
+            colors: {
+                yellow: 0xffcc00,
+                green: 0x00ff9d,
+                blue: 0x00f3ff,
+                red: 0xff4444,
+                grid: 0x1a1a1a,
+                bg: 0x020202
+            },
+            particleCount: 5000
+        };
+
+        const state = {
+            decomp: 'spectral',
+            view: '3d_particles',
+            t: 0,
+            matSteps: {}, 
+            bases: {},
+            objects: []
+        };
+
+        // --- SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(config.colors.bg);
+        scene.fog = new THREE.FogExp2(config.colors.bg, 0.03); // Cinematic depth
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(8, 8, 12);
+        camera.lookAt(0,0,0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // Tone mapping for better bloom handling
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        container.appendChild(renderer.domElement);
+        
+        // POST PROCESSING (The Pro++++ part)
+        const renderScene = new RenderPass(scene, camera);
+        
+        // Resolution, Strength, Radius, Threshold
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.strength = 0.8;
+        bloomPass.radius = 0.5;
+        bloomPass.threshold = 0.1; // Only bright things bloom
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lighting
+        const ambient = new THREE.AmbientLight(0xffffff, 0.1); // Dim ambient for contrast
+        scene.add(ambient);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        // Rim light for cool 3D effect
+        const rimLight = new THREE.DirectionalLight(config.colors.blue, 2.0);
+        rimLight.position.set(-5, 5, -10);
+        scene.add(rimLight);
+
+        // --- GROUPS ---
+        const ghostRoot = new THREE.Group(); scene.add(ghostRoot);
+        const animRoot = new THREE.Group(); scene.add(animRoot);
+        const staticRoot = new THREE.Group(); scene.add(staticRoot);
+
+        // --- MATH ENGINE ---
+        function setupDecomposition(type) {
+            state.matSteps = {};
+            state.bases = {};
+            
+            const texEl = document.getElementById('matrixTex');
+            const statusEl = document.getElementById('statusText');
+            
+            if (type === 'spectral') {
+                texEl.innerHTML = '\\[ A = Q \\Lambda Q^T \\]';
+                statusEl.className = 'status-box mode-spectral';
+                
+                // Q: Rot Y 45, Z 22.5 (Complex 3D Rotation)
+                const rotY = new THREE.Matrix4().makeRotationY(Math.PI / 4);
+                const rotZ = new THREE.Matrix4().makeRotationZ(Math.PI / 8);
+                const Q = new THREE.Matrix4().multiplyMatrices(rotY, rotZ);
+                const QT = Q.clone().transpose();
+                const L = new THREE.Matrix4().makeScale(2.0, 0.5, 1.2);
+                
+                state.matSteps = { step1: QT, step2: L, step3: Q, type: 'orthogonal' };
+                state.bases = { input: Q, output: Q };
+
+            } else if (type === 'diagonalization') {
+                texEl.innerHTML = '\\[ A = P D P^{-1} \\]';
+                statusEl.className = 'status-box mode-diag';
+
+                // P: Sheared Basis
+                const P = new THREE.Matrix4().set(
+                    1, 0.5, 0, 0,
+                    0, 1, 0, 0,
+                    0.2, 0, 1, 0,
+                    0, 0, 0, 1
+                );
+                const Pinv = P.clone().invert();
+                const D = new THREE.Matrix4().makeScale(1.5, 0.5, 1.0);
+                
+                state.matSteps = { step1: Pinv, step2: D, step3: P, type: 'general' };
+                state.bases = { input: P, output: P };
+
+            } else if (type === 'svd') {
+                texEl.innerHTML = '\\[ A = U \\Sigma V^T \\]';
+                statusEl.className = 'status-box mode-svd';
+
+                const V = new THREE.Matrix4().makeRotationZ(-Math.PI / 4);
+                const VT = V.clone().transpose();
+                const S = new THREE.Matrix4().makeScale(2.0, 0.5, 1.5);
+                const U = new THREE.Matrix4().makeRotationY(Math.PI / 2);
+                
+                state.matSteps = { step1: VT, step2: S, step3: U, type: 'orthogonal' };
+                state.bases = { input: V, output: U };
+
+            } else if (type === 'svd_reduction') {
+                texEl.innerHTML = '\\[ A_k = U \\Sigma_k V^T \\]';
+                statusEl.className = 'status-box mode-reduction';
+
+                const V = new THREE.Matrix4().makeRotationX(Math.PI / 6); 
+                const VT = V.clone().transpose();
+                // SIGMA: Z scale is ZERO (Reduction)
+                const S = new THREE.Matrix4().makeScale(2.5, 1.5, 0.001); 
+                
+                const rotY = new THREE.Matrix4().makeRotationY(Math.PI / 4);
+                const rotZ = new THREE.Matrix4().makeRotationZ(Math.PI / 8);
+                const U = new THREE.Matrix4().multiplyMatrices(rotY, rotZ);
+                
+                state.matSteps = { step1: VT, step2: S, step3: U, type: 'orthogonal' };
+                state.bases = { input: V, output: U };
+            }
+
+            if(window.MathJax) MathJax.typesetPromise();
+        }
+
+        // --- INTERPOLATION CORE ---
+        // Returns the matrix M at time t
+        function getMatrixAtT(t) {
+            const { step1, step2, step3, type } = state.matSteps;
+            const mat = new THREE.Matrix4();
+            const I = new THREE.Matrix4();
+
+            // Slerp for Rotation, Lerp for General
+            const interpolate = (m1, m2, alpha, isOrtho) => {
+                if(isOrtho) {
+                    const q1 = new THREE.Quaternion().setFromRotationMatrix(m1);
+                    const q2 = new THREE.Quaternion().setFromRotationMatrix(m2);
+                    q1.slerp(q2, alpha);
+                    const res = new THREE.Matrix4().makeRotationFromQuaternion(q1);
+                    return res;
+                } else {
+                    const res = new THREE.Matrix4();
+                    for(let i=0; i<16; i++) res.elements[i] = THREE.MathUtils.lerp(m1.elements[i], m2.elements[i], alpha);
+                    return res;
+                }
+            };
+
+            let msg = "";
+
+            if (t <= 1) {
+                const mStep = interpolate(I, step1, t, type === 'orthogonal');
+                mat.copy(mStep);
+                msg = state.decomp === 'diagonalization' ? 
+                    "<strong>Step 1: Basis Change</strong><br>Shearing to Eigenvector Basis." : 
+                    "<strong>Step 1: Alignment</strong><br>Rotating to Input Basis.";
+            } else if (t <= 2) {
+                const t2 = t - 1;
+                // Scale matrix interpolation
+                const mScale = interpolate(I, step2, t2, false);
+                mat.multiplyMatrices(mScale, step1);
+                
+                if (state.decomp === 'svd_reduction') msg = "<strong>Step 2: Dimensionality Reduction</strong><br>Z-Axis collapses to zero (Noise Removal).";
+                else msg = "<strong>Step 2: Scaling</strong><br>Stretching along principal axes.";
+            } else {
+                const t3 = t - 2;
+                const base = new THREE.Matrix4().multiplyMatrices(step2, step1);
+                const mFinal = interpolate(I, step3, t3, type === 'orthogonal');
+                mat.multiplyMatrices(mFinal, base);
+                
+                msg = state.decomp === 'svd' || state.decomp === 'svd_reduction' ? 
+                    "<strong>Step 3: Output Rotation</strong><br>Aligning to Output Basis (U)." : 
+                    "<strong>Step 3: Restoration</strong><br>Returning to original coordinates.";
+            }
+            return { mat, msg };
+        }
+
+        // --- VISUALIZATION BUILDER ---
+        function buildScene() {
+            // Cleanup
+            [ghostRoot, animRoot, staticRoot].forEach(g => {
+                while(g.children.length) {
+                    const o = g.children[0];
+                    if(o.geometry) o.geometry.dispose();
+                    if(o.material) o.material.dispose();
+                    g.remove(o);
+                }
+            });
+            state.objects = [];
+
+            // 1. Static World Grid
+            const grid = new THREE.GridHelper(30, 30, config.colors.grid, 0x111111);
+            grid.rotation.x = -Math.PI/2; // XY Plane
+            staticRoot.add(grid);
+            staticRoot.add(new THREE.AxesHelper(1.5));
+
+            // 2. Objects based on Mode
+            if (state.view === '3d_particles') {
+                // PARTICLE CLOUD
+                const count = config.particleCount;
+                const geom = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                const colors = new Float32Array(count * 3);
+                const orig = new Float32Array(count * 3);
+
+                for(let i=0; i<count; i++) {
+                    // Random sphere distribution
+                    const r = Math.cbrt(Math.random()) * 2.5; 
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    
+                    const x = r * Math.sin(phi) * Math.cos(theta);
+                    const y = r * Math.sin(phi) * Math.sin(theta);
+                    const z = r * Math.cos(phi);
+
+                    pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+                    orig[i*3] = x; orig[i*3+1] = y; orig[i*3+2] = z;
+
+                    // Color by position (Gradient)
+                    colors[i*3] = (x/2.5 + 1)/2 * 0.2; // Dimmer base
+                    colors[i*3+1] = (y/2.5 + 1)/2 * 0.8; // Cyan/Greenish
+                    colors[i*3+2] = (z/2.5 + 1)/2 * 1.0;
+                }
+                
+                geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geom.userData = { origPos: orig }; 
+
+                // Points Material with vertex colors
+                const mat = new THREE.PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+                const cloud = new THREE.Points(geom, mat);
+                animRoot.add(cloud);
+                state.objects.push({ type: 'cloud', mesh: cloud });
+
+                // UNIT CUBE (Volume Visualizer)
+                const boxGeo = new THREE.BoxGeometry(2, 2, 2);
+                const edges = new THREE.EdgesGeometry(boxGeo);
+                const boxMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+                const box = new THREE.LineSegments(edges, boxMat);
+                // Box vertices for transformation
+                // We'll create a mesh representation for transformation logic
+                const boxMesh = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ visible: false })); // Invisible helper
+                box.userData.helper = boxMesh;
+                
+                animRoot.add(box);
+                state.objects.push({ type: 'box', mesh: box, helper: boxMesh });
+
+            } else if (state.view === '3d_sphere') {
+                const geom = new THREE.IcosahedronGeometry(2, 4); // Higher res
+                const mat = new THREE.MeshBasicMaterial({ 
+                    color: config.colors.blue, 
+                    wireframe: true, 
+                    transparent: true, 
+                    opacity: 0.1,
+                    blending: THREE.AdditiveBlending
+                });
+                const sphere = new THREE.Mesh(geom, mat);
+                
+                const innerMat = new THREE.MeshBasicMaterial({ color: config.colors.blue, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending });
+                const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(1.9, 2), innerMat);
+                sphere.add(inner);
+                
+                animRoot.add(sphere);
+                state.objects.push({ type: 'mesh', mesh: sphere });
+            } else {
+                // 2D Plane Grid
+                const lGroup = new THREE.Group();
+                const mat = new THREE.LineBasicMaterial({ color: config.colors.blue, transparent: true, opacity: 0.5 });
+                const size = 6;
+                
+                for(let i=-size; i<=size; i++) {
+                    const geoH = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-size, i, 0), new THREE.Vector3(size, i, 0)]);
+                    const lineH = new THREE.Line(geoH, mat);
+                    lineH.userData.p0 = new THREE.Vector3(-size, i, 0);
+                    lineH.userData.p1 = new THREE.Vector3(size, i, 0);
+                    
+                    const geoV = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i, -size, 0), new THREE.Vector3(i, size, 0)]);
+                    const lineV = new THREE.Line(geoV, mat);
+                    lineV.userData.p0 = new THREE.Vector3(i, -size, 0);
+                    lineV.userData.p1 = new THREE.Vector3(i, size, 0);
+                    
+                    lGroup.add(lineH); lGroup.add(lineV);
+                    state.objects.push({ type: 'line', mesh: lineH });
+                    state.objects.push({ type: 'line', mesh: lineV });
+                }
+                animRoot.add(lGroup);
+                camera.position.set(0, 0, 15); // Adjust camera for 2D
+            }
+
+            // 3. VECTORS & TRAJECTORIES
+            setupVectors();
+        }
+
+        function setupVectors() {
+            const basisIn = state.bases.input;
+            
+            const vectors = [
+                new THREE.Vector3(1,0,0).applyMatrix4(basisIn),
+                new THREE.Vector3(0,1,0).applyMatrix4(basisIn),
+                new THREE.Vector3(0,0,1).applyMatrix4(basisIn)
+            ];
+
+            const colors = [config.colors.yellow, config.colors.yellow, config.colors.yellow];
+
+            vectors.forEach((v, i) => {
+                // 1. The Traveler (Yellow Arrow) - EMISSIVE COLOR for Bloom
+                const arrow = new THREE.ArrowHelper(v.normalize(), new THREE.Vector3(0,0,0), 3.5, colors[i]);
+                // Hack to make arrow emmisive: replace materials
+                const lineMat = new THREE.LineBasicMaterial({ color: colors[i], toneMapped: false }); // toneMapped:false for GLOW
+                const coneMat = new THREE.MeshBasicMaterial({ color: colors[i], toneMapped: false });
+                arrow.line.material = lineMat;
+                arrow.cone.material = coneMat;
+                
+                animRoot.add(arrow);
+                state.objects.push({ type: 'arrow', mesh: arrow, startVec: v.clone() });
+
+                // 2. Trajectory Path
+                const pathPoints = [];
+                const samples = 50;
+                for(let s=0; s<=samples; s++) {
+                    const time = (s / samples) * 3.0; 
+                    const { mat } = getMatrixAtT(time);
+                    const pos = v.clone().applyMatrix4(mat);
+                    pathPoints.push(pos);
+                }
+                const pathGeo = new THREE.BufferGeometry().setFromPoints(pathPoints);
+                const pathMat = new THREE.LineBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.3 });
+                const path = new THREE.Line(pathGeo, pathMat);
+                staticRoot.add(path);
+
+                // 3. The Target (Green Shadow)
+                const { mat: finalMat } = getMatrixAtT(3.0);
+                const finalPos = v.clone().applyMatrix4(finalMat);
+                
+                if (finalPos.length() > 0.01) {
+                    const targetArrow = new THREE.ArrowHelper(finalPos.clone().normalize(), new THREE.Vector3(0,0,0), finalPos.length(), config.colors.green);
+                    // Glowing Green
+                    targetArrow.line.material = new THREE.LineBasicMaterial({ color: config.colors.green, transparent:true, opacity:0.4, toneMapped:false });
+                    targetArrow.cone.material = new THREE.MeshBasicMaterial({ color: config.colors.green, transparent:true, opacity:0.4, toneMapped:false });
+                    ghostRoot.add(targetArrow);
+                }
+            });
+
+            // 4. Ghost Lines
+            if (state.decomp === 'svd' || state.decomp === 'svd_reduction') {
+                const basisOut = state.bases.output;
+                const axisColors = [config.colors.blue, config.colors.blue, config.colors.blue];
+                
+                [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)].forEach((axis, i) => {
+                    const dir = axis.applyMatrix4(basisOut).normalize();
+                    const pts = [dir.clone().multiplyScalar(-10), dir.clone().multiplyScalar(10)];
+                    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                    const mat = new THREE.LineDashedMaterial({ color: axisColors[i], dashSize: 0.3, gapSize: 0.2, opacity: 0.6, transparent: true });
+                    const line = new THREE.Line(geo, mat);
+                    line.computeLineDistances();
+                    ghostRoot.add(line);
+                });
+                
+                document.getElementById('legend-extras').innerHTML = `<div class="legend-row"><div class="dashed-line" style="border-color:#00f3ff"></div><span>Output Basis (U) - Blue</span></div>`;
+            } else {
+                vectors.forEach(v => {
+                    const dir = v.clone().normalize();
+                    const pts = [dir.clone().multiplyScalar(-10), dir.clone().multiplyScalar(10)];
+                    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                    const mat = new THREE.LineDashedMaterial({ color: 0x666666, dashSize: 0.3, gapSize: 0.2 });
+                    const line = new THREE.Line(geo, mat);
+                    line.computeLineDistances();
+                    ghostRoot.add(line);
+                });
+                document.getElementById('legend-extras').innerHTML = `<div class="legend-row"><div class="dashed-line" style="border-color:#666"></div><span>Eigenlines (Invariant)</span></div>`;
+            }
+        }
+
+        // --- HUD UPDATE ---
+        function updateHUD(mat) {
+            const hud = document.getElementById('matrixHud');
+            hud.innerHTML = '';
+            const els = mat.elements; 
+            
+            const indices = [0, 4, 8, 12,  1, 5, 9, 13,  2, 6, 10, 14,  3, 7, 11, 15];
+            
+            indices.forEach(idx => {
+                const val = els[idx];
+                const div = document.createElement('div');
+                div.className = 'matrix-cell';
+                div.textContent = val.toFixed(2);
+                if (Math.abs(val) > 0.01) div.style.color = '#fff';
+                hud.appendChild(div);
+            });
+
+            // Update Determinant Display
+            const det = mat.determinant();
+            const detEl = document.getElementById('detDisplay');
+            detEl.textContent = `det: ${det.toFixed(3)}`;
+            // Color code determinant: 0 = Red/Magenta (Singular), Negative = Orange, Positive = Green/Blue
+            if(Math.abs(det) < 0.001) detEl.style.color = "#ff00ff";
+            else if(det < 0) detEl.style.color = "#ffaa00";
+            else detEl.style.color = "#00f3ff";
+        }
+
+        // --- ANIMATION LOOP ---
+        function updateSystem() {
+            const t = parseFloat(document.getElementById('animSlider').value);
+            const { mat, msg } = getMatrixAtT(t);
+            
+            // Text Update
+            document.getElementById('statusText').innerHTML = msg;
+            updateHUD(mat);
+
+            // Object Update
+            state.objects.forEach(item => {
+                if (item.type === 'cloud') {
+                    // Update particles on CPU
+                    const mesh = item.mesh;
+                    const pos = mesh.geometry.attributes.position.array;
+                    const orig = mesh.geometry.userData.origPos;
+                    const count = config.particleCount;
+                    
+                    const v = new THREE.Vector3();
+                    
+                    for(let i=0; i<count; i++) {
+                        v.set(orig[i*3], orig[i*3+1], orig[i*3+2]);
+                        v.applyMatrix4(mat);
+                        pos[i*3] = v.x;
+                        pos[i*3+1] = v.y;
+                        pos[i*3+2] = v.z;
+                    }
+                    mesh.geometry.attributes.position.needsUpdate = true;
+                } 
+                else if (item.type === 'box') {
+                    // Transform the 8 corners of the box helper
+                    // Actually simpler to apply matrix to the helper mesh, then update LineSegments
+                    const mesh = item.helper;
+                    // Reset to identity scaling first?
+                    // We need a pristine Unit Cube geometry to transform.
+                    // Let's manually transform the LineSegments geometry vertices.
+                    // Box geometry vertices are shared, indexed. LineSegments from EdgesGeometry is different.
+                    
+                    // Simplest approach: Use matrixAutoUpdate = false on the box object itself.
+                    item.mesh.matrixAutoUpdate = false;
+                    item.mesh.matrix.copy(mat);
+                }
+                else if (item.type === 'mesh') { // Sphere
+                    item.mesh.matrixAutoUpdate = false;
+                    item.mesh.matrix.copy(mat);
+                }
+                else if (item.type === 'arrow') {
+                    const start = item.startVec;
+                    const current = start.clone().applyMatrix4(mat);
+                    const len = current.length();
+                    if(len < 0.001) item.mesh.visible = false;
+                    else {
+                        item.mesh.visible = true;
+                        item.mesh.setDirection(current.normalize());
+                        item.mesh.setLength(len);
+                    }
+                }
+                else if (item.type === 'line') { // 2D Grid lines
+                    const mesh = item.mesh;
+                    const p0 = mesh.userData.p0.clone().applyMatrix4(mat);
+                    const p1 = mesh.userData.p1.clone().applyMatrix4(mat);
+                    const pos = mesh.geometry.attributes.position;
+                    pos.setXYZ(0, p0.x, p0.y, p0.z);
+                    pos.setXYZ(1, p1.x, p1.y, p1.z);
+                    pos.needsUpdate = true;
+                }
+            });
+        }
+
+        // --- HANDLERS ---
+        const refresh = () => {
+            state.decomp = document.getElementById('decompSelect').value;
+            state.view = document.getElementById('modeSelect').value;
+            document.getElementById('animSlider').value = 0;
+            
+            setupDecomposition(state.decomp);
+            buildScene();
+            updateSystem();
+        };
+
+        document.getElementById('decompSelect').addEventListener('change', refresh);
+        document.getElementById('modeSelect').addEventListener('change', refresh);
+        document.getElementById('animSlider').addEventListener('input', updateSystem);
+
+        // Init
+        refresh();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            // Use Composer instead of Renderer
+            composer.render();
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFML Lecture 9 </title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --panel: rgba(15, 23, 42, 0.70);
+            --border: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #22d3ee;
+            --accent-amber: #fbbf24;
+            --accent-rose: #fb7185;
+            --accent-purple: #c084fc;
+            --accent-emerald: #34d399;
+        }
+        
+        body { font-family: 'Inter', sans-serif; background: var(--bg-dark); color: #e2e8f0; overflow: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Glass UI */
+        .glass {
+            background: var(--panel);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Custom Inputs */
+        input[type="range"] {
+            -webkit-appearance: none; background: transparent; width: 100%; cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; 
+            background: var(--accent-cyan); border-radius: 50%; margin-top: -5px;
+            box-shadow: 0 0 15px var(--accent-cyan);
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #334155; border-radius: 2px;
+        }
+
+        /* Nav Styling */
+        .nav-item { 
+            position: relative; overflow: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 2px solid transparent;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); }
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.1), transparent);
+            border-left: 2px solid var(--accent-cyan);
+            color: white;
+        }
+        
+        /* Effects */
+        .glow-text { text-shadow: 0 0 30px rgba(34, 211, 238, 0.3); }
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            transition: all 0.3s ease;
+            position: relative; overflow: hidden;
+        }
+        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(6,182,212,0.25); }
+        .btn-primary:active { transform: translateY(0px); }
+        .btn-primary:disabled { filter: grayscale(1); cursor: not-allowed; transform: none; }
+        
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="flex h-screen w-screen selection:bg-cyan-500 selection:text-black">
+
+    <nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+        <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+            <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+                <i class="fa-solid fa-chart-simple text-cyan-400"></i>
+                MFML <span class="text-amber-500">Lecture 9</span>
+            </h1>
+            <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Saurabh</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto py-4 space-y-1">
+            <button onclick="App.load('landscape')" id="nav-landscape" class="nav-item w-full text-left px-6 py-4 group">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm group-hover:text-cyan-400 transition-colors">1. Gradient Descent</span>
+                    <i class="fa-solid fa-mountain text-slate-600 group-hover:text-cyan-400 text-xs"></i>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Topology & Convergence</div>
+            </button>
+
+            <button onclick="App.load('regression')" id="nav-regression" class="nav-item w-full text-left px-6 py-4 group">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. Visual Regression</span>
+                    <i class="fa-solid fa-chart-line text-slate-600 group-hover:text-amber-400 text-xs"></i>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Momentum & Exact Fit</div>
+            </button>
+
+            <button onclick="App.load('sgd')" id="nav-sgd" class="nav-item w-full text-left px-6 py-4 group">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm group-hover:text-purple-400 transition-colors">3. Batch vs. SGD</span>
+                    <i class="fa-solid fa-shuffle text-slate-600 group-hover:text-purple-400 text-xs"></i>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Noise & Mini-Batch</div>
+            </button>
+
+            <button onclick="App.load('linesearch')" id="nav-linesearch" class="nav-item w-full text-left px-6 py-4 group">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm group-hover:text-emerald-400 transition-colors">4. Line Search</span>
+                    <i class="fa-solid fa-magnifying-glass-chart text-slate-600 group-hover:text-emerald-400 text-xs"></i>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Golden Section Method</div>
+            </button>
+        </div>
+
+        <div id="controls" class="p-6 bg-black/40 border-t border-white/5 backdrop-blur-sm min-h-[180px]">
+            </div>
+    </nav>
+
+    <main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+        
+        <div id="viz" class="w-full h-full opacity-0 transition-opacity duration-700"></div>
+
+        <div class="absolute top-8 left-8 pointer-events-none z-10">
+            <h2 id="hud-title" class="text-5xl font-black text-white tracking-tighter glow-text drop-shadow-2xl">INIT</h2>
+            <div id="hud-desc" class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md w-fit">
+                <div class="h-2 w-2 rounded-full bg-cyan-500 animate-pulse"></div>
+                <span class="text-xs font-mono text-cyan-200 tracking-wider">LOADING MODULE</span>
+            </div>
+        </div>
+
+        <div id="stats-panel" class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[260px] hidden transition-all duration-300 transform translate-y-2 opacity-0 z-10 border-l-4 border-cyan-500">
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-wave-square text-cyan-400 text-xs"></i>
+                    <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+                </div>
+                <div id="live-indicator" class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+            </div>
+            <div class="space-y-3 font-mono text-xs">
+                <div class="flex justify-between items-end group">
+                    <span class="text-slate-500 group-hover:text-slate-300 transition-colors">Loss Function (J)</span>
+                    <span id="stat-loss" class="text-amber-400 font-bold text-base transition-all">0.00</span>
+                </div>
+                <div class="flex justify-between items-end group">
+                    <span class="text-slate-500 group-hover:text-slate-300 transition-colors">Gradient (∇)</span>
+                    <span id="stat-grad" class="text-cyan-400 font-bold text-base transition-all">0.00</span>
+                </div>
+                <div id="stat-extra-container" class="pt-2 mt-2 border-t border-white/5">
+                    <div id="stat-extra" class="text-[10px] text-slate-400 italic text-right"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script>
+/* --- CORE ENGINE --- */
+const App = {
+    currentModule: null,
+    animationFrame: null,
+    
+    // Global Plotly Layout
+    baseLayout: {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Inter, sans-serif', color: '#94a3b8' },
+        margin: { t: 0, b: 0, l: 0, r: 0 },
+        showlegend: false,
+        hoverlabel: { bgcolor: '#0f172a', font: {color: 'white'}, bordercolor: '#334155' },
+        scene: {
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            zaxis: { title: 'Loss', showgrid: true, gridcolor: 'rgba(255,255,255,0.05)', tickfont:{size:10} },
+            camera: { eye: {x: 1.5, y: 1.5, z: 1.2} },
+            aspectmode: 'cube'
+        }
+    },
+
+    load: (moduleId) => {
+        if(App.animationFrame) cancelAnimationFrame(App.animationFrame);
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(`nav-${moduleId}`).classList.add('active');
+        const stats = document.getElementById('stats-panel');
+        stats.classList.remove('hidden');
+        void stats.offsetWidth; // Force Reflow
+        stats.classList.remove('opacity-0', 'translate-y-2');
+        
+        const viz = document.getElementById('viz');
+        viz.classList.remove('opacity-0');
+
+        App.currentModule = moduleId;
+
+        if(moduleId === 'landscape') Landscape.init();
+        if(moduleId === 'regression') Regression.init();
+        if(moduleId === 'sgd') SGD.init();
+        if(moduleId === 'linesearch') LineSearch.init();
+    }
+};
+
+/* --- MODULE 1: LANDSCAPE --- */
+const Landscape = {
+    state: { x: 4, y: 4, pathX: [], pathY: [], pathZ: [], running: false },
+    func: (x, y) => (x*x)/10 + (y*y)/10 - Math.cos(x)*Math.cos(y) + 0.5,
+    grad: (x, y) => ({ dx: x/5 + Math.sin(x)*Math.cos(y), dy: y/5 + Math.cos(x)*Math.sin(y) }),
+
+    init: () => {
+        document.getElementById('hud-title').innerHTML = `GRADIENT <span class="text-cyan-400">DESCENT</span>`;
+        document.getElementById('hud-desc').innerHTML = `<span class="text-slate-300">Visualize the ball rolling down the topology.</span>`;
+        
+        document.getElementById('controls').innerHTML = `
+            <div class="space-y-6 fade-in">
+                <div>
+                    <label class="text-[10px] font-bold text-cyan-400 tracking-wider mb-2 block uppercase">Start X</label>
+                    <input type="range" min="-6" max="6" step="0.1" value="4" oninput="Landscape.manualMove(this.value, null)">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>-6</span><span id="disp-x" class="text-white">4.0</span><span>+6</span></div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-cyan-400 tracking-wider mb-2 block uppercase">Start Y</label>
+                    <input type="range" min="-6" max="6" step="0.1" value="4" oninput="Landscape.manualMove(null, this.value)">
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>-6</span><span id="disp-y" class="text-white">4.0</span><span>+6</span></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="Landscape.stepOnce()" class="border border-white/20 hover:bg-white/10 text-white font-bold py-3 rounded-lg text-xs transition">STEP ▶</button>
+                    <button onclick="Landscape.toggleRun()" id="btn-run" class="btn-primary text-white font-bold py-3 rounded-lg text-xs shadow-lg shadow-cyan-500/20">AUTO RUN</button>
+                </div>
+                <button onclick="Landscape.reset()" class="w-full text-xs text-slate-500 hover:text-white transition py-2">Reset Position</button>
+            </div>
+        `;
+        // Surface Gen
+        const size = 6.5, step = 0.25;
+        let x=[], y=[], z=[];
+        for(let i=-size; i<=size; i+=step) {
+            let rowX=[], rowY=[], rowZ=[];
+            for(let j=-size; j<=size; j+=step) {
+                rowX.push(i); rowY.push(j); rowZ.push(Landscape.func(i,j));
+            }
+            x.push(rowX); y.push(rowY); z.push(rowZ);
+        }
+
+        const data = [{
+            type: 'surface', x:x, y:y, z:z,
+            colorscale: 'Viridis', showscale: false, opacity: 0.9,
+            contours: { z: { show:true, usecolormap:true, highlightcolor:"white", project:{z:true} } },
+            lighting: { ambient: 0.6, diffuse: 0.8, roughness: 0.1, specular: 0.2 }
+        }];
+
+        Plotly.newPlot('viz', data, App.baseLayout).then(() => Landscape.updatePlot());
+    },
+
+    manualMove: (nx, ny) => {
+        if(Landscape.state.running) return;
+        if(nx !== null) Landscape.state.x = parseFloat(nx);
+        if(ny !== null) Landscape.state.y = parseFloat(ny);
+        document.getElementById('disp-x').innerText = Landscape.state.x.toFixed(1);
+        document.getElementById('disp-y').innerText = Landscape.state.y.toFixed(1);
+        Landscape.state.pathX = [Landscape.state.x];
+        Landscape.state.pathY = [Landscape.state.y];
+        Landscape.state.pathZ = [Landscape.func(Landscape.state.x, Landscape.state.y)];
+        Landscape.updatePlot();
+    },
+
+    stepOnce: () => {
+        if(Landscape.state.running) Landscape.toggleRun();
+        Landscape.updateLogic();
+    },
+
+    toggleRun: () => {
+        Landscape.state.running = !Landscape.state.running;
+        const btn = document.getElementById('btn-run');
+        if(Landscape.state.running) {
+            btn.innerHTML = '<i class="fa-solid fa-pause mr-1"></i> PAUSE';
+            App.animationFrame = requestAnimationFrame(Landscape.loop);
+        } else {
+            btn.innerHTML = 'AUTO RUN';
+            cancelAnimationFrame(App.animationFrame);
+        }
+    },
+
+    updateLogic: () => {
+        const lr = 0.05;
+        const g = Landscape.grad(Landscape.state.x, Landscape.state.y);
+        Landscape.state.x -= lr * g.dx;
+        Landscape.state.y -= lr * g.dy;
+        const z = Landscape.func(Landscape.state.x, Landscape.state.y);
+        Landscape.state.pathX.push(Landscape.state.x);
+        Landscape.state.pathY.push(Landscape.state.y);
+        Landscape.state.pathZ.push(z);
+        Landscape.updatePlot();
+
+        if(Math.sqrt(g.dx**2 + g.dy**2) < 0.01) {
+            Landscape.state.running = false;
+            document.getElementById('btn-run').innerText = "CONVERGED";
+            cancelAnimationFrame(App.animationFrame);
+        }
+    },
+
+    loop: () => {
+        if(!Landscape.state.running) return;
+        Landscape.updateLogic();
+        App.animationFrame = requestAnimationFrame(Landscape.loop);
+    },
+
+    updatePlot: () => {
+        const {x, y} = Landscape.state;
+        const z = Landscape.func(x, y);
+        const g = Landscape.grad(x, y);
+        document.getElementById('stat-loss').innerText = z.toFixed(4);
+        document.getElementById('stat-grad').innerText = Math.sqrt(g.dx**2 + g.dy**2).toFixed(4);
+        document.getElementById('stat-extra').innerText = `Pos: (${x.toFixed(2)}, ${y.toFixed(2)})`;
+        
+        const scale = 0.8, dz = (g.dx**2 + g.dy**2);
+        Plotly.react('viz', [
+            document.getElementById('viz').data[0],
+            { type: 'scatter3d', mode: 'lines', x: Landscape.state.pathX, y: Landscape.state.pathY, z: Landscape.state.pathZ, line: { color: 'white', width: 4 } },
+            { type: 'scatter3d', mode: 'lines', x: [x, x + g.dx*scale], y: [y, y + g.dy*scale], z: [z, z + dz*scale], line: { color: '#f43f5e', width: 8 } },
+            { type: 'scatter3d', mode: 'markers', x: [x], y: [y], z: [z], marker: { color: '#06b6d4', size: 6, line: {color:'white', width:2} } }
+        ], App.baseLayout);
+    },
+    reset: () => Landscape.init()
+};
+
+/* --- MODULE 2: REGRESSION BOWL (FIXED) --- */
+const Regression = {
+    dataX: [], dataY: [], w: 0, b: 0,
+    historyW: [], historyB: [], historyL: [],
+    
+    generateData: () => {
+        Regression.dataX = []; Regression.dataY = [];
+        for(let i=0; i<15; i++) {
+            const x = (i/14) * 5;
+            const noise = (Math.random() - 0.5) * 4; 
+            const y = 2.5*x + 2 + noise;
+            Regression.dataX.push(x);
+            Regression.dataY.push(y);
+        }
+        // Initialization: Far enough away to see the slide
+        Regression.w = -1 + Math.random(); 
+        Regression.b = 8 + Math.random()*4; 
+        
+        Regression.historyW = [Regression.w];
+        Regression.historyB = [Regression.b];
+        Regression.historyL = [Regression.calcLoss(Regression.w, Regression.b)];
+    },
+
+    calcLoss: (w, b) => {
+        let err = 0;
+        for(let i=0; i<Regression.dataX.length; i++) err += (w*Regression.dataX[i] + b - Regression.dataY[i])**2;
+        return err / Regression.dataX.length;
+    },
+
+    init: () => {
+        Regression.generateData();
+
+        document.getElementById('hud-title').innerHTML = `REGRESSION <span class="text-amber-500">BOWL</span>`;
+        document.getElementById('hud-desc').innerHTML = `Finding the best fit line.`;
+
+        document.getElementById('controls').innerHTML = `
+            <div class="space-y-4 fade-in">
+                <p class="text-xs text-slate-400 leading-relaxed border-l-2 border-amber-500 pl-3">
+                    Minimizing the sum of squared red lines (Residuals).
+                    <br><span class="text-amber-400">Status:</span> Momentum-accelerated Gradient Descent.
+                </p>
+                <button onclick="Regression.optimize()" id="btn-reg-fit" class="w-full btn-primary bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-3 rounded-lg text-xs">AUTO FIT DATA</button>
+                <button onclick="Regression.reset()" class="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-2 rounded text-xs">NEW RANDOM DATA</button>
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono text-center pt-2">
+                    <div class="bg-white/5 p-2 rounded border border-white/5">Slope (w)<br><span id="reg-w" class="text-amber-400 text-lg">0.0</span></div>
+                    <div class="bg-white/5 p-2 rounded border border-white/5">Intercept (b)<br><span id="reg-b" class="text-amber-400 text-lg">0.0</span></div>
+                </div>
+            </div>`;
+        
+        Regression.draw();
+    },
+
+    draw: () => {
+        // Pre-calculate surface around the current point approx
+        let W=[], B=[], Z=[];
+        for(let w=-4; w<=8; w+=0.5) {
+            let rW=[], rB=[], rZ=[];
+            for(let b=-4; b<=16; b+=0.8) { 
+                rW.push(w); rB.push(b); rZ.push(Regression.calcLoss(w,b)); 
+            }
+            W.push(rW); B.push(rB); Z.push(rZ);
+        }
+
+        const residualsX = [];
+        const residualsY = [];
+        const currentY = Regression.dataX.map(x => Regression.w * x + Regression.b);
+        
+        for(let i=0; i<Regression.dataX.length; i++) {
+            residualsX.push(Regression.dataX[i], Regression.dataX[i], null);
+            residualsY.push(Regression.dataY[i], currentY[i], null);
+        }
+
+        const layout = { 
+            ...App.baseLayout, 
+            grid: {rows: 1, columns: 2, pattern: 'independent'}, 
+            scene: { domain: {row: 0, column: 1}, zaxis: {title:'Loss'}, camera:{eye:{x:1.2, y:1.2, z:0.6}} }, 
+            xaxis: { domain: [0, 0.45], title: 'X', color:'white', showgrid: false }, 
+            yaxis: { domain: [0, 1], title: 'Y', color:'white', showgrid: false } 
+        };
+        
+        Plotly.newPlot('viz', [
+            // 0: Data Points (2D)
+            { x: Regression.dataX, y: Regression.dataY, mode: 'markers', marker:{size:10, color:'#3b82f6'}, type:'scatter', xaxis:'x', yaxis:'y' },
+            // 1: Residual Lines (2D)
+            { x: residualsX, y: residualsY, mode: 'lines', line:{color:'#f43f5e', width:1}, type:'scatter', xaxis:'x', yaxis:'y', hoverinfo:'none' },
+            // 2: Model Line (2D)
+            { x: [0, 5], y: [Regression.b, Regression.w*5 + Regression.b], mode:'lines', line:{color:'white', width:3}, type:'scatter', xaxis:'x', yaxis:'y' },
+            // 3: Loss Surface (3D)
+            { type:'surface', x:W, y:B, z:Z, colorscale:'Magma', opacity:0.8, showscale:false, scene:'scene' },
+            // 4: Path History (3D)
+            { type:'scatter3d', mode:'lines', x:Regression.historyW, y:Regression.historyB, z:Regression.historyL, line:{color:'white', width:5}, scene:'scene' },
+            // 5: Current Ball (3D)
+            { type:'scatter3d', mode:'markers', x:[Regression.w], y:[Regression.b], z:[Regression.calcLoss(Regression.w, Regression.b)], marker:{color:'white', size:8, line:{color:'black', width:1}}, scene:'scene' }
+        ], layout);
+    },
+
+    optimize: () => {
+        let v_w = 0, v_b = 0; 
+        // Tuned for visual satisfaction:
+        const momentum = 0.85;  // Slightly less than 0.9 to reduce endless orbiting
+        const learning_rate = 0.015; 
+        const stepsPerFrame = 3; // Calculate 3 physics steps for every 1 draw (Speed up)
+        
+        const btn = document.getElementById('btn-reg-fit');
+        btn.disabled = true;
+        btn.innerText = "OPTIMIZING...";
+
+        const runLoop = () => {
+            if(App.currentModule !== 'regression') return;
+
+            let gradMag = 0;
+            let loss = 0;
+
+            // --- PHYSICS SUB-LOOP (Runs faster than FPS) ---
+            for(let k=0; k<stepsPerFrame; k++) {
+                let dw=0, db=0;
+                const N = Regression.dataX.length;
+                
+                // Gradient calc
+                for(let i=0; i<N; i++){ 
+                    let pred = Regression.w*Regression.dataX[i] + Regression.b;
+                    let err = pred - Regression.dataY[i]; 
+                    dw += err * Regression.dataX[i]; 
+                    db += err; 
+                }
+                dw = dw * (2/N);
+                db = db * (2/N);
+
+                // Momentum Update
+                v_w = momentum * v_w - learning_rate * dw;
+                v_b = momentum * v_b - learning_rate * db;
+                
+                Regression.w += v_w;
+                Regression.b += v_b;
+
+                gradMag = Math.sqrt(dw*dw + db*db);
+                loss = Regression.calcLoss(Regression.w, Regression.b);
+                
+                // Track History (Only push every step to avoid memory bloating too fast)
+                Regression.historyW.push(Regression.w);
+                Regression.historyB.push(Regression.b);
+                Regression.historyL.push(loss);
+            }
+
+            // --- VISUALIZATION (Runs once per frame) ---
+            document.getElementById('reg-w').innerText = Regression.w.toFixed(2); 
+            document.getElementById('reg-b').innerText = Regression.b.toFixed(2);
+            document.getElementById('stat-loss').innerText = loss.toFixed(3);
+            document.getElementById('stat-grad').innerText = gradMag.toFixed(3);
+
+            // Re-calculate visual elements
+            const residualsX = []; const residualsY = [];
+            const currentY = Regression.dataX.map(x => Regression.w * x + Regression.b);
+            for(let i=0; i<Regression.dataX.length; i++) {
+                residualsX.push(Regression.dataX[i], Regression.dataX[i], null);
+                residualsY.push(Regression.dataY[i], currentY[i], null);
+            }
+
+            // Efficiently update Plotly using react (replaces animate)
+            // We reference the existing traces by index
+            const viz = document.getElementById('viz');
+            
+            // Construct new data arrays for the specific traces we want to update
+            // Note: We must supply the FULL array of traces to React, or modify data in place
+            viz.data[1].x = residualsX;
+            viz.data[1].y = residualsY;
+            viz.data[2].y = [Regression.b, Regression.w*5+Regression.b];
+            viz.data[4].x = Regression.historyW;
+            viz.data[4].y = Regression.historyB;
+            viz.data[4].z = Regression.historyL;
+            viz.data[5].x = [Regression.w];
+            viz.data[5].y = [Regression.b];
+            viz.data[5].z = [loss];
+
+            Plotly.redraw('viz'); // Redraw is lighter than newPlot, react is safer but redraw is sufficient here for partial updates if data is mutated.
+            
+            // Loop condition
+            if(gradMag > 0.02) {
+                requestAnimationFrame(runLoop);
+            } else {
+                btn.disabled = false;
+                btn.innerText = "AUTO FIT DATA";
+                document.getElementById('stat-extra').innerText = `Converged`;
+            }
+        }; 
+        
+        requestAnimationFrame(runLoop);
+    },
+    reset: () => { Regression.init(); }
+};
+/* --- MODULE 3: SGD vs BATCH --- */
+const SGD = {
+    init: () => {
+        document.getElementById('hud-title').innerHTML = `SGD <span class="text-rose-500">CHAOS</span>`;
+        document.getElementById('hud-desc').innerHTML = `Speed vs Stability: The effect of batch size.`;
+        
+        document.getElementById('controls').innerHTML = `
+             <div class="space-y-4 fade-in">
+                <button onclick="SGD.run()" id="btn-sgd-run" class="w-full btn-primary bg-gradient-to-r from-rose-500 to-purple-600 text-white font-bold py-3 rounded-lg text-xs">START RACE</button>
+                <div class="space-y-3 text-xs font-bold pt-4 border-t border-white/10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-6 h-6 rounded bg-emerald-500 text-black flex items-center justify-center">B</div> 
+                        <span class="text-emerald-400">BATCH (Green) - Smooth</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-6 h-6 rounded bg-purple-500 text-white flex items-center justify-center">M</div> 
+                        <span class="text-purple-400">MINI-BATCH (Purple) - Balanced</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-6 h-6 rounded bg-rose-500 text-white flex items-center justify-center">S</div> 
+                        <span class="text-rose-400">SGD (Red) - Noisy</span>
+                    </div>
+                </div>
+            </div>`;
+
+        let x=[], y=[], z=[];
+        for(let i=-4; i<=4; i+=0.2) {
+            let rx=[], ry=[], rz=[];
+            for(let j=-4; j<=4; j+=0.2) { rx.push(i); ry.push(j); rz.push(SGD.func(i,j)); }
+            x.push(rx); y.push(ry); z.push(rz);
+        }
+
+        Plotly.newPlot('viz', [{ 
+            type:'surface', x:x, y:y, z:z, 
+            colorscale:'Blues', opacity:0.3, showscale:false,
+            contours: { z: { show:true, color:'rgba(255,255,255,0.2)' } }
+        }], App.baseLayout);
+    },
+
+    func: (x, y) => x*x/4 + y*y/4 + Math.sin(x*5)*0.1 + Math.cos(y*5)*0.1,
+    grad: (x, y) => ({ dx: x/2 + 0.5*Math.cos(5*x), dy: y/2 - 0.5*Math.sin(5*y) }),
+
+    run: () => {
+        const btn = document.getElementById('btn-sgd-run');
+        if(btn.innerText === "RUNNING...") return;
+        btn.innerText = "RUNNING...";
+
+        let bx=[-3.5], by=[3.5], bz=[SGD.func(-3.5, 3.5)]; 
+        let sx=[-3.5], sy=[3.5], sz=[SGD.func(-3.5, 3.5)]; 
+        let mx=[-3.5], my=[3.5], mz=[SGD.func(-3.5, 3.5)];
+        let cur_b = {x:-3.5, y:3.5}, cur_s = {x:-3.5, y:3.5}, cur_m = {x:-3.5, y:3.5};
+
+        Plotly.addTraces('viz', [
+            {type:'scatter3d', mode:'lines', x:bx, y:by, z:bz, line:{color:'#10b981', width:8}, name:'Batch'},
+            {type:'scatter3d', mode:'lines', x:mx, y:my, z:mz, line:{color:'#c084fc', width:5}, name:'Mini'},
+            {type:'scatter3d', mode:'lines', x:sx, y:sy, z:sz, line:{color:'#f43f5e', width:2}, name:'SGD'}
+        ]);
+
+        let step = 0;
+        const lr = 0.05;
+
+        const animate = () => {
+            if(App.currentModule !== 'sgd' || step >= 200) {
+                if(step>=200) btn.innerText = "RACE FINISHED";
+                return;
+            }
+
+            // Logic
+            let gb = SGD.grad(cur_b.x, cur_b.y);
+            cur_b.x -= lr * gb.dx; cur_b.y -= lr * gb.dy;
+            
+            let gs = SGD.grad(cur_s.x, cur_s.y);
+            cur_s.x -= lr * (gs.dx + (Math.random()-0.5)*3.0);
+            cur_s.y -= lr * (gs.dy + (Math.random()-0.5)*3.0);
+
+            let gm = SGD.grad(cur_m.x, cur_m.y);
+            cur_m.x -= lr * (gm.dx + (Math.random()-0.5)*0.8);
+            cur_m.y -= lr * (gm.dy + (Math.random()-0.5)*0.8);
+
+            // Live Metrics Correction: Track Mini-Batch
+            const loss = SGD.func(cur_m.x, cur_m.y);
+            const grad = Math.sqrt(gm.dx**2 + gm.dy**2);
+            document.getElementById('stat-loss').innerText = loss.toFixed(3);
+            document.getElementById('stat-grad').innerText = grad.toFixed(3);
+            document.getElementById('stat-extra').innerText = "Live Tracking: Mini-Batch (Purple)";
+
+            Plotly.extendTraces('viz', {
+                x: [[cur_b.x], [cur_m.x], [cur_s.x]],
+                y: [[cur_b.y], [cur_m.y], [cur_s.y]],
+                z: [[SGD.func(cur_b.x, cur_b.y)], [SGD.func(cur_m.x, cur_m.y)], [SGD.func(cur_s.x, cur_s.y)]]
+            }, [1, 2, 3]);
+
+            step++;
+            requestAnimationFrame(animate);
+        };
+        animate();
+    }
+};
+
+/* --- MODULE 4: LINE SEARCH --- */
+const LineSearch = {
+    state: { a: 0, b: 6 },
+    func: (x) => (x-3.2)**2 + 2, 
+    c: 0, d: 0,
+
+    init: () => {
+        document.getElementById('hud-title').innerHTML = `LINE <span class="text-emerald-400">SEARCH</span>`;
+        document.getElementById('hud-desc').innerHTML = `Golden Section Search: Narrowing the bracket.`;
+        document.getElementById('controls').innerHTML = `
+            <div class="space-y-4 fade-in">
+                <p class="text-xs text-slate-400">We shrink the interval <span class="text-emerald-400 font-mono">[a, b]</span> by comparing two probes <span class="text-white font-mono">c</span> and <span class="text-white font-mono">d</span>.</p>
+                <div class="bg-white/5 border border-white/10 p-4 rounded-lg text-center font-mono">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Interval Width</div>
+                    <span id="ls-width" class="text-emerald-400 font-bold text-3xl">6.00</span>
+                    <div id="ls-action" class="text-[10px] text-rose-400 mt-1 h-4 font-bold"></div>
+                </div>
+                <button onclick="LineSearch.nextStep()" class="w-full btn-primary bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-3 rounded-lg text-xs">SHRINK INTERVAL ▶</button>
+                <button onclick="LineSearch.reset()" class="w-full text-xs text-slate-500 hover:text-white">Reset</button>
+            </div>
+        `;
+        LineSearch.reset();
+    },
+
+    plot: () => {
+        let xArr = [], yArr = [];
+        for(let i=0; i<=6; i+=0.05) { xArr.push(i); yArr.push(LineSearch.func(i)); }
+        const layout = {
+            ...App.baseLayout,
+            shapes: [
+                { type: 'rect', x0: -0.5, x1: LineSearch.state.a, y0: 0, y1: 15, fillcolor: 'rgba(0,0,0,0.85)', line: {width: 0}, layer: 'above' },
+                { type: 'rect', x0: LineSearch.state.b, x1: 6.5, y0: 0, y1: 15, fillcolor: 'rgba(0,0,0,0.85)', line: {width: 0}, layer: 'above' },
+                { type: 'line', x0: LineSearch.state.a, x1: LineSearch.state.a, y0:0, y1:12, line:{color:'#10b981', width:2} },
+                { type: 'line', x0: LineSearch.state.b, x1: LineSearch.state.b, y0:0, y1:12, line:{color:'#10b981', width:2} },
+                { type: 'line', x0: LineSearch.c, x1: LineSearch.c, y0:0, y1: LineSearch.func(LineSearch.c), line:{color:'rgba(255,255,255,0.5)', dash:'dot', width:1} },
+                { type: 'line', x0: LineSearch.d, x1: LineSearch.d, y0:0, y1: LineSearch.func(LineSearch.d), line:{color:'rgba(255,255,255,0.5)', dash:'dot', width:1} }
+            ],
+            annotations: [
+                { x: LineSearch.state.a, y: 13, text: 'a', showarrow:false, font:{color:'#10b981', size:14} },
+                { x: LineSearch.state.b, y: 13, text: 'b', showarrow:false, font:{color:'#10b981', size:14} },
+                { x: LineSearch.c, y: LineSearch.func(LineSearch.c)+1, text: 'c', showarrow:false, font:{color:'white', size:10} },
+                { x: LineSearch.d, y: LineSearch.func(LineSearch.d)+1, text: 'd', showarrow:false, font:{color:'white', size:10} }
+            ],
+            xaxis: { title: 'Parameter Space', color: 'white', range: [-0.1, 6.1], showgrid:false },
+            yaxis: { title: 'Loss', color: 'white', range: [0, 14], showgrid:false }
+        };
+        Plotly.newPlot('viz', [
+            { x: xArr, y: yArr, mode: 'lines', line: {color: '#34d399', width: 4}, name: 'Loss Function' },
+            { x: [3.2], y: [2], mode: 'markers', marker: {color:'white', size:6}, name: 'True Min' },
+            { x: [LineSearch.c, LineSearch.d], y: [LineSearch.func(LineSearch.c), LineSearch.func(LineSearch.d)], mode:'markers', marker:{color:'#fb7185', size:10, line:{color:'white', width:2}}}
+        ], layout);
+    },
+
+    nextStep: () => {
+        const gr = (Math.sqrt(5) - 1) / 2;
+        const w = LineSearch.state.b - LineSearch.state.a;
+        if(w < 0.05) {
+            document.getElementById('ls-action').innerText = "CONVERGED!";
+            document.getElementById('ls-action').className = "text-emerald-400 mt-1 h-4 font-bold";
+            return;
+        }
+        if(LineSearch.func(LineSearch.c) < LineSearch.func(LineSearch.d)) {
+            document.getElementById('ls-action').innerText = "f(c) < f(d): Discard Right";
+            LineSearch.state.b = LineSearch.d;
+        } else {
+            document.getElementById('ls-action').innerText = "f(c) > f(d): Discard Left";
+            LineSearch.state.a = LineSearch.c;
+        }
+        const newW = LineSearch.state.b - LineSearch.state.a;
+        LineSearch.c = LineSearch.state.b - newW * gr;
+        LineSearch.d = LineSearch.state.a + newW * gr;
+        document.getElementById('ls-width').innerText = newW.toFixed(4);
+        LineSearch.plot();
+    },
+
+    reset: () => {
+        LineSearch.state = { a: 0, b: 6 };
+        const gr = (Math.sqrt(5) - 1) / 2;
+        LineSearch.c = 6 - 6 * gr;
+        LineSearch.d = 0 + 6 * gr;
+        document.getElementById('ls-width').innerText = "6.00";
+        document.getElementById('ls-action').innerText = "";
+        LineSearch.plot();
+    }
+};
+
+window.onload = () => App.load('landscape');
+window.onresize = () => Plotly.Plots.resize('viz');
+
+</script> 
+</body> 
+</html>

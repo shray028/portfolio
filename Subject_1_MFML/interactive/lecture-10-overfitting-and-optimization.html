@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overfitting & Optimization Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.2.1/math.js"></script>
+    <style>
+        :root { --primary: #3b82f6; --danger: #ef4444; --success: #22c55e; --bg: #f8fafc; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #1e293b; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr 1fr; gap: 20px; grid-template-rows: auto 1fr; }
+        
+        /* Header */
+        header { grid-column: 1 / -1; text-align: center; margin-bottom: 10px; }
+        h1 { margin: 0; color: #0f172a; }
+        p.subtitle { color: #64748b; margin-top: 5px; }
+
+        /* Panels */
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        .sidebar { grid-column: 1 / 2; grid-row: 2 / 3; gap: 20px; display: flex; flex-direction: column; }
+        .viz-area { grid-column: 2 / 4; grid-row: 2 / 3; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        /* Controls */
+        .control-group { margin-bottom: 25px; }
+        label { font-weight: 700; display: block; margin-bottom: 10px; color: #475569; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--primary); }
+        .val-display { font-size: 2rem; font-weight: 800; color: var(--primary); display: block; text-align: center; margin-top: 5px; }
+        
+        /* Metrics */
+        .metric-box { background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 5px solid #cbd5e1; }
+        .metric-label { font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .metric-val { font-size: 1.2rem; font-weight: 700; color: #334155; display: block; }
+        
+        .good { border-color: var(--success); background: #f0fdf4; }
+        .bad { border-color: var(--danger); background: #fef2f2; }
+        .warn { border-color: #eab308; background: #fefce8; }
+
+        /* Chart Containers */
+        .chart-container { flex: 1; min-height: 350px; position: relative; }
+        h2 { font-size: 1.1rem; text-align: center; margin: 0 0 10px 0; color: #334155; }
+
+        @media (max-width: 1100px) { .container { grid-template-columns: 1fr; } .viz-area { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>How Overfitting "Breaks" Gradient Descent</h1>
+        <p class="subtitle">Visualizing the link between Wrong Weights, Ragged Landscapes, and Optimization Failure</p>
+    </header>
+
+    <div class="sidebar">
+        <div class="card">
+            <div class="control-group">
+                <label>Model Complexity (Degree)</label>
+                <input type="range" id="degreeSlider" min="1" max="13" value="1" step="1">
+                <span id="degreeVal" class="val-display">1</span>
+                <p id="statusText" style="text-align:center; font-weight:bold; color:#64748b;">Underfitting</p>
+            </div>
+            
+            <div class="metric-box" id="trainBox">
+                <span class="metric-label">Training Error (Bias)</span>
+                <span class="metric-val" id="trainErr">0.00</span>
+            </div>
+            <div class="metric-box" id="testBox">
+                <span class="metric-label">Test Error (Generalization)</span>
+                <span class="metric-val" id="testErr">0.00</span>
+            </div>
+            <div class="metric-box" id="weightBox">
+                <span class="metric-label">Sum of Weights (Stability)</span>
+                <span class="metric-val" id="weightMag">Low</span>
+            </div>
+        </div>
+
+        <div class="card" style="background: #fffbeb; border: 1px solid #fcd34d;">
+            <h3 style="margin-top:0; color:#b45309;">Instructor's Guide</h3>
+            <ul style="padding-left: 20px; font-size: 0.9rem; color: #78350f; line-height: 1.5;">
+                <li><strong>Degree 1-4:</strong> Smooth bowl. Easy for Gradient Descent.</li>
+                <li><strong>Degree 12:</strong> Look at the 3D Landscape. It turns into a "bed of nails." The ball (optimizer) gets stuck in a local hole.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="viz-area">
+        <div class="card">
+            <h2>1. The Model (Prediction)</h2>
+            <div id="plotData" class="chart-container"></div>
+            <div id="plotWeights" style="height: 150px;"></div>
+        </div>
+
+        <div class="card">
+            <h2>2. The Optimization Landscape</h2>
+            <div id="plotLandscape" class="chart-container"></div>
+            <p style="font-size: 0.85rem; color: #64748b; text-align: center;">
+                <span style="color: red; font-weight: bold;">●</span> Red Ball = Gradient Descent Final Position
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. Data Generation ---
+    const N = 15;
+    const X_raw = Array.from({length: N}, (_, k) => -1 + (2 * k / (N - 1))); // -1 to 1
+    // True function: y = 0.8 * x^2 (Parabola)
+    // Noise: Added to force the model to "reach"
+    const Y_raw = X_raw.map(x => (0.8 * x**2) + (Math.random() - 0.5) * 0.6);
+
+    // Split Train/Test indices
+    const trainIdx = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];
+    const testIdx = [3, 6, 10, 13];
+
+    const X_train = trainIdx.map(i => X_raw[i]);
+    const Y_train = trainIdx.map(i => Y_raw[i]);
+    const X_test = testIdx.map(i => X_raw[i]);
+    const Y_test = testIdx.map(i => Y_raw[i]);
+
+    // --- 2. Math Logic (Polynomial Regression) ---
+    function solveRegression(degree) {
+        // Create Vandermonde Matrix X
+        const createX = (xArr) => xArr.map(x => Array.from({length: degree + 1}, (_, p) => Math.pow(x, p)));
+        const X = createX(X_train);
+        
+        try {
+            const X_mat = math.matrix(X);
+            const Y_mat = math.matrix(Y_train);
+            const XT = math.transpose(X_mat);
+            const XTX = math.multiply(XT, X_mat);
+            
+            // Ridge regularization (tiny) to prevent singular matrix crashes in JS
+            // but allow visual overfitting
+            const lambda = 0.0000001;
+            const I = math.identity(degree + 1);
+            const reg = math.multiply(I, lambda);
+            
+            const inv = math.inv(math.add(XTX, reg));
+            const w = math.multiply(math.multiply(inv, XT), Y_mat).toArray();
+            return w;
+        } catch (e) {
+            return Array(degree+1).fill(0);
+        }
+    }
+
+    function predict(x, weights) {
+        return weights.reduce((sum, w, p) => sum + w * Math.pow(x, p), 0);
+    }
+
+    // --- 3. Visualization Loop ---
+    function update() {
+        const degree = parseInt(document.getElementById('degreeSlider').value);
+        document.getElementById('degreeVal').innerText = degree;
+
+        // A. Solve Model
+        const weights = solveRegression(degree);
+
+        // B. Metrics
+        const calcMSE = (x, y) => {
+            let sum = 0;
+            x.forEach((val, i) => sum += (predict(val, weights) - y[i])**2);
+            return sum / x.length;
+        };
+        const trErr = calcMSE(X_train, Y_train);
+        const teErr = calcMSE(X_test, Y_test);
+        const wMag = weights.reduce((s, w) => s + Math.abs(w), 0);
+
+        // UI Updates
+        document.getElementById('trainErr').innerText = trErr.toFixed(3);
+        document.getElementById('testErr').innerText = teErr.toFixed(3);
+        
+        const wBox = document.getElementById('weightBox');
+        const tBox = document.getElementById('testBox');
+        const sText = document.getElementById('statusText');
+
+        if (degree < 3) {
+            sText.innerText = "Underfitting (High Bias)";
+            tBox.className = "metric-box warn"; wBox.className = "metric-box good";
+            document.getElementById('weightMag').innerText = wMag.toFixed(1) + " (Tiny)";
+        } else if (degree < 8) {
+            sText.innerText = "Good Fit (Generalization)";
+            sText.style.color = "#16a34a";
+            tBox.className = "metric-box good"; wBox.className = "metric-box good";
+            document.getElementById('weightMag').innerText = wMag.toFixed(1) + " (Stable)";
+        } else {
+            sText.innerText = "OVERFITTING (High Variance)";
+            sText.style.color = "#ef4444";
+            tBox.className = "metric-box bad"; wBox.className = "metric-box bad";
+            document.getElementById('weightMag').innerText = wMag > 1000 ? "EXPLODING!" : wMag.toFixed(0);
+        }
+
+        // --- Plot 1: Data & Curve ---
+        const xPlot = [], yPlot = [];
+        for(let i=-1.1; i<=1.1; i+=0.02) {
+            xPlot.push(i);
+            yPlot.push(predict(i, weights));
+        }
+
+        Plotly.newPlot('plotData', [
+            {x: X_train, y: Y_train, mode:'markers', name:'Train', marker:{color:'#3b82f6', size:10}},
+            {x: X_test, y: Y_test, mode:'markers', name:'Test (Hidden)', marker:{color:'#ef4444', symbol:'x', size:10}},
+            {x: xPlot, y: yPlot, mode:'lines', name:'Model', line:{color: degree>7?'#ef4444':'#22c55e', width:3}}
+        ], {
+            margin: {t:10, b:30, l:30, r:10},
+            xaxis: {range: [-1.2, 1.2]}, yaxis: {range: [-1.5, 2.5]},
+            showlegend: false
+        }, {displayModeBar: false});
+
+        // --- Plot 2: Weights Bar Chart ---
+        const wDisplay = weights.slice(0, 10); // Show first 10 for clarity
+        Plotly.newPlot('plotWeights', [{
+            x: wDisplay.map((_, i) => `w${i}`), y: wDisplay, type: 'bar', marker: {color: '#64748b'}
+        }], {
+            margin: {t:20, b:20, l:30, r:10},
+            title: 'Weight Magnitude (Note the Scale!)', titlefont: {size: 10}
+        }, {displayModeBar: false});
+
+        // --- Plot 3: 3D Landscape (Heuristic) ---
+        // This visualizes the concept: Low Degree = Bowl, High Degree = Rugged
+        const size = 30;
+        const z_data = [];
+        const ruggedness = Math.max(0, (degree - 6) * 0.35); // Ripples appear after degree 6
+
+        for (let i = 0; i < size; i++) {
+            const row = [];
+            const x = (i / size) * 4 - 2;
+            for (let j = 0; j < size; j++) {
+                const y = (j / size) * 4 - 2;
+                
+                // Base: Smooth Bowl (Convex)
+                let z = 0.5 * (x*x + y*y);
+                
+                // Add Overfitting Noise (Ripples)
+                if (ruggedness > 0) {
+                    // High frequency sine waves simulate the effect of competing large weights
+                    z += Math.sin(x * 6 * ruggedness) * Math.cos(y * 6 * ruggedness) * (ruggedness * 0.15);
+                    // Add deep narrow holes
+                    z -= Math.exp(-(Math.pow(x-0.5, 2) + Math.pow(y-0.5, 2)) * 10) * (ruggedness * 0.5);
+                }
+                row.push(z);
+            }
+            z_data.push(row);
+        }
+
+        // GD Position (The Ball)
+        let ballX = 0, ballY = 0, ballZ = 0;
+        if (ruggedness > 0.5) {
+            // Stuck in a local trap
+            ballX = 0.5; ballY = 0.5;
+            ballZ = 0.5 * (ballX**2 + ballY**2) + 
+                    Math.sin(ballX * 6 * ruggedness) * Math.cos(ballY * 6 * ruggedness) * (ruggedness * 0.15) -
+                    Math.exp(-(Math.pow(ballX-0.5, 2) + Math.pow(ballY-0.5, 2)) * 10) * (ruggedness * 0.5);
+        }
+
+        Plotly.newPlot('plotLandscape', [
+            {z: z_data, type: 'surface', showscale: false, colorscale: 'Viridis', opacity: 0.9},
+            {x: [ballX*7.5+15], y: [ballY*7.5+15], z: [ballZ], mode:'markers', type:'scatter3d', marker: {size: 8, color: 'red'}}
+        ], {
+            margin: {t:0, b:0, l:0, r:0},
+            scene: {
+                camera: {eye: {x:1.5, y:1.5, z:1.2}},
+                xaxis: {title: '', showticklabels:false},
+                yaxis: {title: '', showticklabels:false},
+                zaxis: {title: 'Loss'}
+            }
+        }, {displayModeBar: false});
+    }
+
+    document.getElementById('degreeSlider').addEventListener('input', update);
+    window.onload = update;
+
+</script>
+</body>
+</html>

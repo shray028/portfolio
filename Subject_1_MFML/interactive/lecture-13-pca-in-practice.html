@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive PCA Laboratory (Awesome Edition)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1d24;
+            --container-bg: #22262f;
+            --text-color: #e0e0e0;
+            --text-muted: #8892b0;
+            --accent-color: #61dafb;
+            --accent-hover: #88eaff;
+            --border-color: #30363d;
+            --shadow-color: rgba(0, 0, 0, 0.4);
+            
+            --pc1-color: #ff79c6;       /* Pink */
+            --pc2-color: #8be9fd;       /* Cyan */
+            --data-point-color: #f8f8f2;  /* Off-white */
+            --projection-color: #50fa7b;  /* Green */
+            --error-color: #ff5555;      /* Red */
+            --optimal-color: #f1fa8c;    /* Yellow */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--bg-color);
+            padding: 20px;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            letter-spacing: 1.5px;
+            color: var(--text-color);
+            margin-bottom: 25px;
+        }
+
+        #container {
+            display: flex;
+            width: 1200px;
+            background-color: var(--container-bg);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 15px 40px var(--shadow-color);
+            border: 1px solid var(--border-color);
+        }
+
+        #vis {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        #sidebar {
+            width: 380px;
+            padding-left: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        svg#pca-svg {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        
+        .axis path, .axis line { stroke: var(--text-muted); }
+        .axis text { font-size: 11px; fill: var(--text-muted); }
+
+        .control-group {
+            margin-bottom: 20px;
+            background-color: rgba(0,0,0,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .stat-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            color: var(--text-color);
+        }
+
+        .explanation {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-top: 15px;
+        }
+        .explanation strong { color: var(--text-color); }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            background-image: linear-gradient(to right, var(--pc1-color), var(--pc2-color));
+            color: #282a36;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(139, 233, 253, 0.2); 
+        }
+
+        /* --- Slider Styles --- */
+        input[type=range] {
+            width: 100%;
+            margin: 7px 0;
+            background-color: transparent;
+            -webkit-appearance: none;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; cursor: pointer;
+            background: var(--bg-color); border-radius: 3px;
+            border: 1px solid var(--border-color);
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px;
+            border-radius: 50%; background: var(--accent-color);
+            cursor: pointer; margin-top: -7px;
+            box-shadow: 0 0 5px rgba(97, 218, 251, 0.5);
+        }
+        
+        /* --- Visual Element Styles --- */
+        .data-point { fill: var(--data-point-color); cursor: pointer; transition: r 0.3s ease, opacity 0.3s ease; }
+        .pc1-line { stroke: var(--pc1-color); stroke-width: 2.5px; }
+        .pc2-line { stroke: var(--pc2-color); stroke-width: 2.5px; stroke-dasharray: 8, 4;}
+        .error-line { stroke: var(--error-color); stroke-width: 1.5px; }
+        .projection-point { fill: var(--projection-color); }
+        .optimal-angle-line { stroke: var(--optimal-color); stroke-width: 2px; stroke-dasharray: 6, 6; }
+        .pythagorean-line { stroke-width: 3.5px; pointer-events: none; }
+        
+        .focus-label {
+            font-size: 14px; font-weight: bold; text-anchor: middle;
+            paint-order: stroke; stroke: var(--bg-color); stroke-width: 4px;
+            stroke-linecap: butt; stroke-linejoin: miter;
+        }
+    </style>
+</head>
+<body>
+    <h2>Interactive PCA Laboratory</h2>
+    <div id="container">
+        <div id="vis">
+            <svg id="pca-svg" width="770" height="700"></svg>
+        </div>
+        <div id="sidebar">
+            <div class="control-group">
+                <div class="stat-title">Shape Your Data</div>
+                <label for="elongation-slider">Data Elongation: <span id="elongation-display">5</span></label>
+                <input type="range" id="elongation-slider" min="1" max="15" value="5" step="0.5">
+                <label for="rotation-slider">Data Rotation: <span id="rotation-display">30</span>°</label>
+                <input type="range" id="rotation-slider" min="0" max="180" value="30" step="1">
+            </div>
+
+            <div class="control-group">
+                <div class="stat-title">Find the Principal Components</div>
+                <label for="angle-slider">PC1 Angle: <span id="angle-display">0</span>°</label>
+                <input type="range" id="angle-slider" min="0" max="180" value="0" step="0.5">
+                <button id="solve-button">Find Optimal Angle</button>
+            </div>
+            
+            <div id="stats-container">
+                <div class="stat-title" id="stats-title">Variance Explained</div>
+                <svg id="statsChart" width="380" height="150"></svg>
+                <p class="explanation" id="stats-explanation">
+                    <strong>Click a data point</strong> to enter Focus Mode and see the variance breakdown for that single point. Click the background to exit.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        if (typeof d3 === 'undefined') { alert("Error: D3.js library failed to load."); return; }
+
+        // Updated dimensions to match new layout
+        const vis = { width: 770, height: 700, margin: {top: 25, right: 25, bottom: 25, left: 25} };
+        vis.innerWidth = vis.width - vis.margin.left - vis.margin.right;
+        vis.innerHeight = vis.height - vis.margin.top - vis.margin.bottom;
+
+        const stats = { width: 380, height: 150, margin: {top: 10, right: 20, bottom: 20, left: 50} };
+
+        // Color mapping from CSS variables
+        const colors = {
+            pc1: getComputedStyle(document.documentElement).getPropertyValue('--pc1-color').trim(),
+            pc2: getComputedStyle(document.documentElement).getPropertyValue('--pc2-color').trim(),
+            projection: getComputedStyle(document.documentElement).getPropertyValue('--projection-color').trim(),
+            error: getComputedStyle(document.documentElement).getPropertyValue('--error-color').trim(),
+            textMuted: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim()
+        };
+
+        const svg = d3.select("#pca-svg");
+        const g = svg.append("g").attr("transform", `translate(${vis.margin.left}, ${vis.margin.top})`);
+        const statsSvg = d3.select("#statsChart");
+
+        let dataset = [];
+        let totalVarianceSum = 0;
+        let optimalAngle = 0;
+        let scaleX, scaleY;
+        let focusedPoint = null;
+
+        const elongationSlider = d3.select("#elongation-slider");
+        const rotationSlider = d3.select("#rotation-slider");
+        const angleSlider = d3.select("#angle-slider");
+
+        function generateData(n, elongation, angleDeg) {
+            const angleRad = angleDeg * Math.PI / 180;
+            const variance1 = 20 * elongation;
+            const variance2 = 20 / elongation;
+            const data = [];
+            const rotationMatrix = [[Math.cos(angleRad), -Math.sin(angleRad)], [Math.sin(angleRad), Math.cos(angleRad)]];
+            for (let i = 0; i < n; i++) {
+                const x = d3.randomNormal(0, Math.sqrt(variance1))();
+                const y = d3.randomNormal(0, Math.sqrt(variance2))();
+                const rotatedX = rotationMatrix[0][0] * x + rotationMatrix[0][1] * y;
+                const rotatedY = rotationMatrix[1][0] * x + rotationMatrix[1][1] * y;
+                data.push({x: rotatedX, y: rotatedY, id: i});
+            }
+            const meanX = d3.mean(data, d => d.x);
+            const meanY = d3.mean(data, d => d.y);
+            return data.map(d => ({x: d.x - meanX, y: d.y - meanY, id: d.id}));
+        }
+
+        function calculateOptimalAngle(data) {
+            const n = data.length;
+            if (n < 2) return 0;
+            const covXX = d3.sum(data, d => d.x * d.x) / (n - 1);
+            const covYY = d3.sum(data, d => d.y * d.y) / (n - 1);
+            const covXY = d3.sum(data, d => d.x * d.y) / (n - 1);
+            const angleRad = 0.5 * Math.atan2(2 * covXY, covXX - covYY);
+            let angleDeg = angleRad * 180 / Math.PI;
+            if (angleDeg < 0) angleDeg += 180;
+            return angleDeg;
+        }
+
+        function initialize() {
+            focusedPoint = null;
+            g.selectAll("*").remove();
+
+            const elongation = parseFloat(elongationSlider.property("value"));
+            const rotation = parseFloat(rotationSlider.property("value"));
+            d3.select("#elongation-display").text(elongation.toFixed(1));
+            d3.select("#rotation-display").text(rotation.toFixed(0));
+
+            dataset = generateData(70, elongation, rotation);
+            totalVarianceSum = d3.sum(dataset, d => d.x * d.x + d.y * d.y);
+            optimalAngle = calculateOptimalAngle(dataset);
+
+            const maxExtent = d3.max(dataset, d => Math.sqrt(d.x*d.x + d.y*d.y)) * 1.2;
+            scaleX = d3.scaleLinear().domain([-maxExtent, maxExtent]).range([0, vis.innerWidth]);
+            scaleY = d3.scaleLinear().domain([-maxExtent, maxExtent]).range([vis.innerHeight, 0]);
+
+            g.append("rect")
+                .attr("width", vis.innerWidth)
+                .attr("height", vis.innerHeight)
+                .attr("fill", "none")
+                .style("pointer-events", "all")
+                .on("click", () => {
+                    if (focusedPoint) {
+                        focusedPoint = null;
+                        render();
+                    }
+                });
+
+            g.append("g").attr("class", "axis").attr("transform", `translate(0, ${scaleY(0)})`).call(d3.axisBottom(scaleX).ticks(5));
+            g.append("g").attr("class", "axis").attr("transform", `translate(${scaleX(0)}, 0)`).call(d3.axisLeft(scaleY).ticks(5));
+
+            const uOptimal = {x: Math.cos(optimalAngle * Math.PI / 180), y: Math.sin(optimalAngle * Math.PI / 180)};
+            g.append("line").attr("class", "optimal-angle-line").datum(uOptimal);
+            
+            g.append("line").attr("class", "pc1-line");
+            g.append("line").attr("class", "pc2-line");
+
+            g.append("g").attr("class", "error-lines-container");
+            g.append("g").attr("class", "projection-points-container");
+            g.append("g").attr("class", "data-points-container");
+            g.append("g").attr("class", "focus-visuals-container");
+
+            render();
+        }
+
+        function render() {
+            const angle = parseFloat(angleSlider.property("value"));
+            d3.select("#angle-display").text(angle.toFixed(1));
+
+            const radians = angle * Math.PI / 180;
+            const u1 = {x: Math.cos(radians), y: Math.sin(radians)};
+            const u2 = {x: -u1.y, y: u1.x};
+
+            const lineExtension = scaleX.domain()[1] * 1.5;
+            g.select(".pc1-line").attr("x1", scaleX(-lineExtension * u1.x)).attr("y1", scaleY(-lineExtension * u1.y)).attr("x2", scaleX(lineExtension * u1.x)).attr("y2", scaleY(lineExtension * u1.y));
+            g.select(".pc2-line").attr("x1", scaleX(-lineExtension * u2.x)).attr("y1", scaleY(-lineExtension * u2.y)).attr("x2", scaleX(lineExtension * u2.x)).attr("y2", scaleY(lineExtension * u2.y));
+            g.select(".optimal-angle-line").attr("x1", d => scaleX(-lineExtension * d.x)).attr("y1", d => scaleY(-lineExtension * d.y)).attr("x2", d => scaleX(lineExtension * d.x)).attr("y2", d => scaleY(lineExtension * d.y));
+
+            const projections = dataset.map(d => {
+                const projLength1 = d.x * u1.x + d.y * u1.y;
+                return { original: d, projection1: {x: projLength1 * u1.x, y: projLength1 * u1.y} };
+            });
+
+            const dataPoints = g.select(".data-points-container").selectAll(".data-point").data(dataset, d => d.id)
+                .join("circle").attr("class", "data-point")
+                .attr("cx", d => scaleX(d.x)).attr("cy", d => scaleY(d.y)).attr("r", 5)
+                .on("click", (event, d) => {
+                    event.stopPropagation();
+                    focusedPoint = focusedPoint && focusedPoint.id === d.id ? null : d;
+                    render();
+                });
+
+            g.select(".error-lines-container").selectAll(".error-line").data(projections, d => d.original.id)
+                .join("line").attr("class", "error-line")
+                .attr("x1", d => scaleX(d.original.x)).attr("y1", d => scaleY(d.original.y))
+                .attr("x2", d => scaleX(d.projection1.x)).attr("y2", d => scaleY(d.projection1.y));
+
+            g.select(".projection-points-container").selectAll(".projection-point").data(projections, d => d.original.id)
+                .join("circle").attr("class", "projection-point").attr("r", 5)
+                .attr("cx", d => scaleX(d.projection1.x)).attr("cy", d => scaleY(d.projection1.y));
+
+            g.select(".focus-visuals-container").selectAll("*").remove();
+            
+            if (focusedPoint) {
+                const isFocused = (d) => d.id === focusedPoint.id;
+                const fadeOpacity = 0.1;
+
+                dataPoints.transition().duration(300).attr("opacity", d => isFocused(d) ? 1 : fadeOpacity).attr("r", d => isFocused(d) ? 8 : 5);
+                g.selectAll(".error-line, .projection-point").transition().duration(300).attr("opacity", d => isFocused(d.original) ? 1 : fadeOpacity);
+                g.selectAll(".pc2-line, .optimal-angle-line").transition().duration(300).attr("opacity", fadeOpacity);
+                
+                const focusData = projections.find(p => p.original.id === focusedPoint.id);
+                const { original, projection1 } = focusData;
+                
+                const focusGroup = g.select(".focus-visuals-container");
+                focusGroup.append("line").attr("class", "pythagorean-line").attr("stroke", colors.textMuted).attr("x1", scaleX(0)).attr("y1", scaleY(0)).attr("x2", scaleX(original.x)).attr("y2", scaleY(original.y));
+                focusGroup.append("line").attr("class", "pythagorean-line").attr("stroke", colors.projection).attr("x1", scaleX(0)).attr("y1", scaleY(0)).attr("x2", scaleX(projection1.x)).attr("y2", scaleY(projection1.y));
+                focusGroup.append("line").attr("class", "pythagorean-line").attr("stroke", colors.error).attr("x1", scaleX(original.x)).attr("y1", scaleY(original.y)).attr("x2", scaleX(projection1.x)).attr("y2", scaleY(projection1.y));
+
+                const totalVar = original.x**2 + original.y**2;
+                const projVar = (projection1.x**2 + projection1.y**2);
+                const errorVar = (original.x - projection1.x)**2 + (original.y - projection1.y)**2;
+                
+                focusGroup.append("text").attr("class", "focus-label").attr("fill", colors.projection).attr("x", scaleX(projection1.x / 2)).attr("y", scaleY(projection1.y / 2) + 15).text(`Projected²: ${projVar.toFixed(1)}`);
+                focusGroup.append("text").attr("class", "focus-label").attr("fill", colors.error).attr("x", scaleX((original.x + projection1.x) / 2) + 5).attr("y", scaleY((original.y + projection1.y) / 2)).text(`Error²: ${errorVar.toFixed(1)}`);
+                
+                updateSidebar(totalVar, projVar, errorVar);
+
+            } else {
+                dataPoints.transition().duration(300).attr("opacity", 1).attr("r", 5);
+                g.selectAll(".error-line, .projection-point").transition().duration(300).attr("opacity", 1);
+                g.selectAll(".pc2-line, .optimal-angle-line").transition().duration(300).attr("opacity", 1);
+                updateSidebar();
+            }
+        }
+        
+        function updateSidebar(singleTotal, singleProj, singleErr) {
+            statsSvg.selectAll("*").remove();
+            d3.select("#stats-title").text(focusedPoint ? "Focus Mode: Single Point" : "Variance Explained");
+
+            if(focusedPoint) {
+                const barData = [ {name: "Error²", value: singleErr, color: colors.error}, {name: "Projected²", value: singleProj, color: colors.projection} ];
+                const xScale = d3.scaleLinear().domain([0, singleTotal]).range([0, stats.width - stats.margin.left - stats.margin.right]);
+                statsSvg.selectAll("rect").data(barData).join("rect")
+                    .attr("y", stats.height/2 - 20).attr("height", 40).attr("fill", d => d.color)
+                    .attr("x", d => stats.margin.left + (d.name === "Projected²" ? 0 : xScale(singleProj)))
+                    .attr("width", 0).transition().duration(500).attr("width", d => xScale(d.value)); // Animate width
+                d3.select("#stats-explanation").html(`<strong>Total Variance: ${singleTotal.toFixed(1)}</strong><br/>Projected: ${singleProj.toFixed(1)} + Error: ${singleErr.toFixed(1)}`);
+            } else {
+                d3.select("#stats-explanation").html("<strong>Click a data point</strong> to enter Focus Mode and see the variance breakdown for that single point. Click the background to exit.");
+                const variancePC1 = d3.sum(dataset, d => (d.x * Math.cos(angleSlider.property("value")*Math.PI/180) + d.y * Math.sin(angleSlider.property("value")*Math.PI/180))**2);
+                const variancePC2 = totalVarianceSum - variancePC1;
+                const barData = [ {name: "Var (PC2)", value: variancePC2, color: colors.pc2, yStart: variancePC1}, {name: "Var (PC1)", value: variancePC1, color: colors.pc1, yStart: 0} ];
+                const statsYScale = d3.scaleLinear().domain([0, totalVarianceSum * 1.1]).range([stats.height - stats.margin.bottom, stats.margin.top]);
+                statsSvg.append("g").attr("transform", `translate(${stats.margin.left}, 0)`).call(d3.axisLeft(statsYScale).ticks(4).tickFormat(d3.format(".2s")));
+                statsSvg.selectAll(".stat-bar").data(barData).join("rect").attr("class", "stat-bar").attr("x", stats.margin.left + 80).attr("width", 100).attr("fill", d => d.color)
+                    .attr("y", d => statsYScale(d.yStart))
+                    .attr("height", 0)
+                    .transition().duration(500) // Animate height
+                    .attr("y", d => statsYScale(d.yStart + d.value))
+                    .attr("height", d => Math.max(0, statsYScale(0) - statsYScale(d.value)));
+            }
+        }
+
+        // --- Event Listeners ---
+        elongationSlider.on("input", initialize);
+        rotationSlider.on("input", initialize);
+        angleSlider.on("input", render);
+
+        d3.select("#solve-button").on("click", function() {
+            const startAngle = parseFloat(angleSlider.property("value"));
+            const endAngle = optimalAngle;
+            d3.transition().duration(1200).ease(d3.easeCubicInOut)
+                .tween("solve", () => {
+                    const i = d3.interpolate(startAngle, endAngle);
+                    return t => {
+                        angleSlider.property("value", i(t));
+                        render();
+                    };
+                });
+        });
+
+        initialize();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Composition Visualizer</title>
+    <!-- Load MathJax -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; font-family: 'Segoe UI', sans-serif; color: white; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 20, 20, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #444;
+            width: 320px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+
+        h1 { font-size: 18px; margin: 0 0 15px 0; color: #4facfe; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        
+        .matrix-display {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #888;
+            font-weight: bold;
+        }
+
+        input[type=range] {
+            width: 100%;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: 0.2s;
+        }
+        button:hover { background: #444; }
+        button.active { background: #4facfe; color: #000; font-weight: bold; border: none;}
+
+        .status-box {
+            background: #2a2a2a;
+            padding: 10px;
+            border-left: 4px solid #4facfe;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #ddd;
+        }
+
+        .highlight { color: #4facfe; font-weight: bold; }
+        .red-text { color: #ff4444; font-weight: bold; }
+
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <h1>Composition: \(C = A \times B\)</h1>
+        
+        <div class="matrix-display" id="equationDisplay">
+            <!-- Will be filled by JS -->
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button id="btnAB" class="active">Order: A( Bx )</button>
+            <button id="btnBA">Order: B( Ax )</button>
+        </div>
+
+        <div class="step-indicator">
+            <span>Input</span>
+            <span>Step 1</span>
+            <span>Step 2 (Result)</span>
+        </div>
+        <input type="range" id="animSlider" min="0" max="2" step="0.01" value="0">
+
+        <div class="status-box" id="statusText">
+            Drag slider to start transformation...
+        </div>
+        
+        <div style="margin-top: 15px; font-size: 11px; color: #666;">
+            <strong>Note:</strong> In \(A(Bx)\), matrix \(B\) touches vector \(x\) first! The order of multiplication is right-to-left.
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(8, 6, 8);
+        camera.lookAt(0,0,0);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Lights
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // Grid Floor (Static reference)
+        const gridHelper = new THREE.GridHelper(10, 10, 0x333333, 0x111111);
+        scene.add(gridHelper);
+        const axesHelper = new THREE.AxesHelper(2);
+        scene.add(axesHelper);
+
+        // --- MATRICES ---
+        
+        // Matrix A: Rotation 90 deg around Y
+        const matA = new THREE.Matrix4().makeRotationY(Math.PI / 2);
+        
+        // Matrix B: Shear along X (x = x + y)
+        // ThreeJS Matrix4 is column-major in array, but set() takes row-major
+        const matB = new THREE.Matrix4().set(
+            1, 1, 0, 0, // x moves based on y
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+        );
+
+        // --- GEOMETRY (The "Input Space") ---
+        // A cloud of cubes
+        const particles = new THREE.Group();
+        scene.add(particles);
+
+        const initialPositions = [];
+        
+        // Create a 3x3x3 grid of cubes
+        const gap = 0.5;
+        const boxGeom = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        
+        for(let x = -1; x <= 1; x += gap) {
+            for(let y = -1; y <= 1; y += gap) {
+                for(let z = -1; z <= 1; z += gap) {
+                    const mat = new THREE.MeshNormalMaterial(); // Rainbow colors based on normals
+                    const mesh = new THREE.Mesh(boxGeom, mat);
+                    mesh.position.set(x, y + 1.5, z); // Lift it up slightly
+                    particles.add(mesh);
+                    initialPositions.push(new THREE.Vector3(x, y + 1.5, z));
+                }
+            }
+        }
+
+        // Add a wireframe cage around the whole block to see overall shape distortion
+        const cageGeom = new THREE.BoxGeometry(2.2, 2.2, 2.2);
+        const cageEdges = new THREE.EdgesGeometry(cageGeom);
+        const cageMesh = new THREE.LineSegments(cageEdges, new THREE.LineBasicMaterial({ color: 0x555555 }));
+        cageMesh.position.set(0, 1.5, 0); // Center of our block
+        // We need to store cage vertices to animate them too, 
+        // but simpler to just animate the group matrix? 
+        // No, let's treat the cage vertices like particles for accuracy.
+        // For simplicity in this demo, let's stick to the colored cubes as the visual indicator.
+
+        // --- ANIMATION STATE ---
+        let currentOrder = "AB"; // or "BA"
+        
+        // --- UI REFERENCES ---
+        const slider = document.getElementById('animSlider');
+        const statusText = document.getElementById('statusText');
+        const btnAB = document.getElementById('btnAB');
+        const btnBA = document.getElementById('btnBA');
+        const eqDisplay = document.getElementById('equationDisplay');
+
+        function updateMath() {
+            if(currentOrder === "AB") {
+                eqDisplay.innerHTML = `\\[ \\underbrace{A}_{Rot} ( \\underbrace{B}_{Shear} \\vec{x} ) \\]`;
+                btnAB.classList.add('active');
+                btnBA.classList.remove('active');
+            } else {
+                eqDisplay.innerHTML = `\\[ \\underbrace{B}_{Shear} ( \\underbrace{A}_{Rot} \\vec{x} ) \\]`;
+                btnBA.classList.add('active');
+                btnAB.classList.remove('active');
+            }
+            if(window.MathJax) MathJax.typesetPromise();
+        }
+
+        btnAB.onclick = () => { currentOrder = "AB"; updateMath(); updateScene(parseFloat(slider.value)); };
+        btnBA.onclick = () => { currentOrder = "BA"; updateMath(); updateScene(parseFloat(slider.value)); };
+
+        function updateScene(t) {
+            // t goes from 0 to 2
+            
+            // Determine Step 1 Matrix and Step 2 Matrix based on order
+            let M1, M2;
+            let name1, name2;
+            
+            if (currentOrder === "AB") {
+                // Apply B first, then A
+                M1 = matB; name1 = "Matrix B (Shear)";
+                M2 = matA; name2 = "Matrix A (Rotation)";
+            } else {
+                // Apply A first, then B
+                M1 = matA; name1 = "Matrix A (Rotation)";
+                M2 = matB; name2 = "Matrix B (Shear)";
+            }
+
+            // Update Text
+            if (t <= 0.05) statusText.innerHTML = "Input Space (Identity Cube)";
+            else if (t < 1) statusText.innerHTML = `Applying <span class='highlight'>${name1}</span>...<br>Transforming initial vectors.`;
+            else if (t === 1) statusText.innerHTML = `Intermediate Space.<br>Ready for second transform.`;
+            else if (t < 2) statusText.innerHTML = `Applying <span class='highlight'>${name2}</span>...<br>Transforming the result of step 1.`;
+            else statusText.innerHTML = `<span class='highlight'>Final Composition</span>.<br>Notice the final orientation.`;
+
+            // Animate Particles
+            particles.children.forEach((mesh, i) => {
+                const startPos = initialPositions[i].clone();
+                
+                // Calculate Key Positions
+                const pos1 = startPos.clone().applyMatrix4(M1);
+                const pos2 = pos1.clone().applyMatrix4(M2);
+
+                if (t <= 1) {
+                    // Lerp from Start -> Pos1
+                    mesh.position.lerpVectors(startPos, pos1, t);
+                    // Rotation interpolation roughly
+                    mesh.rotation.set(0,0,0); // reset
+                    if(currentOrder === "BA") mesh.rotation.y = (Math.PI/2) * t; 
+                } else {
+                    // Lerp from Pos1 -> Pos2
+                    const t2 = t - 1;
+                    mesh.position.lerpVectors(pos1, pos2, t2);
+                    
+                    if(currentOrder === "AB") {
+                         // Shear first (no rot), then Rot
+                         mesh.rotation.y = (Math.PI/2) * t2;
+                    } else {
+                        // Rot first (kept), then Shear
+                        mesh.rotation.y = Math.PI/2;
+                    }
+                }
+            });
+        }
+
+        slider.addEventListener('input', (e) => {
+            updateScene(parseFloat(e.target.value));
+        });
+
+        // --- LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateMath();
+        updateScene(0); // Init
+        animate();
+
+    </script>
+</body>
+</html>

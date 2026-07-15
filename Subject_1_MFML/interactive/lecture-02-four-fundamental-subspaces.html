@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Rank Visualizer: The 4 Subspaces</title>
+    <!-- Load MathJax -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(30, 30, 30, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            width: 310px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        h1 { font-size: 16px; margin: 0 0 10px 0; color: #4facfe; border-bottom: 1px solid #555; padding-bottom: 8px; }
+        .matrix-box { text-align: center; margin-bottom: 12px; font-size: 13px; border-bottom: 1px solid #444; padding-bottom: 10px; min-height: 60px; display: flex; align-items: center; justify-content: center;}
+        .section-title { font-size: 11px; text-transform: uppercase; color: #888; margin-top: 10px; margin-bottom: 5px; font-weight: bold; letter-spacing: 1px; }
+
+        .control-group { margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        label { font-size: 13px; cursor: pointer; user-select: none; display: flex; align-items: center; }
+        
+        .switch { position: relative; display: inline-block; width: 36px; height: 18px; margin-left: 10px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #4facfe; }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        
+        .label {
+            color: white;
+            font-family: sans-serif;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 4px;
+            pointer-events: none;
+            font-size: 11px;
+            position: absolute;
+            top: 0; left: 0;
+            white-space: nowrap;
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 10;
+        }
+
+        select {
+            background: #333; color: white; border: 1px solid #555; padding: 5px; width: 100%; margin-bottom: 10px; border-radius: 4px; font-size: 13px;
+        }
+
+        button {
+            width: 100%; padding: 8px; background: #4facfe; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold; margin-bottom: 10px;
+        }
+        button:hover { background: #3a8ecc; }
+        
+        input[type=range] { width: 100%; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <h1>Matrix Lab: The 4 Subspaces</h1>
+        
+        <div class="section-title">Settings</div>
+        <select id="rankSelector">
+            <option value="rank2">Rank 2 (Squash to Plane)</option>
+            <option value="rank3">Rank 3 (Full Volume)</option>
+        </select>
+        
+        <select id="viewModeSelector">
+            <option value="subspaces">View: Subspaces (Static)</option>
+            <option value="transform">View: Transformation (Action)</option>
+        </select>
+
+        <div class="matrix-box" id="matrixDisplay">
+            \[ A = \begin{bmatrix} 1 & 0 & -1 \\ 0 & 1 & -1 \\ 1 & 1 & -2 \end{bmatrix} \]
+        </div>
+
+        <!-- STATIC CONTROLS -->
+        <div id="staticControls">
+            <div id="rank2SubspaceControls">
+                <div class="section-title">Input Space (Row Geometry)</div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#ffcc00;"></span>Row Space (Plane)</label>
+                    <label class="switch"><input type="checkbox" id="toggleRow" checked><span class="slider"></span></label>
+                </div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#00ffff;"></span>Null Space (Line)</label>
+                    <label class="switch"><input type="checkbox" id="toggleNull" checked><span class="slider"></span></label>
+                </div>
+                
+                <div class="section-title">Output Space (Column Geometry)</div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#00ff00;"></span>Column Space (Plane)</label>
+                    <label class="switch"><input type="checkbox" id="toggleCol"><span class="slider"></span></label>
+                </div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#ff4444;"></span>Left Null Space</label>
+                    <label class="switch"><input type="checkbox" id="toggleLeftNull"><span class="slider"></span></label>
+                </div>
+                <div class="control-group">
+                    <label style="color:#aaa;">Show Basis Vectors</label>
+                    <label class="switch"><input type="checkbox" id="toggleInputBasis"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div id="rank3SubspaceControls" style="display:none;">
+                <div class="section-title">Full 3D Geometry</div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#ffffff; border:1px solid #888;"></span>Space (Volume)</label>
+                    <label style="font-size:11px; color:#aaa;">Everywhere</label>
+                </div>
+                <div class="control-group">
+                    <label><span class="legend-dot" style="background:#ff0000;"></span>Null Space</label>
+                    <label style="font-size:11px; color:#aaa;">Zero Point</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- TRANSFORM CONTROLS -->
+        <div id="transformControls" style="display:none;">
+            <div class="section-title">Apply Matrix A</div>
+            <p style="font-size: 11px; color: #ccc; margin-bottom: 10px;">
+                Watch how the matrix transforms a 3D grid cube.
+            </p>
+            <button id="animateBtn">Play Animation</button>
+            <input type="range" id="animSlider" min="0" max="1" step="0.01" value="0">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #888;">
+                <span>Input (x)</span>
+                <span>Output (Ax)</span>
+            </div>
+        </div>
+
+        <div style="font-size: 11px; color: #888; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; line-height: 1.4;">
+            <strong>Insight:</strong><br>
+            <span id="insightText">Rank 2 means the matrix flattens 3D space into a 2D plane.</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(14, 10, 14);
+        camera.lookAt(0,0,0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Lights
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+        dirLight2.position.set(-5, -5, -5);
+        scene.add(dirLight2);
+
+        // Axes & Grid
+        const axesHelper = new THREE.AxesHelper(3);
+        scene.add(axesHelper);
+        const gridHelper = new THREE.GridHelper(20, 20, 0x333333, 0x111111);
+        scene.add(gridHelper);
+
+        // ==========================================
+        // STATIC SUBSPACES GROUP (Existing)
+        // ==========================================
+        const staticGroup = new THREE.Group();
+        scene.add(staticGroup);
+
+        const rank2Group = new THREE.Group();
+        staticGroup.add(rank2Group);
+
+        // --- ROW SPACE (Plane) ---
+        const rowGroup = new THREE.Group();
+        rank2Group.add(rowGroup);
+        const planeGeom = new THREE.PlaneGeometry(20, 20);
+        const rowMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0xffcc00, side: THREE.DoubleSide, transparent: true, opacity: 0.3, 
+            depthWrite: false, metalness: 0.1, roughness: 0.1 
+        });
+        const rowPlane = new THREE.Mesh(planeGeom, rowMat);
+        rowPlane.lookAt(new THREE.Vector3(1, 1, 1));
+        rowGroup.add(rowPlane);
+        const rowWire = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({ color: 0xffaa00, wireframe: true, opacity: 0.15, transparent: true }));
+        rowWire.lookAt(new THREE.Vector3(1, 1, 1));
+        rowGroup.add(rowWire);
+
+        const rowBasisGroup = new THREE.Group();
+        const r1 = new THREE.Vector3(1, -1, 0); 
+        const r2 = new THREE.Vector3(0, -1, 1);
+        
+        function addArrow(vec, color, group) {
+            const arrow = new THREE.ArrowHelper(vec.clone().normalize(), new THREE.Vector3(0,0,0), vec.length() * 2, color, 0.4, 0.2);
+            const lineGeom = new THREE.CylinderGeometry(0.04, 0.04, vec.length()*2 - 0.4, 8);
+            lineGeom.translate(0, (vec.length()*2 - 0.4)/2, 0);
+            lineGeom.rotateX(Math.PI/2);
+            lineGeom.lookAt(vec);
+            lineGeom.rotateX(Math.PI/2);
+            const lineMesh = new THREE.Mesh(lineGeom, new THREE.MeshBasicMaterial({color: color}));
+            group.add(arrow);
+            group.add(lineMesh);
+        }
+        
+        addArrow(r1, 0xffaa00, rowBasisGroup);
+        addArrow(r2, 0xffaa00, rowBasisGroup);
+        rowGroup.add(rowBasisGroup);
+        rowBasisGroup.visible = false;
+
+        // --- NULL SPACE (Line) ---
+        const nullGroup = new THREE.Group();
+        rank2Group.add(nullGroup);
+        const nullVec = new THREE.Vector3(1, 1, 1).normalize();
+        const nullGeom = new THREE.CylinderGeometry(0.05, 0.05, 30, 8);
+        const nullMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaaa, emissiveIntensity: 0.5 });
+        const nullRod = new THREE.Mesh(nullGeom, nullMat);
+        nullRod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), nullVec);
+        nullGroup.add(nullRod);
+
+        // --- COLUMN SPACE (Plane) ---
+        const colGroup = new THREE.Group();
+        rank2Group.add(colGroup);
+        const colMat = new THREE.MeshPhysicalMaterial({ 
+            color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.3,
+            depthWrite: false, metalness: 0.1, roughness: 0.1
+        });
+        const colPlane = new THREE.Mesh(planeGeom, colMat);
+        colPlane.lookAt(new THREE.Vector3(-1, 1, -1)); 
+        colGroup.add(colPlane);
+        const colWire = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, opacity: 0.15, transparent: true }));
+        colWire.lookAt(new THREE.Vector3(-1, 1, -1));
+        colGroup.add(colWire);
+        
+        // --- LEFT NULL SPACE (Line) ---
+        const lnGroup = new THREE.Group();
+        rank2Group.add(lnGroup);
+        const lnVec = new THREE.Vector3(-1, 1, -1).normalize();
+        const lnGeom = new THREE.CylinderGeometry(0.05, 0.05, 30, 8);
+        const lnMat = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0xaa0000, emissiveIntensity: 0.5 });
+        const lnRod = new THREE.Mesh(lnGeom, lnMat);
+        lnRod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), lnVec);
+        lnGroup.add(lnRod);
+        lnGroup.visible = false;
+
+        // --- RANK 3 STATIC ---
+        const rank3Group = new THREE.Group();
+        rank3Group.visible = false;
+        staticGroup.add(rank3Group);
+        const boxGeom = new THREE.BoxGeometry(10, 10, 10);
+        const spaceWire = new THREE.Mesh(boxGeom, new THREE.MeshBasicMaterial({ color: 0x444444, wireframe: true, transparent:true, opacity: 0.2 }));
+        rank3Group.add(spaceWire);
+        const b1 = new THREE.Vector3(2, 0, 0), b2 = new THREE.Vector3(0, 2, 0), b3 = new THREE.Vector3(0, 0, 2);
+        const r3Basis = new THREE.Group();
+        addArrow(b1, 0xff0000, r3Basis); addArrow(b2, 0x00ff00, r3Basis); addArrow(b3, 0x0000ff, r3Basis);
+        rank3Group.add(r3Basis);
+        const zeroDot = new THREE.Mesh(new THREE.SphereGeometry(0.3,16,16), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        rank3Group.add(zeroDot);
+
+        // ==========================================
+        // TRANSFORMATION GROUP (New)
+        // ==========================================
+        const transformGroup = new THREE.Group();
+        transformGroup.visible = false;
+        scene.add(transformGroup);
+
+        // Create Grid Points
+        const particleCount = 2000;
+        const particles = new THREE.Group();
+        transformGroup.add(particles);
+
+        const initialPos = [];
+        const finalPosRank2 = [];
+        const finalPosRank3 = [];
+
+        // Matrix A (Rank 2)
+        const matRank2 = new THREE.Matrix3();
+        matRank2.set(1, 0, -1, 0, 1, -1, 1, 1, -2); // Row major inputs
+
+        // Matrix B (Rank 3 - Identity-ish stretch)
+        const matRank3 = new THREE.Matrix3();
+        matRank3.set(1.5, 0.2, 0, 0.2, 1, 0, 0, 0, 0.5);
+
+        // Generate Grid (-2 to 2)
+        const gap = 0.5;
+        for(let x = -2; x <= 2; x += gap) {
+            for(let y = -2; y <= 2; y += gap) {
+                for(let z = -2; z <= 2; z += gap) {
+                    const dotGeom = new THREE.SphereGeometry(0.08, 8, 8);
+                    // Color gradient based on position
+                    const r = (x + 2) / 4; 
+                    const g = (y + 2) / 4;
+                    const b = (z + 2) / 4;
+                    const color = new THREE.Color(r, g, b);
+                    const mat = new THREE.MeshBasicMaterial({ color: color });
+                    const dot = new THREE.Mesh(dotGeom, mat);
+                    
+                    dot.position.set(x, z, y); // Map to ThreeJS y-up
+                    particles.add(dot);
+
+                    // Store Math Vector [x, y, z]
+                    const vOrigin = new THREE.Vector3(x, y, z);
+                    initialPos.push(vOrigin.clone());
+
+                    // Calculate Destination Rank 2 (Squash)
+                    const vDest2 = vOrigin.clone().applyMatrix3(matRank2);
+                    finalPosRank2.push(vDest2);
+
+                    // Calculate Destination Rank 3 (Stretch)
+                    const vDest3 = vOrigin.clone().applyMatrix3(matRank3);
+                    finalPosRank3.push(vDest3);
+                }
+            }
+        }
+        
+        // Add a ghost wireframe of the original cube
+        const originalBox = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4)), 0x444444);
+        transformGroup.add(originalBox);
+
+
+        // --- UI LOGIC ---
+        
+        // References
+        const rankSelect = document.getElementById('rankSelector');
+        const viewModeSelect = document.getElementById('viewModeSelector');
+        const matrixDisplay = document.getElementById('matrixDisplay');
+        const staticControls = document.getElementById('staticControls');
+        const rank2SubspaceControls = document.getElementById('rank2SubspaceControls');
+        const rank3SubspaceControls = document.getElementById('rank3SubspaceControls');
+        const transformControls = document.getElementById('transformControls');
+        const insightText = document.getElementById('insightText');
+        const animSlider = document.getElementById('animSlider');
+        const animateBtn = document.getElementById('animateBtn');
+
+        // Toggles
+        document.getElementById('toggleRow').addEventListener('change', e => rowGroup.visible = e.target.checked);
+        document.getElementById('toggleNull').addEventListener('change', e => nullGroup.visible = e.target.checked);
+        document.getElementById('toggleCol').addEventListener('change', e => colGroup.visible = e.target.checked);
+        document.getElementById('toggleLeftNull').addEventListener('change', e => lnGroup.visible = e.target.checked);
+        document.getElementById('toggleInputBasis').addEventListener('change', e => rowBasisGroup.visible = e.target.checked);
+
+        // State Update
+        function updateState() {
+            const rank = rankSelect.value;
+            const mode = viewModeSelect.value;
+
+            // 1. Matrix Display
+            if (rank === 'rank2') {
+                matrixDisplay.innerHTML = '\\[ A = \\begin{bmatrix} 1 & 0 & -1 \\\\ 0 & 1 & -1 \\\\ 1 & 1 & -2 \\end{bmatrix} \\]';
+                insightText.textContent = mode === 'transform' ? 
+                    "Watch the matrix 'squash' the 3D cube onto a flat 2D plane (the Column Space)." : 
+                    "Rank 2 means the matrix flattens 3D space into a 2D plane.";
+            } else {
+                matrixDisplay.innerHTML = '\\[ A = \\begin{bmatrix} 1.5 & 0.2 & 0 \\\\ 0.2 & 1 & 0 \\\\ 0 & 0 & 0.5 \\end{bmatrix} \\]';
+                insightText.textContent = mode === 'transform' ? 
+                    "The matrix stretches and rotates the cube, but preserves 3D volume (no flattening)." : 
+                    "Rank 3 means the vectors span the entire 3D volume. The only solution to Ax=0 is the zero point.";
+            }
+            if(window.MathJax) MathJax.typesetPromise();
+
+            // 2. Visibility Logic
+            if (mode === 'subspaces') {
+                staticGroup.visible = true;
+                transformGroup.visible = false;
+                staticControls.style.display = 'block';
+                transformControls.style.display = 'none';
+                
+                if (rank === 'rank2') {
+                    rank2Group.visible = true;
+                    rank3Group.visible = false;
+                    rank2SubspaceControls.style.display = 'block';
+                    rank3SubspaceControls.style.display = 'none';
+                } else {
+                    rank2Group.visible = false;
+                    rank3Group.visible = true;
+                    rank2SubspaceControls.style.display = 'none';
+                    rank3SubspaceControls.style.display = 'block';
+                }
+            } else {
+                staticGroup.visible = false;
+                transformGroup.visible = true;
+                staticControls.style.display = 'none';
+                transformControls.style.display = 'block';
+                
+                // Reset slider when switching to transform
+                animSlider.value = 0;
+                updateParticles(0);
+            }
+        }
+
+        // Event Listeners
+        rankSelect.addEventListener('change', updateState);
+        viewModeSelect.addEventListener('change', updateState);
+
+        // Animation Logic
+        function updateParticles(t) {
+            const isRank2 = rankSelect.value === 'rank2';
+            const targets = isRank2 ? finalPosRank2 : finalPosRank3;
+
+            particles.children.forEach((dot, i) => {
+                // Map math vector back to ThreeJS coords: v(x, y, z) -> three(x, z, y)
+                // Lerp between initial and target math vectors
+                const start = initialPos[i];
+                const end = targets[i];
+                
+                const currentX = THREE.MathUtils.lerp(start.x, end.x, t);
+                const currentY = THREE.MathUtils.lerp(start.y, end.y, t);
+                const currentZ = THREE.MathUtils.lerp(start.z, end.z, t);
+
+                dot.position.set(currentX, currentZ, currentY); // Swapped Y/Z for visualization
+            });
+        }
+
+        animSlider.addEventListener('input', (e) => {
+            updateParticles(parseFloat(e.target.value));
+        });
+
+        animateBtn.addEventListener('click', () => {
+            let start = null;
+            const duration = 2000; // 2s
+            
+            function step(timestamp) {
+                if (!start) start = timestamp;
+                const progress = Math.min((timestamp - start) / duration, 1);
+                
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                
+                animSlider.value = ease;
+                updateParticles(ease);
+
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            }
+            window.requestAnimationFrame(step);
+        });
+
+
+        // --- LABELS ---
+        function createLabel(text) {
+            const div = document.createElement('div');
+            div.className = 'label';
+            div.textContent = text;
+            document.body.appendChild(div);
+            return div;
+        }
+
+        const l_row = createLabel("Row Space");
+        const l_null = createLabel("Null Space");
+        const l_col = createLabel("Col Space");
+
+        function updateLabels() {
+            const widthHalf = window.innerWidth / 2;
+            const heightHalf = window.innerHeight / 2;
+
+            function pos(objPos, el, vis) {
+                if(!vis) { el.style.display = 'none'; return; }
+                const v = objPos.clone().project(camera);
+                if(v.z > 1 || Math.abs(v.x)>1.1 || Math.abs(v.y)>1.1) { el.style.display = 'none'; return; }
+                el.style.display = 'block';
+                el.style.left = (v.x * widthHalf + widthHalf) + 'px';
+                el.style.top = (-(v.y * heightHalf) + heightHalf) + 'px';
+            }
+
+            // Only show labels in Subspace mode
+            const showLabels = viewModeSelect.value === 'subspaces' && rankSelect.value === 'rank2';
+            
+            if(showLabels) {
+                pos(new THREE.Vector3(5, 5, 5), l_null, nullGroup.visible);
+                pos(new THREE.Vector3(4, 0, -4), l_row, rowGroup.visible);
+                pos(new THREE.Vector3(4, 4, 0), l_col, colGroup.visible);
+            } else {
+                l_row.style.display = 'none';
+                l_null.style.display = 'none';
+                l_col.style.display = 'none';
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateState(); // Init
+        animate();
+    </script>
+</body>
+</html>

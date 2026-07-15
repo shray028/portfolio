@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature's Optimization Algorithms</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --card-bg: rgba(25, 25, 35, 0.6);
+            --text-main: #ffffff;
+            --accent-cyan: #00f260;
+            --accent-blue: #0575E6;
+            --accent-pink: #ec38bc;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(circle at center, #1a1a24 0%, #000000 100%);
+            color: var(--text-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: 200;
+            letter-spacing: 4px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            background: linear-gradient(to right, var(--accent-cyan), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 242, 96, 0.3);
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        /* Navigation */
+        .nav-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.05);
+            border: var(--glass-border);
+            color: #aaa;
+            padding: 12px 25px;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            backdrop-filter: blur(5px);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border-color: var(--accent-cyan);
+        }
+
+        .nav-btn.active {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
+            border: none;
+            color: #000;
+            font-weight: bold;
+            box-shadow: 0 0 25px rgba(5, 117, 230, 0.4);
+        }
+
+        /* Visualization Cards */
+        .scene {
+            display: none;
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border: var(--glass-border);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .scene.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .scene-header {
+            margin-bottom: 25px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 20px;
+        }
+
+        .scene-header h2 {
+            margin: 0 0 15px 0;
+            color: var(--text-main);
+            font-weight: 300;
+        }
+
+        .concept-tag {
+            background: rgba(5, 117, 230, 0.2);
+            border: 1px solid rgba(5, 117, 230, 0.4);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #acd5ff;
+            margin-right: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .canvas-container {
+            width: 100%;
+            height: 400px;
+            background: #08080a;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .action-btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+            border: 1px solid transparent;
+        }
+
+        .action-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        
+        .primary-btn { 
+            background: rgba(0, 242, 96, 0.1); 
+            color: var(--accent-cyan);
+            border-color: rgba(0, 242, 96, 0.3);
+        }
+        .primary-btn:hover { 
+            background: var(--accent-cyan); 
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 242, 96, 0.4);
+        }
+
+        .danger-btn { 
+            background: rgba(236, 56, 188, 0.1); 
+            color: var(--accent-pink);
+            border-color: rgba(236, 56, 188, 0.3);
+        }
+        .danger-btn:hover { 
+            background: var(--accent-pink); 
+            color: white;
+            box-shadow: 0 0 20px rgba(236, 56, 188, 0.4);
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Nature's Optimizers</h1>
+    <p class="subtitle">Visualizing Algorithms via Physics</p>
+
+    <div class="nav-container">
+        <button class="nav-btn active" onclick="switchScene('mountain')">1. The Mountain</button>
+        <button class="nav-btn" onclick="switchScene('vortex')">2. The Vortex</button>
+        <button class="nav-btn" onclick="switchScene('lightning')">3. Lightning</button>
+        <button class="nav-btn" onclick="switchScene('gas')">4. Entropy</button>
+    </div>
+
+    <div id="mountain" class="scene active">
+        <div class="scene-header">
+            <h2>The Mountain & Local Minima</h2>
+            <div style="margin-bottom:15px;">
+                <span class="concept-tag">Momentum</span>
+                <span class="concept-tag">Local Minima</span>
+            </div>
+            <p style="color:#aaa; font-size: 0.95rem; line-height: 1.5;">
+                Observe the <strong>trail</strong> left by the ball. <br>
+                <span style="color:#aaa">• Standard:</span> Gets stuck in the first small valley (Local Min).<br>
+                <span style="color:var(--accent-pink)">• Momentum:</span> Uses accumulated speed to climb over the hill and find the true bottom (Global Min).
+            </p>
+        </div>
+        <div class="canvas-container">
+            <canvas id="c-mountain"></canvas>
+        </div>
+        <div class="controls">
+            <button class="action-btn" onclick="resetMountain(false)">Standard Descent</button>
+            <button class="action-btn danger-btn" onclick="resetMountain(true)">Add Momentum</button>
+        </div>
+    </div>
+
+    <div id="vortex" class="scene">
+        <div class="scene-header">
+            <h2>The Gradient Vortex</h2>
+            <div style="margin-bottom:15px;">
+                <span class="concept-tag">Oscillation</span>
+                <span class="concept-tag">Convergence</span>
+            </div>
+            <p style="color:#aaa; font-size: 0.95rem;">
+                Like water draining or a black hole, gradients pull towards the center. Notice how particles speed up as they get closer to the solution (the center), often overshooting and spiraling in.
+            </p>
+        </div>
+        <div class="canvas-container">
+            <canvas id="c-vortex"></canvas>
+        </div>
+        <div class="controls">
+            <button class="action-btn primary-btn" onclick="initVortex()">Reset Vortex</button>
+        </div>
+    </div>
+
+    <div id="lightning" class="scene">
+        <div class="scene-header">
+            <h2>Stochastic Search (Lightning)</h2>
+            <div style="margin-bottom:15px;">
+                <span class="concept-tag">Greedy Search</span>
+                <span class="concept-tag">Pathfinding</span>
+            </div>
+            <p style="color:#aaa; font-size: 0.95rem;">
+                Lightning finds the ground by making rapid, greedy decisions. It doesn't know the best path beforehand; it just blindly picks the path of least resistance at every micro-step.
+            </p>
+        </div>
+        <div class="canvas-container">
+            <canvas id="c-lightning"></canvas>
+        </div>
+        <div class="controls">
+            <button class="action-btn primary-btn" onclick="strikeLightning()">Strike!</button>
+        </div>
+    </div>
+
+    <div id="gas" class="scene">
+        <div class="scene-header">
+            <h2>Gas Entropy</h2>
+            <div style="margin-bottom:15px;">
+                <span class="concept-tag">Exploration</span>
+                <span class="concept-tag">Equilibrium</span>
+            </div>
+            <p style="color:#aaa; font-size: 0.95rem;">
+                High energy systems naturally seek low energy states (Equilibrium). By compressing the gas (High Cost) and releasing it, the system automatically "searches" for the most stable configuration.
+            </p>
+        </div>
+        <div class="canvas-container">
+            <canvas id="c-gas"></canvas>
+        </div>
+        <div class="controls">
+            <button class="action-btn" onclick="initGas(true)">Compress</button>
+            <button class="action-btn primary-btn" onclick="releaseGas()">Release</button>
+        </div>
+    </div>
+
+    <script>
+        // --- GLOBAL SETUP ---
+        function switchScene(id) {
+            document.querySelectorAll('.scene').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            
+            const btnIndex = ['mountain', 'vortex', 'lightning', 'gas'].indexOf(id);
+            document.querySelectorAll('.nav-btn')[btnIndex].classList.add('active');
+
+            if(id === 'mountain') resetMountain(false);
+            if(id === 'vortex') initVortex();
+            if(id === 'lightning') strikeLightning();
+            if(id === 'gas') initGas(true);
+        }
+
+        function resizeCanvas(canvas) {
+            canvas.width = canvas.parentElement.offsetWidth;
+            canvas.height = canvas.parentElement.offsetHeight;
+        }
+
+        // ==========================================
+        // 1. NEON MOUNTAIN (With History Trail)
+        // ==========================================
+        const mCanvas = document.getElementById('c-mountain');
+        const mCtx = mCanvas.getContext('2d');
+        let mAnim;
+        // Added 'trail' array to store history
+        let mBall = { x: 0, y: 0, vx: 0, vy: 0, trail: [] }; 
+        let mParams = { momentum: false };
+
+        function getTerrainY(x, w, h) {
+            const nx = x / w;
+            let y = h * 0.2 + (nx * h * 0.6); 
+            y += Math.sin(nx * 10) * (h * 0.1);
+            return y;
+        }
+
+        function getSlope(x, w, h) {
+            const dx = 2; 
+            const y1 = getTerrainY(x - dx, w, h);
+            const y2 = getTerrainY(x + dx, w, h);
+            return (y2 - y1) / (2 * dx);
+        }
+
+        function updateMountain() {
+            const w = mCanvas.width;
+            const h = mCanvas.height;
+            
+            const slope = getSlope(mBall.x, w, h);
+            const gravityForce = 1.5; 
+            mBall.vx += (slope * gravityForce);
+
+            if (mParams.momentum) {
+                mBall.vx *= 0.995; 
+                if(mBall.vx > 12) mBall.vx = 12;
+            } else {
+                mBall.vx *= 0.92; 
+            }
+
+            mBall.x += mBall.vx;
+
+            if (mBall.x < 10) { mBall.x = 10; mBall.vx = 0; }
+            if (mBall.x > w - 10) { mBall.x = w - 10; mBall.vx = 0; }
+
+            mBall.y = getTerrainY(mBall.x, w, h) - 10;
+
+            // VISUAL ENHANCEMENT: Record Trail
+            // Push current pos to trail. Limit length to 100 frames.
+            mBall.trail.push({x: mBall.x, y: mBall.y});
+            if(mBall.trail.length > 100) mBall.trail.shift();
+
+            drawMountainScene(w, h);
+            mAnim = requestAnimationFrame(updateMountain);
+        }
+
+        function drawMountainScene(w, h) {
+            mCtx.clearRect(0,0,w,h);
+            
+            // Neon Background Grid
+            mCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+            mCtx.lineWidth = 1;
+            for(let i=0; i<w; i+=40) { mCtx.beginPath(); mCtx.moveTo(i,0); mCtx.lineTo(i,h); mCtx.stroke(); }
+            for(let i=0; i<h; i+=40) { mCtx.beginPath(); mCtx.moveTo(0,i); mCtx.lineTo(w,i); mCtx.stroke(); }
+
+            // Terrain Gradient Fill
+            let grad = mCtx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, "rgba(5, 117, 230, 0.0)");
+            grad.addColorStop(1, "rgba(5, 117, 230, 0.2)");
+            mCtx.fillStyle = grad;
+
+            mCtx.beginPath();
+            mCtx.moveTo(0, h);
+            for(let x=0; x<=w; x+=5) mCtx.lineTo(x, getTerrainY(x, w, h));
+            mCtx.lineTo(w, h);
+            mCtx.closePath();
+            mCtx.fill();
+            
+            // Neon Terrain Line
+            mCtx.beginPath();
+            for(let x=0; x<=w; x+=5) mCtx.lineTo(x, getTerrainY(x, w, h));
+            mCtx.strokeStyle = '#0575E6';
+            mCtx.lineWidth = 2;
+            mCtx.shadowBlur = 10;
+            mCtx.shadowColor = '#0575E6';
+            mCtx.stroke();
+            mCtx.shadowBlur = 0;
+
+            // DRAW TRAIL
+            if(mBall.trail.length > 1) {
+                mCtx.beginPath();
+                mCtx.moveTo(mBall.trail[0].x, mBall.trail[0].y);
+                for(let p of mBall.trail) mCtx.lineTo(p.x, p.y);
+                mCtx.strokeStyle = mParams.momentum ? 'rgba(236, 56, 188, 0.5)' : 'rgba(255,255,255,0.3)';
+                mCtx.lineWidth = 2;
+                mCtx.stroke();
+            }
+
+            // Labels
+            mCtx.fillStyle = '#888';
+            mCtx.font = "12px sans-serif";
+            mCtx.fillText("Start", 10, h*0.18);
+            mCtx.fillStyle = '#aaa';
+            mCtx.fillText("Local Min", w*0.35, h*0.88); 
+            mCtx.fillStyle = '#00f260';
+            mCtx.fillText("Global Min", w*0.82, h*0.9);
+
+            // Ball
+            mCtx.beginPath();
+            mCtx.arc(mBall.x, mBall.y, 8, 0, Math.PI*2);
+            let color = mParams.momentum ? '#ec38bc' : '#fff';
+            mCtx.fillStyle = color;
+            mCtx.shadowBlur = 15;
+            mCtx.shadowColor = color;
+            mCtx.fill();
+            mCtx.shadowBlur = 0;
+        }
+
+        function resetMountain(useMomentum) {
+            cancelAnimationFrame(mAnim);
+            resizeCanvas(mCanvas);
+            mParams.momentum = useMomentum;
+            mBall = { x: 20, y: 0, vx: 0, vy: 0, trail: [] }; 
+            updateMountain();
+        }
+
+        // ==========================================
+        // 2. GLOWING VORTEX 
+        // ==========================================
+        const vCanvas = document.getElementById('c-vortex');
+        const vCtx = vCanvas.getContext('2d');
+        let vAnim;
+        let particles = [];
+
+        class VParticle {
+            constructor(w, h) {
+                this.cx = w/2; this.cy = h/2;
+                this.angle = Math.random() * Math.PI * 2;
+                this.radius = Math.random() * 150 + 50;
+                this.speed = Math.random() * 0.05 + 0.02;
+                this.size = Math.random() * 2 + 1;
+            }
+            update() {
+                this.angle += this.speed;
+                this.radius -= 0.5; 
+                if(this.radius < 0) this.radius = Math.random() * 150 + 50;
+            }
+            draw() {
+                let x = this.cx + Math.cos(this.angle) * this.radius;
+                let y = this.cy + Math.sin(this.angle) * this.radius;
+                
+                // Color gets hotter closer to center
+                let dist = this.radius / 200; // 1 = far, 0 = center
+                let alpha = 1 - dist;
+                
+                vCtx.fillStyle = `rgba(0, 242, 96, ${alpha})`;
+                vCtx.beginPath(); vCtx.arc(x, y, this.size, 0, Math.PI*2); vCtx.fill();
+            }
+        }
+
+        function updateVortex() {
+            // Trail effect using transparent fill
+            vCtx.fillStyle = 'rgba(8, 8, 10, 0.2)'; 
+            vCtx.fillRect(0,0, vCanvas.width, vCanvas.height);
+            
+            // Additive blending for glow
+            vCtx.globalCompositeOperation = 'lighter';
+            particles.forEach(p => { p.update(); p.draw(); });
+            vCtx.globalCompositeOperation = 'source-over';
+            
+            vAnim = requestAnimationFrame(updateVortex);
+        }
+        function initVortex() {
+            cancelAnimationFrame(vAnim); resizeCanvas(vCanvas);
+            particles = Array.from({length: 250}, () => new VParticle(vCanvas.width, vCanvas.height));
+            updateVortex();
+        }
+
+        // ==========================================
+        // 3. ELECTRIC LIGHTNING
+        // ==========================================
+        const lCanvas = document.getElementById('c-lightning');
+        const lCtx = lCanvas.getContext('2d');
+
+        function drawLightningSeg(x, y, w, h, isMain) {
+            lCtx.beginPath(); lCtx.moveTo(x, 0);
+            let curX = x, curY = 0;
+            
+            // Style
+            if(isMain) {
+                lCtx.shadowBlur = 15;
+                lCtx.shadowColor = '#00f260';
+                lCtx.strokeStyle = '#fff';
+                lCtx.lineWidth = 2;
+            } else {
+                lCtx.shadowBlur = 0;
+                lCtx.strokeStyle = 'rgba(0, 242, 96, 0.2)';
+                lCtx.lineWidth = 1;
+            }
+
+            while(curY < h) {
+                let xStep = (Math.random() - 0.5) * 50; 
+                let yStep = Math.random() * 20 + 5;
+                lCtx.lineTo(curX + xStep, curY + yStep);
+                curX += xStep; curY += yStep;
+            }
+            lCtx.stroke();
+            lCtx.shadowBlur = 0; // Reset
+        }
+
+        function strikeLightning() {
+            resizeCanvas(lCanvas);
+            const w = lCanvas.width, h = lCanvas.height;
+            lCtx.clearRect(0,0,w,h);
+            
+            // Exploratory paths (faint green)
+            for(let i=0; i<8; i++) drawLightningSeg(w/2, 0, w, h, false);
+            
+            // Main Bolt (Bright White/Green)
+            setTimeout(() => {
+                drawLightningSeg(w/2, 0, w, h, true);
+                
+                // Flash Effect
+                lCanvas.style.background = '#113';
+                setTimeout(() => lCanvas.style.background = '#08080a', 100);
+            }, 100);
+        }
+
+        // ==========================================
+        // 4. NEON GAS
+        // ==========================================
+        const gCanvas = document.getElementById('c-gas');
+        const gCtx = gCanvas.getContext('2d');
+        let gAnim;
+        let gasParticles = [];
+        let gasReleased = false;
+
+        class GasParticle {
+            constructor(w, h) {
+                this.x = w/2 + (Math.random()-0.5) * 50; 
+                this.y = h/2 + (Math.random()-0.5) * 50;
+                this.vx = (Math.random()-0.5) * 4;
+                this.vy = (Math.random()-0.5) * 4;
+                this.radius = Math.random() * 2 + 1;
+                // Cyan and Purple palette
+                this.color = Math.random() > 0.5 ? '#00f260' : '#0575E6';
+            }
+            update(w, h) {
+                if(!gasReleased) {
+                    this.x += (Math.random()-0.5)*2;
+                    this.y += (Math.random()-0.5)*2;
+                } else {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if(this.x < 0 || this.x > w) this.vx *= -1;
+                    if(this.y < 0 || this.y > h) this.vy *= -1;
+                }
+            }
+            draw() {
+                gCtx.beginPath();
+                gCtx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+                gCtx.fillStyle = this.color;
+                gCtx.fill();
+            }
+        }
+
+        function updateGas() {
+            const w = gCanvas.width, h = gCanvas.height;
+            gCtx.clearRect(0,0,w,h);
+            
+            // Container
+            gCtx.strokeStyle = 'rgba(255,255,255,0.1)'; 
+            gCtx.strokeRect(0,0,w,h);
+
+            if(!gasReleased) {
+                gCtx.strokeStyle = '#ec38bc'; 
+                gCtx.lineWidth = 2;
+                gCtx.setLineDash([5, 5]);
+                gCtx.strokeRect(w/2 - 40, h/2 - 40, 80, 80);
+                gCtx.setLineDash([]);
+                
+                // Glow effect for box
+                gCtx.shadowBlur = 10;
+                gCtx.shadowColor = '#ec38bc';
+                gCtx.fillStyle = '#ec38bc'; 
+                gCtx.fillText("High Pressure", w/2 - 35, h/2 - 50);
+                gCtx.shadowBlur = 0;
+            }
+
+            gCtx.globalCompositeOperation = 'lighter';
+            gasParticles.forEach(p => { p.update(w,h); p.draw(); });
+            gCtx.globalCompositeOperation = 'source-over';
+            
+            gAnim = requestAnimationFrame(updateGas);
+        }
+
+        function initGas(reset) {
+            resizeCanvas(gCanvas);
+            if(reset || gasParticles.length === 0) {
+                gasReleased = false;
+                gasParticles = Array.from({length: 150}, () => new GasParticle(gCanvas.width, gCanvas.height));
+            }
+            cancelAnimationFrame(gAnim);
+            updateGas();
+        }
+
+        function releaseGas() {
+            gasReleased = true;
+        }
+
+        window.onload = () => switchScene('mountain');
+        window.onresize = () => {
+            let active = document.querySelector('.scene.active').id;
+            switchScene(active);
+        };
+    </script>
+</body>
+</html>

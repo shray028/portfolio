@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duality Explorer [Enhanced Trajectory]</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0KOVEMVIARBEGPOJpGln/gharitOCNobXQGMZNKfsduEWIT2A3OOn" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/AIa3DK8RxbY3ip/l0CkAVzppRBOaxzzA5ci_6CATEfiEUuGzhdiC0" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --glow-color-primal: #d63384;
+            /* Enhanced Dual Color to a brighter Neon Green */
+            --glow-color-dual: #39FF14; 
+            --glow-color-accent: #9dceff;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000; color: #eee; }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+        .ui-panel {
+            position: absolute;
+            padding: 15px 20px;
+            background: rgba(10, 10, 20, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0;
+            transition: opacity 0.8s ease, transform 0.8s ease;
+            user-select: none;
+        }
+
+        #info { top: 15px; left: 15px; width: 380px; transform: translateY(20px); }
+        #duality-rule { top: 15px; right: 15px; text-align: center; font-size: 1.1em; transform: translateY(20px); }
+        #slider-panel { bottom: 15px; left: 50%; transform: translateX(-50%) translateY(20px); width: 550px; text-align: center; }
+
+        h2 { margin-top: 0; color: var(--glow-color-accent); text-shadow: 0 0 8px var(--glow-color-accent); }
+        p { line-height: 1.5; color: #ccc; }
+        strong { color: var(--glow-color-accent); }
+        .status-box { background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 0.9em; }
+        #peteStatus { font-weight: bold; }
+        .feasible { color: #81c784; } .infeasible { color: #e57373; }
+        #guide-btn {
+            width: 100%; padding: 10px; border: none; background: #6a11cb;
+            background: linear-gradient(to right, #2575fc, #6a11cb);
+            color: white; border-radius: 6px; cursor: pointer; font-size: 1em; margin-top: 15px; transition: all 0.2s ease;
+            text-shadow: 0 0 5px white;
+        }
+        #guide-btn:hover { transform: scale(1.05); box-shadow: 0 0 15px #6a11cb; }
+        .rule-display { background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 8px; }
+        #peteMinVal { color: var(--glow-color-primal); text-shadow: 0 0 5px var(--glow-color-primal); }
+        /* Apply the enhanced glow color to the UI */
+        #dianaMaxVal { color: var(--glow-color-dual); text-shadow: 0 0 8px var(--glow-color-dual); }
+        input[type="range"] { width: 100%; margin-top: 5px; }
+
+        #welcome-modal {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            width: 700px;
+            max-width: 90%;
+            background: rgba(20, 20, 35, 0.9);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 30px 40px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+        #modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 99;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .katex-display { margin: 1em 0; }
+        #begin-btn {
+            width: 100%; padding: 12px; font-size: 1.1em; margin-top: 20px;
+            cursor: pointer; border: none; border-radius: 8px;
+            color: white; background: linear-gradient(to right, #1a89ff, #6f42c1);
+            transition: all 0.2s ease;
+        }
+        #begin-btn:hover { transform: scale(1.03); box-shadow: 0 0 20px #6f42c1; }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <div id="modal-overlay"></div>
+    <div id="welcome-modal">
+        <h2>Welcome to the Duality Explorer</h2>
+        <p>🚩 <strong>Pete the Hiker</strong> seeks the lowest point in the pink valley (Primal Problem P*), restricted by the orange boundary.</p>
+        <div id="primal-problem-katex"></div>
+        <p>👑 <strong>Diana the Scout</strong> analyzes the faint green wireframe hologram (the Lagrangian). The hologram's lowest point provides a lower bound.</p>
+        <p>As you adjust the penalty (λ) with the slider, Diana traverses the bright glowing tube (the <strong>Dual Function d(λ)</strong>). This tube is concave (inverted U-shape). Diana's goal is to maximize her altitude by finding the peak of this tube (D*).</p>
+        <div id="dual-problem-katex"></div>
+        <button id="begin-btn">Begin Exploration</button>
+    </div>
+
+    <div id="info" class="ui-panel">
+        <h2>Explorer Status</h2>
+        <div class="status-box">
+            <div><strong>Hiker Location:</strong> <span id="peteStatus" class="feasible">Feasible Valley ✔️</span></div>
+            <div><strong>Hiker Altitude (Primal):</strong> <span id="hiker-alt-val">0.00</span></div>
+            <div><strong>Scout Altitude (Lagrangian):</strong> <span id="scout-alt-val">0.00</span></div>
+        </div>
+        <button id="guide-btn">✨ Show Primal Optimum (P*)</button>
+    </div>
+
+    <div id="duality-rule" class="ui-panel">
+        <strong>The Duality Principle (d(λ) ≤ P*)</strong>
+        <div class="rule-display">
+            Diana's Bound (<span id="dianaMaxVal">5.00</span>)
+            &nbsp; ≤ &nbsp;
+            Pete's Min (<span id="peteMinVal">5.80</span>)
+        </div>
+        <div style="margin-top: 10px;">
+            <strong>Duality Gap:</strong> <span id="current-gap-val">0.80</span>
+        </div>
+    </div>
+
+    <div id="slider-panel" class="ui-panel">
+        <label for="gap-slider"><strong>Lagrangian Multiplier (λ):</strong> <span id="gap-value">0.00</span> (Optimal λ* ≈ 0.40)</label>
+        <!-- Slider controls Lambda (λ) -->
+        <input type="range" id="gap-slider" min="0" max="1.5" value="0" step="0.01">
+        <div id="duality-status" style="text-align:center; margin-top: 8px; font-weight: bold;"></div>
+    </div>
+
+    <!-- Using a slightly newer version of Three.js for better material and geometry support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Define colors based on CSS variables
+        const DUAL_COLOR = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--glow-color-dual').trim());
+        const PRIMAL_COLOR = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--glow-color-primal').trim());
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000104, 0.015);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(25, 35, 40);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // ENHANCEMENT: Use ACESFilmicToneMapping for better handling of bright, glowing colors
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 5, 0);
+        controls.maxPolarAngle = Math.PI / 2 - 0.05;
+        controls.minDistance = 20;
+        controls.maxDistance = 100;
+
+        // Track control activity
+        let controlsActive = false;
+        controls.addEventListener('start', () => {
+            controlsActive = true;
+            document.getElementById('container').style.cursor = 'grabbing';
+        });
+        controls.addEventListener('end', () => {
+            controlsActive = false;
+            document.getElementById('container').style.cursor = 'crosshair';
+        });
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x4040ff, 0.6); 
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(-30, 40, 20);
+        scene.add(directionalLight);
+        
+        const cursorLight = new THREE.PointLight(0xffffff, 1, 10);
+        // PointLight intensity in newer Three.js versions
+        cursorLight.intensity = 5; 
+        scene.add(cursorLight);
+
+        // Starfield Background
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsVertices = [];
+        for (let i = 0; i < 5000; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            if(new THREE.Vector3(x,y,z).length() > 150) starsVertices.push(x, y, z);
+        }
+        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+        const starsMaterial = new THREE.PointsMaterial({ color: 0x888888, size: 0.7 });
+        const starField = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(starField);
+
+
+        // --- Core Duality Logic & Functions ---
+        let lambda = 0.0; // Lagrangian Multiplier (λ)
+        const CONSTRAINT_VALUE = 6.0; // Constraint: x + z <= 6
+        const LAMBDA_MAX = 1.5; // Max value for slider and trajectory visualization
+
+        // Primal Problem Definition: f(x, z) = 0.1*((x-5)^2 + (z-5)^2) + 5
+        const primalFunc = (x, z) => 0.1 * (Math.pow(x - 5, 2) + Math.pow(z - 5, 2)) + 5;
+        
+        // Constraint function g(x, z) = x + z - 6
+        const constraintFunc = (x, z) => x + z - CONSTRAINT_VALUE;
+        const isFeasible = (x, z) => constraintFunc(x, z) <= 0;
+
+        // Lagrangian L(x, z, λ) (The faint green wireframe surface)
+        const lagrangianFunc = (x, z) => primalFunc(x, z) + lambda * constraintFunc(x, z);
+
+        // Dual Function d(λ) (The bright green tube)
+        // Analytically derived: d(λ) = -5λ^2 + 4λ + 5 (Concave)
+        const calculateDualValue = (l) => -5 * l * l + 4 * l + 5;
+
+        // Location (x*, z*) where the Lagrangian minimum occurs for a given λ.
+        const calculateLagrangianMinLocation = (l) => {
+            const x_star = 5 - 5 * l;
+            const z_star = 5 - 5 * l;
+            return {x: x_star, z: z_star};
+        };
+
+        // Primal Optimum (P*)
+        const peteOptimalPos = new THREE.Vector3(3, primalFunc(3, 3), 3); // Height 5.8
+        
+        // Diana's current position marker (the crown) tracks d(λ).
+        let dianaCurrentMinPos = new THREE.Vector3();
+
+        
+        // --- Surfaces and Markers ---
+        const size = 40;
+        const segments = 120;
+        const surfaceGeometry = new THREE.PlaneGeometry(size, size, segments, segments);
+        surfaceGeometry.rotateX(-Math.PI / 2);
+
+        // Primal surface (Pete's Terrain)
+        const primalMaterial = new THREE.MeshStandardMaterial({ 
+            vertexColors: true, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.2
+        });
+        const primalSurface = new THREE.Mesh(surfaceGeometry, primalMaterial);
+        primalSurface.receiveShadow = true;
+        scene.add(primalSurface);
+
+        // Wireframe overlay
+        const primalWireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true, opacity: 0.15 });
+        const primalWireframe = new THREE.Mesh(surfaceGeometry, primalWireframeMaterial);
+        scene.add(primalWireframe);
+
+        // Lagrangian surface (Diana's Hologram)
+        const lagrangianGeometry = surfaceGeometry.clone();
+        // ENHANCEMENT: Reduced opacity and emission to emphasize the Dual Tube
+        const lagrangianMaterial = new THREE.MeshPhongMaterial({ 
+            color: DUAL_COLOR, 
+            wireframe: true,
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.3, // Lowered opacity
+            emissive: DUAL_COLOR, 
+            emissiveIntensity: 0.05 // Lowered intensity
+        });
+        const lagrangianSurface = new THREE.Mesh(lagrangianGeometry, lagrangianMaterial);
+        scene.add(lagrangianSurface);
+
+        // ENHANCEMENT: Dual Function Trajectory (The Concave Tube Visualization)
+        function drawDualTrajectory() {
+            const dualPoints = [];
+            const steps = 100;
+            // 1. Calculate the trajectory points
+            for (let i = 0; i <= steps; i++) {
+                const l = (i / steps) * LAMBDA_MAX;
+                const height = calculateDualValue(l);
+                const loc = calculateLagrangianMinLocation(l);
+                dualPoints.push(new THREE.Vector3(loc.x, height, loc.z));
+            }
+            
+            // 2. Create a smooth curve from the points
+            const curve = new THREE.CatmullRomCurve3(dualPoints);
+
+            // 3. Create the Tube Geometry
+            // Parameters: path, tubularSegments, radius, radialSegments, closed
+            const tubeGeometry = new THREE.TubeGeometry(curve, 100, 0.2, 16, false);
+
+            // 4. Create the Glowing Material (MeshStandardMaterial handles emission well)
+            const tubeMaterial = new THREE.MeshStandardMaterial({
+                color: DUAL_COLOR,
+                emissive: DUAL_COLOR,
+                emissiveIntensity: 2.5, // High intensity for strong glow
+                roughness: 0.5,
+                metalness: 0.1
+            });
+
+            const dualTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            scene.add(dualTube);
+        }
+
+
+        function updateSurfacesAndColors() {
+            const pVert = surfaceGeometry.attributes.position;
+            const lVert = lagrangianGeometry.attributes.position;
+            // Use Primal Color for feasible region
+            const feasibleColor = PRIMAL_COLOR; 
+            const infeasibleColor = new THREE.Color(0x8b0000); // Dark red
+
+            if (!surfaceGeometry.attributes.color) {
+                 surfaceGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pVert.count * 3), 3));
+            }
+            const pColor = surfaceGeometry.attributes.color;
+
+            for (let i = 0; i < pVert.count; i++) {
+                const x = pVert.getX(i); 
+                const z = pVert.getZ(i);
+
+                const primalY = primalFunc(x, z);
+                const lagrangianY = lagrangianFunc(x, z);
+
+                pVert.setY(i, primalY);
+                lVert.setY(i, lagrangianY);
+
+                const color = isFeasible(x, z) ? feasibleColor : infeasibleColor;
+                pColor.setXYZ(i, color.r, color.g, color.b);
+            }
+            pColor.needsUpdate = true;
+            surfaceGeometry.computeVertexNormals(); 
+            lagrangianGeometry.computeVertexNormals();
+            pVert.needsUpdate = true; 
+            lVert.needsUpdate = true;
+
+            // Update bounding volumes
+            surfaceGeometry.computeBoundingSphere();
+            lagrangianGeometry.computeBoundingSphere();
+
+            // Update Diana's optimal position
+            const dualVal = calculateDualValue(lambda);
+            const lagrangianMinLoc = calculateLagrangianMinLocation(lambda);
+            dianaCurrentMinPos.set(lagrangianMinLoc.x, dualVal, lagrangianMinLoc.z);
+
+            document.getElementById('dianaMaxVal').textContent = dualVal.toFixed(2);
+            const gap = peteOptimalPos.y - dualVal;
+            document.getElementById('current-gap-val').textContent = Math.max(0, gap).toFixed(2);
+        }
+
+        // Constraint Line
+        const constraintLineMat = new THREE.LineBasicMaterial({ color: 0xffa500 });
+        const points = [];
+        for(let i = 0; i <= 100; i++) {
+            const x = -size/2 + (size/100) * i;
+            const z = CONSTRAINT_VALUE - x;
+            if (z >= -size/2 && z <= size/2) {
+                points.push(new THREE.Vector3(x, primalFunc(x,z) + 0.05, z));
+            }
+        }
+        const constraintLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), constraintLineMat);
+        scene.add(constraintLine);
+        
+        // Markers
+        const hikerMarker = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16), new THREE.MeshStandardMaterial({ color: PRIMAL_COLOR, emissive: PRIMAL_COLOR, emissiveIntensity: 0.5, roughness: 0.4 }));
+        scene.add(hikerMarker);
+        const scoutMarker = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 32), new THREE.MeshStandardMaterial({ color: DUAL_COLOR, emissive: DUAL_COLOR, emissiveIntensity: 0.5, roughness: 0.3 }));
+        scene.add(scoutMarker);
+        const gapConnector = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.2, gapSize: 0.1 }));
+        scene.add(gapConnector);
+
+        // Flag at Primal Optimum (P*)
+        const flag = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1, 3), new THREE.MeshPhongMaterial({color: PRIMAL_COLOR}));
+        flag.position.copy(peteOptimalPos).y += 0.5; scene.add(flag);
+
+        // Crown at current Lagrangian Minimum (d(λ))
+        // Using a bright gold/white to stand out against the green tube
+        const crown = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.1, 16, 32), new THREE.MeshStandardMaterial({color: 0xFFD700, emissive: 0xFFFFFF, emissiveIntensity: 1.5, roughness: 0.2, metalness: 0.8})); 
+        scene.add(crown);
+
+        let particles, particleMaterial;
+        function createStrongDualityEffect() {
+            const particleCount = 200;
+            const particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(particleCount * 3).fill(0), 3));
+            particleMaterial = new THREE.PointsMaterial({ color: 0xffff00, size: 0.5, transparent: true, blending: THREE.AdditiveBlending, opacity: 1.0 });
+            particles = new THREE.Points(particleGeometry, particleMaterial);
+            particles.velocities = [];
+            for (let i = 0; i < particleCount; i++) {
+                particles.velocities.push(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(Math.random() * 2 + 1));
+            }
+            scene.add(particles);
+        }
+
+        // --- UI & Interaction ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(100, 100);
+        const gapSlider = document.getElementById('gap-slider');
+        document.getElementById('peteMinVal').textContent = peteOptimalPos.y.toFixed(2);
+        gapSlider.value = lambda;
+        gapSlider.max = LAMBDA_MAX;
+        document.getElementById('gap-value').textContent = lambda.toFixed(2);
+        
+        gapSlider.addEventListener('input', (e) => {
+            lambda = parseFloat(e.target.value);
+            document.getElementById('gap-value').textContent = lambda.toFixed(2);
+            updateSurfacesAndColors();
+            checkDualityStatus();
+        });
+
+        let guideAnimation = { active: false, progress: 0 };
+        const guideStart = { camPos: new THREE.Vector3(), targetPos: new THREE.Vector3() };
+        const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+        document.getElementById('guide-btn').addEventListener('click', () => {
+            guideAnimation.active = true;
+            guideAnimation.progress = 0;
+            guideStart.camPos.copy(camera.position);
+            guideStart.targetPos.copy(controls.target);
+            controls.enabled = false;
+        });
+
+        function checkDualityStatus() {
+            const dualityStatusElem = document.getElementById('duality-status');
+            const strongDualityCondition = Math.abs(peteOptimalPos.y - calculateDualValue(lambda)) < 0.01;
+            
+            if (strongDualityCondition) {
+                dualityStatusElem.innerHTML = '✨ <strong>Strong Duality!</strong> (P* = D*)';
+                dualityStatusElem.style.color = '#ffff00';
+                dualityStatusElem.style.textShadow = '0 0 8px #ffff00';
+                if (!particles) createStrongDualityEffect();
+            } else {
+                dualityStatusElem.innerHTML = 'Weak Duality: Gap exists (d(λ) < P*).';
+                dualityStatusElem.style.color = '#ccc';
+                dualityStatusElem.style.textShadow = 'none';
+                if(particles) { scene.remove(particles); particles = null; }
+            }
+        }
+
+        window.addEventListener('mousemove', (e) => {
+             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            starField.rotation.y += delta * 0.01;
+
+            // 1. Camera Control
+            if (guideAnimation.active) {
+                guideAnimation.progress = Math.min(guideAnimation.progress + delta / 2, 1);
+                const smoothT = easeInOutCubic(guideAnimation.progress);
+                const targetCamPos = new THREE.Vector3(peteOptimalPos.x + 8, peteOptimalPos.y + 12, peteOptimalPos.z + 8);
+                camera.position.lerpVectors(guideStart.camPos, targetCamPos, smoothT);
+                controls.target.lerpVectors(guideStart.targetPos, peteOptimalPos, smoothT);
+                if (guideAnimation.progress >= 1) {
+                    guideAnimation.active = false;
+                    controls.enabled = true;
+                }
+            }
+            
+            controls.update();
+
+            // 2. Interaction (Raycasting)
+            if (!controlsActive) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(primalSurface);
+                if (intersects.length > 0) {
+                    const pt = intersects[0].point;
+                    const lagrangianY = lagrangianFunc(pt.x, pt.z);
+                    
+                    hikerMarker.position.lerp(pt, 0.2);
+                    scoutMarker.position.lerp(new THREE.Vector3(pt.x, lagrangianY, pt.z), 0.2);
+                    cursorLight.position.lerp(pt.clone().add(new THREE.Vector3(0, 3, 0)), 0.2);
+
+                    document.getElementById('hiker-alt-val').textContent = pt.y.toFixed(2);
+                    document.getElementById('scout-alt-val').textContent = lagrangianY.toFixed(2);
+
+                    const peteStatusElem = document.getElementById('peteStatus');
+                    if (isFeasible(pt.x, pt.z)) {
+                        peteStatusElem.textContent = 'Feasible Valley ✔️'; peteStatusElem.className = 'feasible';
+                    } else {
+                        peteStatusElem.textContent = 'Forbidden Zone ❌'; peteStatusElem.className = 'infeasible';
+                    }
+                }
+            }
+            
+            // 3. Update other visuals
+            gapConnector.geometry.attributes.position.setXYZ(0, hikerMarker.position.x, hikerMarker.position.y, hikerMarker.position.z);
+            gapConnector.geometry.attributes.position.setXYZ(1, scoutMarker.position.x, scoutMarker.position.y, scoutMarker.position.z);
+            gapConnector.geometry.attributes.position.needsUpdate = true;
+            gapConnector.computeLineDistances();
+
+            // The crown tracks d(λ). Offset slightly above the tube (radius 0.2) for better visibility.
+            crown.position.copy(dianaCurrentMinPos).y += 0.25; 
+            crown.rotation.y += delta * 0.5;
+            
+            // 4. Particle Animation
+            if(particles) {
+                particles.position.copy(peteOptimalPos); 
+                particleMaterial.opacity -= delta * 0.5; // Fade out over 2 seconds
+                const pos = particles.geometry.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    pos.setXYZ(i, pos.getX(i) + particles.velocities[i].x * delta, pos.getY(i) + particles.velocities[i].y * delta, pos.getZ(i) + particles.velocities[i].z * delta);
+                }
+                pos.needsUpdate = true;
+                if(particleMaterial.opacity <= 0) {
+                    // Reset particle effect loop if still in strong duality
+                    if (Math.abs(peteOptimalPos.y - calculateDualValue(lambda)) < 0.01) {
+                        particleMaterial.opacity = 1.0;
+                        for (let i = 0; i < pos.count; i++) {
+                            pos.setXYZ(i, 0, 0, 0); // Reset positions to center
+                        }
+                    } else {
+                        scene.remove(particles); particles = null;
+                    }
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // --- Initial Load & Modal Logic ---
+        function init() {
+            drawDualTrajectory(); // Draw the enhanced concave dual tube
+            updateSurfacesAndColors();
+            checkDualityStatus();
+            
+            const modal = document.getElementById('welcome-modal');
+            const overlay = document.getElementById('modal-overlay');
+            
+            // Ensure KaTeX renders
+            if (window.katex) {
+                katex.render("P^* = \\min_{\\mathbf{x}} f(\\mathbf{x}) \\quad \\text{s.t.} \\quad g(\\mathbf{x}) \\le 0", document.getElementById('primal-problem-katex'), { displayMode: true, throwOnError: false });
+                katex.render("D^* = \\max_{\\lambda \\ge 0} \\underbrace{d(\\lambda)}_{\\text{Concave}}", document.getElementById('dual-problem-katex'), { displayMode: true, throwOnError: false });
+            }
+
+            setTimeout(() => {
+                overlay.style.opacity = 1;
+                modal.style.opacity = 1;
+                modal.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 500);
+
+            document.getElementById('begin-btn').addEventListener('click', () => {
+                overlay.style.opacity = 0;
+                modal.style.opacity = 0;
+                modal.style.transform = 'translate(-50%, -50%) scale(0.95)';
+                setTimeout(() => { 
+                    overlay.style.display = 'none';
+                    modal.style.display = 'none';
+                }, 500);
+
+                const uiPanels = document.querySelectorAll('.ui-panel');
+                uiPanels.forEach((p, i) => {
+                    setTimeout(() => {
+                        p.style.opacity = 1;
+                        // Reset transform correctly while maintaining centering for the slider
+                        if (p.id === 'slider-panel') {
+                            p.style.transform = 'translateX(-50%) translateY(0)';
+                        } else {
+                            p.style.transform = 'translateY(0)';
+                        }
+                    }, 200 * i);
+                });
+            });
+
+            animate();
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Use 'load' to ensure deferred scripts (like KaTeX) have loaded
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

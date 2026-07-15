@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive SVM Margin Visualization</title>
+    
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']]
+        }
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+            flex-wrap: wrap;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .canvas-container {
+            flex: 2;
+            min-width: 500px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .controls-container {
+            flex: 1;
+            min-width: 300px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        .value-display {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #eef2f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            white-space: pre;
+            font-size: 0.9em;
+        }
+        .value-display span {
+            font-weight: bold;
+            color: #0056b3;
+        }
+        h1, h2 {
+            width: 100%;
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        .explanation {
+            width: 100%;
+            margin-top: 20px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            line-height: 1.6;
+        }
+        details {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        summary {
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Interactive Margin Calculation</h1>
+
+    <div class="canvas-container">
+        <canvas id="marginCanvas" width="500" height="500"></canvas>
+    </div>
+
+    <div class="controls-container">
+        <h2>Controls & Values</h2>
+        <div class="control-group">
+            <label for="w1Slider">w₁: <span id="w1Value">1.0</span></label>
+            <input type="range" id="w1Slider" min="-2" max="2" value="1" step="0.1">
+        </div>
+        <div class="control-group">
+            <label for="w2Slider">w₂: <span id="w2Value">1.0</span></label>
+            <input type="range" id="w2Slider" min="-2" max="2" value="1" step="0.1">
+        </div>
+        <div class="control-group">
+            <label for="bSlider">b (bias): <span id="bValue">0.5</span></label>
+            <input type="range" id="bSlider" min="-5" max="5" value="0.5" step="0.1">
+        </div>
+
+        <div class="value-display">
+Vector w    = [<span id="w_val">1.00, 1.00</span>]
+Bias b      = <span id="b_val">0.50</span>
+||w||²      = <span id="norm_sq_val">2.000</span>
+||w||       = <span id="norm_val">1.414</span>
+
+k₊ = (1-b)/||w||² = <span id="k_pos_val">0.250</span>
+k₋ = (-1-b)/||w||² = <span id="k_neg_val">-0.750</span>
+
+Dist₊ = |1-b|/||w|| = <span id="dist_pos_val">0.354</span>
+Dist₋ = |-1-b|/||w|| = <span id="dist_neg_val">1.061</span>
+
+Total Margin = 2/||w|| = <span id="margin_val">1.414</span>
+        </div>
+    </div>
+
+    <div class="explanation">
+        <details>
+            <summary>Click to see the underlying mathematical explanation</summary>
+            <p>We can calculate the total width of the street using basic geometry. We'll find the distance from a reference point (the origin (0,0)) to each sidewalk.</p>
+            <h4>Distance to the Positive Sidewalk ($w^T x + b = 1$):</h4>
+            <p>Let $x_0$ be the point on this line closest to the origin. The vector $x_0$ (from the origin to this point) must be perpendicular to the line. Since $w$ is also perpendicular, $x_0$ must be a scaled version of $w$. So, $x_0 = k \cdot w$ for some scaling number $k$.</p>
+            <p>We know $x_0$ is on the line, so it satisfies the line's equation: $w^T x_0 + b = 1$.</p>
+            <p>Let's substitute $x_0 = k \cdot w$ into the equation: $w^T(k \cdot w) + b = 1$.</p>
+            <p>This simplifies to $k(w^T w) + b = 1$. Since $w^T w$ is the squared length of $w$ ($||w||^2$), we have $k ||w||^2 + b = 1$.</p>
+            <p>Solving for our scaling factor: $k = (1 - b) / ||w||^2$.</p>
+            <p>The distance is the length of the vector $x_0$, which is $||x_0|| = |k| \cdot ||w||$. Plugging in k:</p>
+            <p>Distance$_+ = |(1 - b) / ||w||^2| \cdot ||w|| = |1 - b| / ||w||$.</p>
+            <h4>Total Margin:</h4>
+            <p>Repeating the same math for the negative sidewalk ($w^T x + b = -1$) gives its distance from the origin as $|-1 - b| / ||w||$.</p>
+            <p>The total margin is the distance between the two lines. The margin width is cleanly defined as $2/||w||$.</p>
+        </details>
+    </div>
+</div>
+
+
+<script>
+    // --- DOM Elements ---
+    const canvas = document.getElementById('marginCanvas');
+    const ctx = canvas.getContext('2d');
+    const w1Slider = document.getElementById('w1Slider');
+    const w2Slider = document.getElementById('w2Slider');
+    const bSlider = document.getElementById('bSlider');
+    const w1ValueSpan = document.getElementById('w1Value');
+    const w2ValueSpan = document.getElementById('w2Value');
+    const bValueSpan = document.getElementById('bValue');
+    // Value display spans
+    const wValSpan = document.getElementById('w_val');
+    const bValSpan = document.getElementById('b_val');
+    const normSqValSpan = document.getElementById('norm_sq_val');
+    const normValSpan = document.getElementById('norm_val');
+    const kPosValSpan = document.getElementById('k_pos_val');
+    const kNegValSpan = document.getElementById('k_neg_val');
+    const distPosValSpan = document.getElementById('dist_pos_val');
+    const distNegValSpan = document.getElementById('dist_neg_val');
+    const marginValSpan = document.getElementById('margin_val');
+
+
+    // --- Canvas Setup ---
+    const width = canvas.width;
+    const height = canvas.height;
+    const scale = 40; // Pixels per unit
+    const origin = { x: width / 2, y: height / 2 };
+
+    // Helper to draw an arrow
+    function drawArrow(ctx, fromx, fromy, tox, toy, color = 'black', width = 2) {
+        const headlen = 10; // length of head in pixels
+        const dx = tox - fromx;
+        const dy = toy - fromy;
+        const angle = Math.atan2(dy, dx);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(fromx, fromy);
+        ctx.lineTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+    }
+    
+    // Helper to draw text
+    function drawText(ctx, text, x, y, color = 'black', font = '12px Arial') {
+        ctx.fillStyle = color;
+        ctx.font = font;
+        ctx.fillText(text, x, y);
+    }
+
+    // --- Main Drawing Function ---
+    function draw() {
+        const w1 = parseFloat(w1Slider.value);
+        const w2 = parseFloat(w2Slider.value);
+        const b = parseFloat(bSlider.value);
+
+        w1ValueSpan.textContent = w1.toFixed(1);
+        w2ValueSpan.textContent = w2.toFixed(1);
+        bValueSpan.textContent = b.toFixed(1);
+
+        // --- Calculations ---
+        const norm_w_sq = w1 * w1 + w2 * w2;
+        const norm_w = Math.sqrt(norm_w_sq);
+        const dist_pos = norm_w > 0 ? Math.abs(1 - b) / norm_w : Infinity;
+        const dist_neg = norm_w > 0 ? Math.abs(-1 - b) / norm_w : Infinity;
+        const margin = norm_w > 0 ? 2 / norm_w : Infinity;
+        const k_pos = norm_w > 0 ? (1 - b) / norm_w_sq : 0;
+        const k_neg = norm_w > 0 ? (-1 - b) / norm_w_sq : 0;
+
+        // Update text output
+        wValSpan.textContent = `${w1.toFixed(2)}, ${w2.toFixed(2)}`;
+        bValSpan.textContent = b.toFixed(2);
+        normSqValSpan.textContent = norm_w_sq.toFixed(3);
+        normValSpan.textContent = norm_w.toFixed(3);
+        kPosValSpan.textContent = isFinite(k_pos) ? k_pos.toFixed(3) : '∞';
+        kNegValSpan.textContent = isFinite(k_neg) ? k_neg.toFixed(3) : '∞';
+        distPosValSpan.textContent = isFinite(dist_pos) ? dist_pos.toFixed(3) : '∞';
+        distNegValSpan.textContent = isFinite(dist_neg) ? dist_neg.toFixed(3) : '∞';
+        marginValSpan.textContent = isFinite(margin) ? margin.toFixed(3) : '∞';
+
+        // --- Drawing on Canvas ---
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw grid lines
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth = 0.5;
+        for (let i = scale; i < width; i += scale) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0); ctx.lineTo(i, height);
+            ctx.moveTo(0, i); ctx.lineTo(width, i);
+            ctx.stroke();
+        }
+
+        // Draw axes
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, origin.y); ctx.lineTo(width, origin.y); // X-axis
+        ctx.moveTo(origin.x, 0); ctx.lineTo(origin.x, height); // Y-axis
+        ctx.stroke();
+        drawText(ctx, '(0,0)', origin.x + 5, origin.y + 15, '#aaa');
+
+        if (norm_w === 0) {
+            drawText(ctx, "||w|| cannot be zero. Lines are undefined.", 50, 50, 'red', '16px Arial');
+            return;
+        }
+
+        // Function to draw a line w1*x + w2*y + b = C
+        function drawHyperplane(constant, color, label) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let x1, y1, x2, y2;
+            if (Math.abs(w2) > 0.01) { // Line is more horizontal
+                x1 = -origin.x / scale;
+                y1 = (constant - b - w1 * x1) / w2;
+                x2 = (width - origin.x) / scale;
+                y2 = (constant - b - w1 * x2) / w2;
+            } else { // Line is more vertical
+                y1 = -origin.y / scale;
+                x1 = (constant - b - w2 * y1) / w1;
+                y2 = (height - origin.y) / scale;
+                x2 = (constant - b - w2 * y2) / w1;
+            }
+            ctx.moveTo(origin.x + x1 * scale, origin.y - y1 * scale);
+            ctx.lineTo(origin.x + x2 * scale, origin.y - y2 * scale);
+            ctx.stroke();
+            drawText(ctx, label, origin.x + x2 * scale - 120, origin.y - y2 * scale - 5, color, '14px Arial');
+        }
+
+        drawHyperplane(1, 'blue', 'wᵀx + b = 1');
+        drawHyperplane(-1, 'green', 'wᵀx + b = -1');
+
+        // Draw the normal vector w
+        drawArrow(ctx, origin.x, origin.y, origin.x + w1 * scale, origin.y - w2 * scale, 'red', 3);
+        drawText(ctx, 'w', origin.x + w1 * scale + 5, origin.y - w2 * scale, 'red', 'bold 16px Arial');
+
+        // Draw vectors to the closest points (x₀)
+        // For positive line: x₀⁺ = k₊ * w
+        const x0_pos_x = k_pos * w1;
+        const x0_pos_y = k_pos * w2;
+        ctx.setLineDash([5, 5]);
+        drawArrow(ctx, origin.x, origin.y, origin.x + x0_pos_x * scale, origin.y - x0_pos_y * scale, '#555', 1.5);
+        ctx.setLineDash([]);
+        drawText(ctx, "x₀⁺", origin.x + x0_pos_x * scale + 5, origin.y - x0_pos_y * scale - 5, '#555', 'italic 14px Arial');
+        
+        // For negative line: x₀⁻ = k₋ * w
+        const x0_neg_x = k_neg * w1;
+        const x0_neg_y = k_neg * w2;
+        ctx.setLineDash([5, 5]);
+        drawArrow(ctx, origin.x, origin.y, origin.x + x0_neg_x * scale, origin.y - x0_neg_y * scale, '#555', 1.5);
+        ctx.setLineDash([]);
+        drawText(ctx, "x₀⁻", origin.x + x0_neg_x * scale + 5, origin.y - x0_neg_y * scale - 5, '#555', 'italic 14px Arial');
+        
+        // Draw the margin width line between the points
+        ctx.strokeStyle = 'purple';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(origin.x + x0_pos_x * scale, origin.y - x0_pos_y * scale);
+        ctx.lineTo(origin.x + x0_neg_x * scale, origin.y - x0_neg_y * scale);
+        ctx.stroke();
+        
+        // Margin label
+        const mid_margin_x = (x0_pos_x + x0_neg_x) / 2;
+        const mid_margin_y = (x0_pos_y + x0_neg_y) / 2;
+        drawText(ctx, `Margin = ${margin.toFixed(2)}`, origin.x + mid_margin_x * scale + 10, origin.y - mid_margin_y * scale, 'purple', 'bold 14px Arial');
+    }
+
+    // --- Event Listeners ---
+    w1Slider.addEventListener('input', draw);
+    w2Slider.addEventListener('input', draw);
+    bSlider.addEventListener('input', draw);
+
+    // Initial draw
+    window.addEventListener('load', draw);
+</script>
+
+</body>
+</html>

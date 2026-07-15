@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>True 3D Interactive Optimizer Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* gray-900 */
+            color: #f9fafb; /* gray-50 */
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        #scene-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 0.5rem;
+        }
+        .ui-panel {
+            background-color: rgba(31, 41, 55, 0.8); /* gray-800 with transparency */
+            backdrop-filter: blur(10px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(75, 85, 99, 0.5); /* gray-600 */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #d1d5db; /* gray-300 */
+        }
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 6px; background: #4b5563; border-radius: 3px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; background: #fb923c; cursor: pointer; border-radius: 50%; border: 2px solid white;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px; height: 18px; background: #fb923c; cursor: pointer; border-radius: 50%; border: 2px solid white;
+        }
+        .stat-card {
+            background-color: rgba(55, 65, 81, 0.7); /* gray-700 */
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            text-align: center;
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+        .legend-color {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            border: 2px solid white;
+        }
+        #instructions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #9ca3af; /* gray-400 */
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="flex h-screen w-screen p-4 gap-4">
+        <!-- 3D Scene -->
+        <div id="scene-container" class="flex-grow h-full"></div>
+
+        <!-- UI Panel -->
+        <div class="w-full max-w-sm flex-shrink-0">
+            <div class="ui-panel h-full flex flex-col space-y-6 overflow-y-auto">
+                <!-- Header -->
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold text-white text-center">3D Optimizer Lab</h1>
+                    <p id="instructions" class="mt-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrows-move" viewBox="0 0 16 16">
+                          <path fill-rule="evenodd" d="M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708l2-2zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10zM.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708l-2-2zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8z"/>
+                        </svg>
+                        <span>Click & Drag to Rotate | Scroll to Zoom</span>
+                    </p>
+                </div>
+                
+                <!-- Controls -->
+                <div class="space-y-4">
+                    <div>
+                        <label for="lrSlider" class="slider-label">
+                            <span>Learning Rate (α)</span>
+                            <span id="lrValue" class="font-bold text-orange-400">0.60</span>
+                        </label>
+                        <input type="range" id="lrSlider" min="0.01" max="1.0" step="0.01" value="0.6" class="w-full mt-1">
+                    </div>
+                    <div>
+                        <label for="betaSlider" class="slider-label">
+                            <span>Momentum (β)</span>
+                            <span id="betaValue" class="font-bold text-teal-400">0.80</span>
+                        </label>
+                        <input type="range" id="betaSlider" min="0.0" max="0.99" step="0.01" value="0.8" class="w-full mt-1">
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex items-center justify-center space-x-4">
+                    <button id="startPauseBtn" class="px-6 py-2 w-28 bg-orange-600 text-white font-semibold rounded-lg shadow-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-75 transition-all">Start</button>
+                    <button id="resetBtn" class="px-6 py-2 w-28 bg-slate-600 text-slate-100 font-semibold rounded-lg shadow-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-opacity-75">Reset</button>
+                </div>
+
+                <!-- Spacer -->
+                <div class="flex-grow"></div>
+
+                <!-- Stats -->
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div class="legend col-span-2">
+                            <div class="legend-color" style="background-color: #fb923c;"></div>
+                            <span>Standard GD</span>
+                        </div>
+                        <div class="stat-card">
+                            <p class="text-xs text-slate-400">Iterations</p>
+                            <p id="gdIterations" class="text-base font-bold text-orange-400">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="text-xs text-slate-400">Cost</p>
+                            <p id="gdCost" class="text-base font-bold text-orange-400">0.0</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div class="legend col-span-2">
+                            <div class="legend-color" style="background-color: #2dd4bf;"></div>
+                            <span>GD with Momentum</span>
+                        </div>
+                        <div class="stat-card">
+                            <p class="text-xs text-slate-400">Iterations</p>
+                            <p id="momentumIterations" class="text-base font-bold text-teal-400">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <p class="text-xs text-slate-400">Cost</p>
+                            <p id="momentumCost" class="text-base font-bold text-teal-400">0.0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+
+        // --- Global State & Config ---
+        let config = {
+            learningRate: 0.6,
+            momentumBeta: 0.8,
+            isRunning: false,
+            startPos: { x: 180, y: 70 },
+            maxIterations: 400
+        };
+        
+        // --- Scaled Objective Function for better visualization ---
+        const vizScale = 30;
+        const objectiveFunction = (x, y) => (0.01 * x * x + 1.5 * y * y) / vizScale;
+        const gradient = (x, y) => [(0.02 * x) / vizScale, (3.0 * y) / vizScale];
+
+        // --- DOM Elements ---
+        const container = document.getElementById('scene-container');
+        const startPauseBtn = document.getElementById('startPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const lrSlider = document.getElementById('lrSlider');
+        const betaSlider = document.getElementById('betaSlider');
+        const lrValue = document.getElementById('lrValue');
+        const betaValue = document.getElementById('betaValue');
+
+        // --- 3D Scene Setup ---
+        let scene, camera, renderer, controls;
+        
+        function init() {
+            scene = new THREE.Scene();
+            
+            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(250, -300, 350);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setClearColor(0x000000, 0); // Transparent background
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+            container.style.background = 'radial-gradient(circle, rgba(31,41,55,1) 0%, rgba(17,24,39,1) 100%)';
+
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 0, 50); // Look towards the center of the valley
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(-1, -1, 1);
+            scene.add(directionalLight);
+
+            // Grid Helper for perspective
+            const gridHelper = new THREE.GridHelper(500, 20, 0x444444, 0x444444);
+            gridHelper.rotation.x = Math.PI / 2;
+            scene.add(gridHelper);
+
+            // Loss Surface
+            const surfaceFunc = (u, v, target) => {
+                const x = (u - 0.5) * 500;
+                const y = (v - 0.5) * 200;
+                const z = objectiveFunction(x, y);
+                target.set(x, y, z);
+            };
+            const geometry = new ParametricGeometry(surfaceFunc, 50, 50);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x6d28d9, // Deep Purple
+                side: THREE.DoubleSide,
+                metalness: 0.2,
+                roughness: 0.8,
+                wireframe: true,
+                wireframeLinewidth: 0.5,
+                transparent: true,
+                opacity: 0.3
+            });
+            const surface = new THREE.Mesh(geometry, material);
+            scene.add(surface);
+        }
+
+        // --- Optimizer Class ---
+        class Optimizer {
+            constructor(type, color) {
+                this.type = type;
+                this.color = new THREE.Color(color);
+                
+                // Ball
+                const ballGeo = new THREE.SphereGeometry(6, 32, 32);
+                const ballMat = new THREE.MeshStandardMaterial({ 
+                    color: this.color, 
+                    metalness: 0.4, 
+                    roughness: 0.4,
+                    emissive: this.color, // Make it glow
+                    emissiveIntensity: 0.5
+                });
+                this.ball = new THREE.Mesh(ballGeo, ballMat);
+                scene.add(this.ball);
+
+                // Path (now a tube)
+                this.pathPoints = [];
+                const pathMat = new THREE.MeshStandardMaterial({
+                    color: this.color,
+                    emissive: this.color,
+                    emissiveIntensity: 0.2
+                });
+                // Start with a dummy geometry
+                const pathGeo = new THREE.BufferGeometry();
+                this.path = new THREE.Mesh(pathGeo, pathMat);
+                scene.add(this.path);
+
+                this.reset();
+            }
+
+            reset() {
+                this.x = config.startPos.x;
+                this.y = config.startPos.y;
+                this.vx = 0;
+                this.vy = 0;
+                this.iterations = 0;
+                this.isDone = false;
+                this.update3DPosition();
+                
+                this.pathPoints = [this.ball.position.clone()];
+                this.updatePathTube();
+            }
+
+            step() {
+                if (this.isDone) return;
+                
+                const [gradX, gradY] = gradient(this.x, this.y);
+                const updateScale = 100; // Increase update step size for viz
+
+                if (this.type === 'momentum') {
+                    this.vx = config.momentumBeta * this.vx + (1 - config.momentumBeta) * gradX;
+                    this.vy = config.momentumBeta * this.vy + (1 - config.momentumBeta) * gradY;
+                    this.x -= config.learningRate * this.vx * updateScale;
+                    this.y -= config.learningRate * this.vy * updateScale;
+                } else { // Standard GD
+                    this.x -= config.learningRate * gradX * updateScale;
+                    this.y -= config.learningRate * gradY * updateScale;
+                }
+                
+                this.iterations++;
+                this.update3DPosition();
+                this.pathPoints.push(this.ball.position.clone());
+                this.updatePathTube();
+
+                if (Math.sqrt(gradX**2 + gradY**2) * vizScale < 0.001 || this.iterations >= config.maxIterations) {
+                    this.isDone = true;
+                }
+            }
+            
+            update3DPosition() {
+                const z = objectiveFunction(this.x, this.y);
+                this.ball.position.set(this.x, this.y, z + 6); // +6 to lift it off the surface
+            }
+            
+            updatePathTube() {
+                if (this.pathPoints.length < 2) {
+                    this.path.geometry.dispose(); // Clear geometry if not enough points
+                    this.path.geometry = new THREE.BufferGeometry();
+                    return;
+                }
+                
+                const curve = new THREE.CatmullRomCurve3(this.pathPoints);
+                const newGeo = new THREE.TubeGeometry(curve, this.pathPoints.length * 2, 1.5, 8, false);
+                
+                // Dispose of the old geometry to prevent memory leaks
+                this.path.geometry.dispose();
+                this.path.geometry = newGeo;
+            }
+
+            updateStats() {
+                const cost = objectiveFunction(this.x, this.y);
+                document.getElementById(`${this.type}Iterations`).textContent = this.iterations;
+                document.getElementById(`${this.type}Cost`).textContent = (cost * vizScale).toFixed(2); // Show unscaled cost
+            }
+        }
+
+        // --- Initialization ---
+        init();
+        const gdOptimizer = new Optimizer('gd', '#f97316'); // Bright Orange
+        const momentumOptimizer = new Optimizer('momentum', '#2dd4bf'); // Bright Teal
+
+        // --- Main Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (config.isRunning) {
+                gdOptimizer.step();
+                momentumOptimizer.step();
+                if (gdOptimizer.isDone && momentumOptimizer.isDone) {
+                    config.isRunning = false;
+                    startPauseBtn.textContent = 'Start';
+                    startPauseBtn.classList.replace('bg-amber-500', 'bg-orange-600');
+                }
+            }
+            
+            gdOptimizer.updateStats();
+            momentumOptimizer.updateStats();
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- Control Functions ---
+        function handleResize() {
+            if (!container) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function resetAll() {
+            config.isRunning = false;
+            startPauseBtn.textContent = 'Start';
+            startPauseBtn.classList.remove('bg-amber-500', 'hover:bg-amber-600');
+            startPauseBtn.classList.add('bg-orange-600', 'hover:bg-orange-700');
+            
+            gdOptimizer.reset();
+            momentumOptimizer.reset();
+        }
+
+        // --- Event Listeners ---
+        lrSlider.addEventListener('input', (e) => {
+            config.learningRate = parseFloat(e.target.value);
+            lrValue.textContent = config.learningRate.toFixed(2);
+        });
+
+        betaSlider.addEventListener('input', (e) => {
+            config.momentumBeta = parseFloat(e.target.value);
+            betaValue.textContent = config.momentumBeta.toFixed(2);
+        });
+
+        startPauseBtn.addEventListener('click', () => {
+            config.isRunning = !config.isRunning;
+            if (config.isRunning) {
+                if(gdOptimizer.isDone && momentumOptimizer.isDone) resetAll();
+                startPauseBtn.textContent = 'Pause';
+                startPauseBtn.classList.replace('bg-orange-600', 'bg-amber-500');
+                startPauseBtn.classList.replace('hover:bg-orange-700', 'hover:bg-amber-600');
+            } else {
+                startPauseBtn.textContent = 'Resume';
+                startPauseBtn.classList.replace('bg-amber-500', 'bg-orange-600');
+                startPauseBtn.classList.replace('hover:bg-amber-600', 'hover:bg-orange-700');
+            }
+        });
+
+        resetBtn.addEventListener('click', resetAll);
+        window.addEventListener('resize', handleResize);
+        
+        resetAll();
+        animate();
+
+    </script>
+</body>
+</html>
