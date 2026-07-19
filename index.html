@@ -1,22 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shray Vijay — Interactive ML Portfolio</title>
-  <meta name="description" content="Interactive portfolio showcasing Mathematical Foundations for Machine Learning — 3D visualisers, gradient descent labs, PCA explorers, and more.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+  <title>Shray Vijay - Portfolio</title>
+  <meta name="description"
+    content="Interactive portfolio showcasing Mathematical Foundations for Machine Learning — 3D visualisers, gradient descent labs, PCA explorers, and more.">
   <link rel="stylesheet" href="styles.css">
   <!-- MathJax for LaTeX formula rendering -->
   <script>
     window.MathJax = {
-      tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
       svg: { fontCache: 'global' },
       startup: { typeset: false }
     };
   </script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
+
 <body>
 
   <!-- ============================================
@@ -25,35 +27,38 @@
   <header class="topbar" id="topbar">
     <a href="/" class="logo">
       <span class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-          <circle cx="12" cy="7" r="4"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
         </svg>
       </span>
       <span class="logo-text">Shray<span>Vijay</span></span>
     </a>
 
     <nav>
-      <a href="#" data-section="subjects" class="active" id="nav-subjects">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-        </svg>
-        <span class="nav-label">Subjects</span>
-      </a>
-      <a href="#" data-section="projects" id="nav-projects">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      <a href="#" data-section="projects" class="active" id="nav-projects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
         <span class="nav-label">Projects</span>
+      </a>
+      <a href="#" data-section="subjects" id="nav-subjects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+        <span class="nav-label">Subjects</span>
       </a>
     </nav>
 
     <div class="topbar-end">
       <a href="https://github.com/shrayvijay" target="_blank" rel="noopener" aria-label="GitHub Profile">
         <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          <path
+            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
         </svg>
       </a>
     </div>
@@ -63,8 +68,13 @@
        HERO
        ============================================ -->
   <section class="hero container" id="hero">
-    <h1>Concepts learnt so far</h1>
-    <p>Learning with interactive 3D visualisers and important concepts</p>
+    <h1 id="hero-title">AI/ML Engineer</h1>
+    <p id="hero-subtitle">Software &amp; ML Engineer with 3+ years of experience building automations, ML and GenAI
+      systems, including RAG-based conversational AI, agentic LLM orchestration, and large-scale automation for
+      AUTOSAR/ARXML workflows. Currently pursuing M.Tech in AI/ML at BITS Pilani, deepening expertise in deep learning
+      architectures (CNNs, Transformers) alongside applied industry work. Experienced in taking systems from design to
+      production using Python, FastAPI, and modern LLM APIs. Seeking applied ML/GenAI engineering roles where production
+      impact and research depth both matter.</p>
 
     <!-- Stats Strip -->
     <div class="stats-strip" id="stats-strip">
@@ -84,7 +94,7 @@
       </div>
       <span class="stat-dot"></span>
       <div class="stat-item">
-        <span class="stat-number muted" id="stat-projects">Soon</span>
+        <span class="stat-number" id="stat-projects">1</span>
         <span class="stat-name">Projects</span>
       </div>
     </div>
@@ -93,7 +103,7 @@
   <!-- ============================================
        SUBJECTS SECTION
        ============================================ -->
-  <section class="subjects-section active container" id="subjects-section">
+  <section class="subjects-section container" id="subjects-section">
     <!-- Subjects List (default view) -->
     <div id="subjects-list" class="subjects-list">
       <!-- Subject cards rendered by app.js -->
@@ -103,9 +113,10 @@
     <div id="topics-view" class="topics-view hidden">
       <div class="topics-header">
         <button class="back-btn" id="back-to-subjects">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
           </svg>
           All Subjects
         </button>
@@ -125,29 +136,19 @@
   </section>
 
   <!-- ============================================
-       PROJECTS SECTION (placeholder)
+       PROJECTS SECTION
        ============================================ -->
-  <section class="projects-section container" id="projects-section">
-    <div class="section-header" style="margin-bottom: 0;">
+  <section class="projects-section active container" id="projects-section">
+    <div class="section-header">
       <div>
         <span class="section-eyebrow">PROJECT LIBRARY</span>
         <h2>Explore Projects</h2>
-        <p>Hands-on projects to solidify your understanding.</p>
+        <p>End-to-end machine learning projects built from scratch.</p>
       </div>
     </div>
 
-    <div class="coming-soon-box">
-      <div class="cs-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-        </svg>
-      </div>
-      <h2>Projects Coming Soon</h2>
-      <p>
-        This section is under construction. Stay tuned for hands-on ML projects — from random forests to neural networks, built from scratch.
-      </p>
-    </div>
+    <!-- Project tiles rendered by app.js -->
+    <div class="project-tiles" id="project-tiles"></div>
   </section>
 
   <!-- ============================================
@@ -156,19 +157,21 @@
   <div class="iframe-overlay" id="iframe-overlay">
     <div class="iframe-toolbar">
       <button class="iframe-back-btn" id="iframe-back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"/>
-          <polyline points="12 19 5 12 12 5"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
         </svg>
         Back
       </button>
       <span class="iframe-title" id="iframe-title"></span>
       <button class="iframe-open-btn" id="iframe-open-new">
         Open in tab
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
         </svg>
       </button>
     </div>
@@ -176,7 +179,8 @@
       <div class="iframe-loading" id="iframe-loading">
         <div class="spinner"></div>
       </div>
-      <iframe id="interactive-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>
+      <iframe id="interactive-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-popups"
+        loading="lazy"></iframe>
     </div>
   </div>
 
@@ -186,9 +190,10 @@
   <div class="theory-overlay" id="theory-overlay">
     <div class="theory-toolbar">
       <button class="iframe-back-btn" id="theory-back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"/>
-          <polyline points="12 19 5 12 12 5"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
         </svg>
         Back
       </button>
@@ -198,6 +203,33 @@
       <div class="theory-panel" id="theory-content">
         <!-- Filled by app.js -->
       </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       PROJECT DETAIL OVERLAY
+       ============================================ -->
+  <div class="project-detail-overlay" id="project-detail-overlay">
+    <div class="project-detail-toolbar">
+      <button class="iframe-back-btn" id="project-detail-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+        Back
+      </button>
+      <span class="detail-title" id="project-detail-title"></span>
+      <a class="iframe-open-btn" id="project-detail-github" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+        </svg>
+        GitHub
+      </a>
+    </div>
+    <div class="project-detail-scroll" id="project-detail-scroll">
+      <!-- Filled by app.js -->
     </div>
   </div>
 
@@ -216,4 +248,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

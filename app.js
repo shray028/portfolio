@@ -561,9 +561,13 @@
     if (sectionId === 'subjects') {
       subjectsSection.classList.add('active');
       projectsSection.classList.remove('active');
+      document.getElementById('hero-title').textContent = 'Concepts learnt so far';
+      document.getElementById('hero-subtitle').textContent = 'Learning with interactive 3D visualisers and important concepts';
     } else {
       projectsSection.classList.add('active');
       subjectsSection.classList.remove('active');
+      document.getElementById('hero-title').textContent = 'AI/ML Engineer';
+      document.getElementById('hero-subtitle').innerHTML = 'Software &amp; ML Engineer with 3+ years of experience building automations, ML and GenAI systems, including RAG-based conversational AI, agentic LLM orchestration, and large-scale automation for AUTOSAR/ARXML workflows. Currently pursuing M.Tech in AI/ML at BITS Pilani, deepening expertise in deep learning architectures (CNNs, Transformers) alongside applied industry work. Experienced in taking systems from design to production using Python, FastAPI, and modern LLM APIs. Seeking applied ML/GenAI engineering roles where production impact and research depth both matter.';
     }
   }
 
@@ -708,11 +712,11 @@
     card.innerHTML =
       '<div class="card-accent-bar"></div>' +
       '<div class="card-body">' +
-        '<div class="tag-row">' + statusTag + tagsHtml + '</div>' +
-        '<h3>' + topic.title + '</h3>' +
-        '<p class="topic-notes">' + topic.notes + '</p>' +
-        formulasHtml +
-        '<div class="card-footer">' + extrasHtml + actionHtml + '</div>' +
+      '<div class="tag-row">' + statusTag + tagsHtml + '</div>' +
+      '<h3>' + topic.title + '</h3>' +
+      '<p class="topic-notes">' + topic.notes + '</p>' +
+      formulasHtml +
+      '<div class="card-footer">' + extrasHtml + actionHtml + '</div>' +
       '</div>';
 
     card.addEventListener('click', () => {
@@ -736,8 +740,8 @@
       header.innerHTML =
         '<div class="cg-icon">' + group.icon + '</div>' +
         '<div class="cg-info">' +
-          '<h3>' + group.title + '</h3>' +
-          '<span class="cg-count">' + group.topics.length + ' topic' + (group.topics.length > 1 ? 's' : '') + '</span>' +
+        '<h3>' + group.title + '</h3>' +
+        '<span class="cg-count">' + group.topics.length + ' topic' + (group.topics.length > 1 ? 's' : '') + '</span>' +
         '</div>';
       conceptContainer.appendChild(header);
 
@@ -763,13 +767,13 @@
      ---------------------------------------------------------- */
   function typesetMathJax(container) {
     if (window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetPromise([container]).catch(() => {});
+      window.MathJax.typesetPromise([container]).catch(() => { });
     } else {
       const mjScript = document.getElementById('MathJax-script');
       if (mjScript) {
         mjScript.addEventListener('load', () => {
           if (window.MathJax && window.MathJax.typesetPromise) {
-            window.MathJax.typesetPromise([container]).catch(() => {});
+            window.MathJax.typesetPromise([container]).catch(() => { });
           }
         });
       }
@@ -852,12 +856,256 @@
 
   theoryBackBtn.addEventListener('click', closeTheory);
 
+
+  /* ----------------------------------------------------------
+     UPDATE HERO STATS
+     ---------------------------------------------------------- */
+  function updateStats() {
+    let totalTopics = 0;
+    let totalPages = 0;
+
+    SUBJECTS.forEach((subject) => {
+      const stats = countSubjectStats(subject);
+      totalTopics += stats.totalTopics;
+      totalPages += stats.totalPages;
+    });
+
+    document.getElementById('stat-topics').textContent = totalTopics;
+    document.getElementById('stat-interactive').textContent = totalPages;
+    document.getElementById('stat-subjects').textContent = SUBJECTS.length;
+    document.getElementById('stat-projects').textContent = PROJECTS.length;
+  }
+
+  /* ----------------------------------------------------------
+     PROJECTS DATA
+     ---------------------------------------------------------- */
+  const PROJECTS = [
+    {
+      id: 'bike-sharing',
+      title: 'End to End Machine Learning Pipeline from Scratch',
+      summary: 'Built a complete supervised regression pipeline to predict hourly bike rental demand — from raw CSV data all the way to Kaggle submission. Covers EDA, feature engineering with cyclical encodings, regularised regression, hyperparameter tuning, and residual diagnostics. Achieved a 69% reduction in prediction error.',
+      image: 'Projects/Bike-Sharing-Demand-Prediction/1_slider.png',
+      github: 'https://github.com/shray028/Bike-Sharing-Demand-Prediction',
+      tags: ['Python', 'pandas', 'NumPy', 'scikit-learn', 'matplotlib'],
+      results: [
+        { value: '69%', label: 'RMSLE Reduction' },
+        { value: '0.39', label: 'Best RMSLE' },
+        { value: '25', label: 'Engineered Features' },
+      ],
+      steps: [
+        {
+          title: 'Data Ingestion & Inspection',
+          description: 'Loaded 10,450 hourly records from the Kaggle Bike Sharing dataset (Washington D.C.). Inspected all 12 columns for data types, missing values, and distribution characteristics. Identified that the dataset was clean with no missing values.',
+          learnings: [
+            'Identified `casual` and `registered` as leaky features — they directly sum to the target `count` and are absent in the test set. Dropped both immediately to prevent data leakage.',
+            'Recognised `datetime` was stored as a string and needed parsing before any time-based feature extraction.',
+            'Confirmed integer-encoded categoricals (`season`, `weather`) needed contextual treatment, not numeric scaling.',
+          ],
+        },
+        {
+          title: 'Exploratory Data Analysis & Insights',
+          description: 'Performed correlation analysis, scatter plots for continuous features, jitter plots for categoricals, and hour-based demand analysis. Explored the target distribution and its implications for modeling.',
+          learnings: [
+            'Discovered extreme multicollinearity between `temp` and `atemp` (Pearson r = 0.98). Dropped `temp`, kept `atemp` to avoid redundant features.',
+            'Found bimodal demand peaks at 7–9 AM and 5–7 PM (commuting hours) — a critical signal for feature engineering.',
+            'The target `count` is heavily right-skewed. Applying `log(count + 1)` yields a near-symmetric distribution, which is better suited for linear models and directly optimises the RMSLE metric.',
+          ],
+        },
+        {
+          title: 'Feature Engineering',
+          description: 'Built a comprehensive feature engineering pipeline that extracts time-based components, applies cyclical sin/cos encoding, creates behavioral binary flags, and constructs interaction features. Expanded the feature set from 10 raw features to 25 engineered features.',
+          learnings: [
+            'Cyclical encoding (sin/cos) preserves the circular nature of time — hour 23 and hour 0 are adjacent in reality but numerically distant. This encoding fixes that for linear models.',
+            'Rush-hour and peak-hour flags directly encode real-world commuting behavior that strongly correlates with rental demand.',
+            'Interaction terms like `temp × humidity` and `workingday × hour` capture multiplicative effects that linear models cannot learn on their own.',
+          ],
+        },
+        {
+          title: 'Preprocessing & Data Splitting',
+          description: 'Set up the final modeling pipeline with an 80/20 train-validation split, log-transformed target, StandardScaler normalisation, and cross-validated feature selection. Ensured no information leakage between train and validation sets.',
+          learnings: [
+            'StandardScaler must be fit only on training data — applying `fit_transform()` on the full dataset before splitting would leak validation statistics into training.',
+            'Training on `log(count + 1)` directly optimises the same objective as the RMSLE evaluation metric. Predictions are back-transformed using `expm1()`.',
+            'Cross-validated feature selection confirmed that the engineered features significantly outperform raw-only features.',
+          ],
+        },
+        {
+          title: 'Modeling & Hyperparameter Tuning',
+          description: 'Trained five progressively complex models: vanilla Linear Regression, log-transformed Linear Regression, Ridge and Lasso with GridSearchCV (5-fold CV, 6 alpha values), and Polynomial(degree=2) + Ridge. Each step demonstrated measurable improvement.',
+          learnings: [
+            'Ridge (L2) regularisation penalises large coefficients and reduces overfitting. Lasso (L1) can drive coefficients to exactly zero, performing implicit feature selection.',
+            'GridSearchCV with 5-fold cross-validation tested 30 model fits per regularisation method to find optimal alpha — balancing bias and variance systematically.',
+            'Polynomial(2) expansion creates hundreds of degree-2 terms (squares and pairwise interactions). Ridge regularisation is critical here to control this high-dimensional space.',
+          ],
+        },
+        {
+          title: 'Evaluation & Final Submission',
+          description: 'Performed residual analysis on the best model (Polynomial + Ridge), generated diagnostic plots, compared all models in a results table, and retrained on the full dataset before generating Kaggle submission predictions.',
+          learnings: [
+            'Residuals were approximately centered at zero with no strong systematic patterns — confirming the model captures the main structure in the data.',
+            'The best model achieved RMSLE ≈ 0.39, a 69% improvement over the baseline (RMSLE ≈ 1.27). Each pipeline stage — log transform, better features, regularisation, polynomial expansion — contributed measurably.',
+            'Final predictions were clipped to non-negative values and rounded to integers, since bike rental counts must be whole positive numbers.',
+          ],
+        },
+      ],
+    },
+  ];
+
+  /* ----------------------------------------------------------
+     RENDER PROJECT TILES (zig-zag)
+     ---------------------------------------------------------- */
+  const projectTilesContainer = document.getElementById('project-tiles');
+  const projectDetailOverlay = document.getElementById('project-detail-overlay');
+  const projectDetailBack = document.getElementById('project-detail-back');
+  const projectDetailTitle = document.getElementById('project-detail-title');
+  const projectDetailGithub = document.getElementById('project-detail-github');
+  const projectDetailScroll = document.getElementById('project-detail-scroll');
+
+  function renderProjectTiles() {
+    projectTilesContainer.innerHTML = '';
+
+    PROJECTS.forEach((project, index) => {
+      const tile = document.createElement('div');
+      tile.className = 'project-tile';
+      tile.dataset.projectId = project.id;
+
+      const num = String(index + 1).padStart(2, '0');
+      const tagsHtml = project.tags.map((t) => `<span class="ptag">${t}</span>`).join('');
+
+      tile.innerHTML = `
+        <div class="project-tile-image" data-project-idx="${index}">
+          <img src="${project.image}" alt="${project.title}" loading="lazy">
+          <span class="image-click-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            View Project
+          </span>
+        </div>
+        <div class="project-tile-content">
+          <span class="project-number">PROJECT ${num}</span>
+          <h3>${project.title}</h3>
+          <p class="project-summary">${project.summary}</p>
+          <div class="project-tags">${tagsHtml}</div>
+          <div class="project-ctas">
+            <button class="project-cta primary" data-project-idx="${index}">
+              View Project
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+            <a class="project-cta secondary" href="${project.github}" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              Source Code
+            </a>
+          </div>
+        </div>
+      `;
+
+      projectTilesContainer.appendChild(tile);
+
+      // Animate in after a short delay
+      requestAnimationFrame(() => {
+        setTimeout(() => tile.classList.add('visible'), index * 120 + 100);
+      });
+    });
+
+    // Attach click handlers
+    projectTilesContainer.querySelectorAll('[data-project-idx]').forEach((el) => {
+      if (el.tagName === 'A') return; // Skip github links
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return; // Don't intercept anchor clicks
+        const idx = parseInt(el.dataset.projectIdx, 10);
+        openProjectDetail(PROJECTS[idx]);
+      });
+    });
+  }
+
+  /* ----------------------------------------------------------
+     PROJECT DETAIL OVERLAY
+     ---------------------------------------------------------- */
+  let currentProject = null;
+
+  function openProjectDetail(project) {
+    currentProject = project;
+    projectDetailTitle.textContent = project.title;
+    projectDetailGithub.href = project.github;
+
+    // Build detail content
+    const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    let html = '';
+
+    // Detail Hero
+    html += '<div class="detail-hero">';
+    html += '<div class="detail-eyebrow">END-TO-END ML PROJECT</div>';
+    html += '<h1>' + project.title + '</h1>';
+    html += '<p>' + project.summary + '</p>';
+    html += '</div>';
+
+    // Detail Image
+    html += '<div class="detail-image">';
+    html += '<img src="' + project.image + '" alt="' + project.title + ' Pipeline Overview">';
+    html += '</div>';
+
+    // Results Banner
+    if (project.results && project.results.length) {
+      html += '<div class="results-banner"><div class="results-banner-inner">';
+      project.results.forEach((r) => {
+        html += '<div class="result-stat">';
+        html += '<div class="rs-value">' + r.value + '</div>';
+        html += '<div class="rs-label">' + r.label + '</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // Pipeline Steps
+    html += '<div class="pipeline-section">';
+    html += '<h2>Pipeline Steps & Learnings</h2>';
+
+    project.steps.forEach((step, i) => {
+      html += '<div class="step-card">';
+      html += '<div class="step-header">';
+      html += '<span class="step-number">' + (i + 1) + '</span>';
+      html += '<h3>' + step.title + '</h3>';
+      html += '</div>';
+      html += '<p class="step-description">' + step.description + '</p>';
+      html += '<div class="step-learnings">';
+      html += '<h4>Key Learnings</h4>';
+      step.learnings.forEach((l) => {
+        html += '<div class="learning-item">' + checkSvg + '<span>' + l + '</span></div>';
+      });
+      html += '</div></div>';
+    });
+
+    html += '</div>';
+
+    // GitHub CTA at bottom
+    html += '<div class="detail-github">';
+    html += '<a class="github-cta" href="' + project.github + '" target="_blank" rel="noopener">';
+    html += '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>';
+    html += 'View on GitHub';
+    html += '</a>';
+    html += '</div>';
+
+    projectDetailScroll.innerHTML = html;
+    projectDetailScroll.scrollTop = 0;
+    projectDetailOverlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeProjectDetail() {
+    projectDetailOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+    currentProject = null;
+  }
+
+  projectDetailBack.addEventListener('click', closeProjectDetail);
+
   /* ----------------------------------------------------------
      GLOBAL KEY HANDLERS
      ---------------------------------------------------------- */
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (iframeOverlay.classList.contains('open')) closeIframe();
+      if (projectDetailOverlay.classList.contains('open')) closeProjectDetail();
+      else if (iframeOverlay.classList.contains('open')) closeIframe();
       else if (theoryOverlay.classList.contains('open')) closeTheory();
     }
   });
@@ -881,28 +1129,11 @@
   }
 
   /* ----------------------------------------------------------
-     UPDATE HERO STATS
-     ---------------------------------------------------------- */
-  function updateStats() {
-    let totalTopics = 0;
-    let totalPages = 0;
-
-    SUBJECTS.forEach((subject) => {
-      const stats = countSubjectStats(subject);
-      totalTopics += stats.totalTopics;
-      totalPages += stats.totalPages;
-    });
-
-    document.getElementById('stat-topics').textContent = totalTopics;
-    document.getElementById('stat-interactive').textContent = totalPages;
-    document.getElementById('stat-subjects').textContent = SUBJECTS.length;
-    document.getElementById('stat-projects').textContent = 'Soon';
-  }
-
-  /* ----------------------------------------------------------
      INIT
      ---------------------------------------------------------- */
   renderSubjectsList();
+  renderProjectTiles();
   updateStats();
   requestAnimationFrame(() => initScrollReveal());
 })();
+
