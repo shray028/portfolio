@@ -553,9 +553,9 @@
 
   const projectsHeroSubtitle = 'I build production GenAI systems and visualize the concepts behind them.';
     const projectsHeroHighlights = [
-      'End-to-end ML systems - from data cleaning, feature engineering to deployed apps.',
+      'End-to-end ML systems - from data cleaning, feature engineering to deployed apps',
       'GenAI in practice - RAG pipelines, embeddings, and LLM integration on real documents',
-      'Strong math foundations - I visualize linear algebra and optimization concepts in interactive 3D'
+      'Strong conceptual foundations - I build 3D visualizations to understand concepts in depth'
     ];
 
   /* ----------------------------------------------------------
