@@ -226,6 +226,11 @@ input {
   height: 16px;
 }
 
+.topbar-end a[title="Resume"] svg {
+  width: 17px;
+  height: 17px;
+}
+
 /* ============================================================
    HERO SECTION
    ============================================================ */
@@ -246,8 +251,52 @@ input {
   margin: 14px auto 0;
   font-size: 15px;
   line-height: 1.7;
-  text-align: justify;
-  text-justify: inter-word;
+  text-align: center;
+}
+
+/* Keyboard focus for interactive cards */
+.subject-card:focus-visible,
+.topic-card:focus-visible,
+.project-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.hero-highlights {
+  width: min(720px, 100%);
+  margin: 20px auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+}
+
+.hero-highlights li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border: 1px solid rgba(106, 173, 219, 0.25);
+  border-radius: 999px;
+  background: rgba(106, 173, 219, 0.07);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.hero-highlights li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.hidden {
+  display: none !important;
 }
 
 
@@ -853,6 +902,59 @@ input {
   flex-direction: column;
   gap: 64px;
   padding-top: 16px;
+}
+
+/* --- Project Category Headers --- */
+.project-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.project-filter-btn {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.project-filter-btn:hover {
+  color: var(--text);
+  border-color: var(--line-light);
+}
+
+.project-filter-btn.active {
+  color: #fff;
+  background: var(--accent-dark);
+  border-color: var(--accent);
+}
+
+.project-category-header {
+  margin-top: 48px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-category-header:first-child {
+  margin-top: 0;
+}
+
+.project-category-header .section-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.project-category-header p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
 }
 
 /* --- Individual Project Tile (zig-zag) --- */
@@ -1640,6 +1742,25 @@ footer {
    RESPONSIVE
    ============================================================ */
 @media (max-width: 900px) {
+  .topbar {
+    gap: 12px;
+  }
+
+  .topbar nav {
+    margin: 0;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .topbar-end {
+    gap: 8px;
+  }
+
+  .topbar-end a {
+    width: 32px;
+    height: 32px;
+  }
+
   .topic-grid {
     grid-template-columns: 1fr;
   }
@@ -1698,11 +1819,46 @@ footer {
     grid-template-columns: 1fr;
     gap: 12px;
   }
+
+  .footer-inner {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-inner .footer-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 18px;
+  }
 }
 
 @media (max-width: 600px) {
   .topbar {
     padding: 0 13px;
+    height: auto;
+    min-height: 72px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .logo {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .topbar nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .topbar-end {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .topbar nav a span.nav-label {
@@ -1736,6 +1892,10 @@ footer {
     justify-content: center;
     gap: 10px;
     text-align: center;
+  }
+
+  .footer-inner .footer-links {
+    gap: 10px 14px;
   }
 
   .concept-group-header {

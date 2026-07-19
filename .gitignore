@@ -1,0 +1,22 @@
+# Ignore everything
+*
+
+# Un-ignore all directories so we can traverse them
+!*/
+
+# Explicitly ignore directories we don't need to traverse
+make-lecture-kit/
+MFML_htmls/
+.DS_Store
+
+# Keep root web files
+!index.html
+!app.js
+!styles.css
+!.gitignore
+
+# Keep PNG images in the Projects directories
+!Projects/**/*.png
+
+# Keep interactive HTMLs in the Subject directories
+!Subject_*/interactive/*.html

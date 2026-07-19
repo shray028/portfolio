@@ -551,30 +551,46 @@
   let currentSubject = null;
   let currentTopic = null;
 
+  const projectsHeroSubtitle = 'I build production GenAI systems and visualize the concepts behind them.';
+    const projectsHeroHighlights = [
+      'End-to-end ML systems - from data cleaning to deployed apps (Streamlit, FastAPI)',
+      'GenAI in practice - RAG pipelines, embeddings, and LLM integration on real documents',
+      'Strong math foundations - I visualize linear algebra and optimization concepts in interactive 3D'
+    ];
+
   /* ----------------------------------------------------------
      TAB SWITCHING
      ---------------------------------------------------------- */
   function switchSection(sectionId) {
+    const heroSubtitle = document.getElementById('hero-subtitle');
+    const heroHighlights = document.getElementById('hero-highlights');
+
     navLinks.forEach((link) => {
       link.classList.toggle('active', link.dataset.section === sectionId);
     });
+    const statsStrip = document.getElementById('stats-strip');
     if (sectionId === 'subjects') {
       subjectsSection.classList.add('active');
       projectsSection.classList.remove('active');
       document.getElementById('hero-title').textContent = 'Concepts learnt so far';
-      document.getElementById('hero-subtitle').textContent = 'Learning with interactive 3D visualisers and important concepts';
+      heroSubtitle.textContent = 'Learning with interactive 3D visualisers and important concepts';
+      heroHighlights.classList.add('hidden');
+      statsStrip.classList.remove('hidden');
     } else {
       projectsSection.classList.add('active');
       subjectsSection.classList.remove('active');
       document.getElementById('hero-title').textContent = 'AI/ML Engineer';
-      document.getElementById('hero-subtitle').innerHTML = 'Software &amp; ML Engineer with 3+ years of experience building automations, ML and GenAI systems, including RAG-based conversational AI, agentic LLM orchestration, and large-scale automation for AUTOSAR/ARXML workflows. Currently pursuing M.Tech in AI/ML at BITS Pilani, deepening expertise in deep learning architectures (CNNs, Transformers) alongside applied industry work. Experienced in taking systems from design to production using Python, FastAPI, and modern LLM APIs. Seeking applied ML/GenAI engineering roles where production impact and research depth both matter.';
+      heroSubtitle.textContent = projectsHeroSubtitle;
+      heroHighlights.innerHTML = projectsHeroHighlights.map((highlight) => `<li>${highlight}</li>`).join('');
+      heroHighlights.classList.remove('hidden');
+      statsStrip.classList.add('hidden');
     }
   }
 
   navLinks.forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
-      switchSection(link.dataset.section);
+      navigate(link.dataset.section);
     });
   });
 
@@ -610,6 +626,8 @@
       const stats = countSubjectStats(subject);
       const card = document.createElement('div');
       card.className = 'subject-card accent-' + subject.accent + ' fade-in-up';
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
       card.innerHTML = `
         <div class="sc-left">
           <span class="sc-emoji">${subject.emoji}</span>
@@ -631,6 +649,7 @@
         </div>
       `;
       card.addEventListener('click', () => openSubject(subject));
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSubject(subject); } });
       grid.appendChild(card);
     });
 
@@ -646,7 +665,7 @@
   /* ----------------------------------------------------------
      SUBJECT DRILL-DOWN
      ---------------------------------------------------------- */
-  function openSubject(subject) {
+  function openSubject(subject, skipHash) {
     currentSubject = subject;
     subjectsList.classList.add('hidden');
     topicsView.classList.remove('hidden');
@@ -656,18 +675,20 @@
 
     renderConceptGroups(subject);
     updateProgress(subject);
+    if (!skipHash) setHash('subjects/' + subject.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function closeSubject() {
+  function closeSubject(skipHash) {
     topicsView.classList.add('hidden');
     subjectsList.classList.remove('hidden');
     conceptContainer.innerHTML = '';
     currentSubject = null;
+    if (!skipHash) setHash('subjects');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  backToSubjectsBtn.addEventListener('click', closeSubject);
+  backToSubjectsBtn.addEventListener('click', () => closeSubject());
 
   function updateProgress(subject) {
     const stats = countSubjectStats(subject);
@@ -684,6 +705,8 @@
     const card = document.createElement('div');
     const hasInteractive = !!topic.interactive;
     card.className = 'topic-card fade-in-up accent-' + subjectAccent + (hasInteractive ? '' : ' theory-only');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
 
     const tagsHtml = topic.tags
       .map((tag) => {
@@ -719,13 +742,15 @@
       '<div class="card-footer">' + extrasHtml + actionHtml + '</div>' +
       '</div>';
 
-    card.addEventListener('click', () => {
+    function activateCard() {
       if (hasInteractive) {
         openIframe(topic, subjectFolder);
       } else {
         openTheory(topic, subjectAccent);
       }
-    });
+    }
+    card.addEventListener('click', activateCard);
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateCard(); } });
 
     return card;
   }
@@ -882,6 +907,7 @@
   const PROJECTS = [
     {
       id: 'bike-sharing',
+      category: 'ml',
       title: 'End to End Machine Learning Pipeline from Scratch',
       summary: 'Built a complete supervised regression pipeline to predict hourly bike rental demand — from raw CSV data all the way to Kaggle submission. Covers EDA, feature engineering with cyclical encodings, regularised regression, hyperparameter tuning, and residual diagnostics. Achieved a 69% reduction in prediction error.',
       image: 'Projects/Bike-Sharing-Demand-Prediction/1_slider.png',
@@ -949,6 +975,372 @@
         },
       ],
     },
+    {
+      id: 'breast-cancer',
+      category: 'ml',
+      title: 'Breast Cancer Classification & Deployment',
+      summary: 'Trained and compared six ML classifiers (Logistic Regression, Decision Tree, KNN, Naive Bayes, Random Forest, XGBoost) on the Wisconsin Breast Cancer dataset to predict malignant vs. benign tumors. Built an interactive Streamlit web app for real-time prediction, model comparison, and evaluation on unseen test data. Random Forest achieved the highest accuracy at 97.4% with an MCC of 0.94.',
+      image: 'Projects/Breast-cancer-app/single_slider.png',
+      github: 'https://github.com/shray028/Breast-cancer-app',
+      tags: ['Python', 'scikit-learn', 'XGBoost', 'Streamlit', 'Plotly'],
+      results: [
+        { value: '97.4%', label: 'Best Accuracy' },
+        { value: '0.944', label: 'Best MCC' },
+        { value: '6', label: 'Models Compared' },
+      ],
+      steps: [
+        {
+          title: 'Data Loading & Preprocessing',
+          description: 'Loaded 569 samples with 30 numerical features from the Wisconsin Breast Cancer dataset. Encoded the target (Malignant = 1, Benign = 0), dropped the ID column, performed a stratified 80/20 train-test split, and applied StandardScaler fitted only on training data.',
+          learnings: [
+            'Stratified splitting preserves class distribution in both train and test sets — critical for imbalanced medical datasets where the minority class (malignant) must be well-represented.',
+            'StandardScaler was fit exclusively on training data to prevent information leakage from test samples into the scaling statistics.',
+            'Exported a separate test_data.csv for use in the Streamlit deployment app, keeping evaluation fully independent from training.',
+          ],
+        },
+        {
+          title: 'Multi-Model Training',
+          description: 'Trained six classifiers — Logistic Regression, Decision Tree, KNN (k=5), Gaussian Naive Bayes, Random Forest (300 estimators, max_depth=6), and XGBoost (learning_rate=0.05, max_depth=3). Each model was serialised with pickle for deployment.',
+          learnings: [
+            'Ensemble methods (Random Forest, XGBoost) outperformed single learners by reducing variance and capturing complex feature interactions.',
+            'Logistic Regression performed surprisingly well (96.5% accuracy), confirming the dataset is highly linearly separable — a useful baseline insight before reaching for complex models.',
+            'Decision Tree showed the weakest generalisation due to overfitting without depth restriction, highlighting why pruning and ensemble strategies matter.',
+          ],
+        },
+        {
+          title: 'Evaluation & Model Comparison',
+          description: 'Evaluated all six models on the held-out test set using Accuracy, AUC, Precision, Recall, F1, and Matthews Correlation Coefficient (MCC). Compared results side-by-side to select the best performer.',
+          learnings: [
+            'Random Forest achieved the best overall balance: 97.4% accuracy, 0.994 AUC, and the highest MCC (0.944) — indicating strong performance across both classes.',
+            'XGBoost and Random Forest both reached perfect precision (1.00) on the malignant class, meaning zero false positives, but slightly lower recall shows a few malignant cases were missed.',
+            'Naive Bayes had a high AUC (0.989) but the lowest recall — the conditional independence assumption breaks down with highly correlated tumor measurements like radius, perimeter, and area.',
+          ],
+        },
+        {
+          title: 'Recall vs. Precision in Medical Context',
+          description: 'Analysed the clinical implications of precision-recall trade-offs. In cancer screening, missing a malignant tumor (false negative) is far more dangerous than a false alarm (false positive).',
+          learnings: [
+            'Recall (sensitivity) was prioritised over precision for final model selection — in a medical setting, failing to detect cancer can be life-threatening.',
+            'Random Forest achieved the best recall among ensemble models (92.9%), while Logistic Regression matched it, making both clinically viable choices.',
+            'MCC was used as the primary ranking metric because it accounts for all four confusion matrix quadrants and is robust to class imbalance — unlike accuracy alone.',
+          ],
+        },
+        {
+          title: 'Streamlit Deployment',
+          description: 'Built and deployed an interactive Streamlit web application that allows users to upload test CSV data, select a trained model, view predictions, and examine evaluation metrics with Plotly-powered confusion matrices and classification reports.',
+          learnings: [
+            'Persisted all trained models as pickle files and the scaler separately, so the app loads pre-trained artifacts without retraining — keeping deployment lightweight.',
+            'Streamlit\'s reactive model made it easy to wire up model selection, CSV upload, and live metric display without writing any frontend JavaScript.',
+            'Added Plotly-based confusion matrix visualisation so users can visually inspect where each model succeeds and fails across the two classes.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'linear-vs-mlp',
+      category: 'ai',
+      title: 'Linear Models vs MLPs — Built from Scratch',
+      summary: 'Implemented Logistic Regression and a Multi-Layer Perceptron entirely from scratch using only NumPy to classify heart disease on the Kaggle Heart Disease dataset (1,025 samples, 13 features). No sklearn models were used — forward propagation, backpropagation, gradient descent, and all evaluation metrics were hand-coded. The MLP (architecture [13, 16, 8, 1]) improved recall from 92.4% to 95.2% over the baseline, demonstrating how even a shallow neural network captures non-linear feature interactions that a linear classifier misses.',
+      image: 'Projects/Linear-Models-vs-MLPs/single_slider.png',
+      github: 'https://github.com/shray028/Linear-Models-vs-MLPs',
+      tags: ['Python', 'NumPy', 'From Scratch', 'Neural Networks', 'matplotlib'],
+      results: [
+        { value: '95.2%', label: 'MLP Recall' },
+        { value: '0.85', label: 'MLP F1 Score' },
+        { value: '0', label: 'sklearn Models Used' },
+      ],
+      steps: [
+        {
+          title: 'Dataset Selection & Preprocessing',
+          description: 'Loaded the Kaggle Heart Disease dataset (1,025 samples, 13 features) for binary classification. Performed an 80/20 stratified train-test split and standardised features using mean and standard deviation computed from training data only.',
+          learnings: [
+            'Chose a dataset with ≥500 samples and ≥5 features to ensure meaningful training and generalisation evaluation — small datasets amplify overfitting and make metric comparisons unreliable.',
+            'Feature scaling was critical for gradient-based models — without standardisation, features like cholesterol (100s) would dominate gradients over binary features like sex (0/1).',
+            'Stratified splitting preserved the class balance (~55% disease positive) in both train and test sets, preventing biased evaluation.',
+          ],
+        },
+        {
+          title: 'Baseline Logistic Regression — From Scratch',
+          description: 'Built a single-neuron logistic regression classifier from scratch: sigmoid activation, binary cross-entropy loss, and batch gradient descent with manual gradient computation. Trained for 500 iterations at learning rate 0.01.',
+          learnings: [
+            'Implemented the full forward pass (z = Xw + b, σ(z)), BCE loss, and gradient formulas (dw = X^T(p−y)/N, db = Σ(p−y)/N) by hand — reinforcing the math behind every sklearn call.',
+            'The baseline achieved 81.0% accuracy and 92.4% recall, confirming the dataset has a roughly linear decision boundary — a strong baseline before adding complexity.',
+            'Clipping sigmoid input to [−500, 500] prevented numerical overflow in exp() — a practical detail that textbooks skip but crashes real code.',
+          ],
+        },
+        {
+          title: 'MLP Implementation — From Scratch',
+          description: 'Built a configurable Multi-Layer Perceptron with architecture [13, 16, 8, 1] using only NumPy. Implemented He initialisation, ReLU hidden activations, sigmoid output, full forward and backward propagation, and gradient descent parameter updates.',
+          learnings: [
+            'He initialisation (W ~ N(0, √(2/n_in))) prevents vanishing/exploding gradients in ReLU networks — using plain random init caused the loss to plateau early.',
+            'Backpropagation required careful shape management: each layer\'s gradient depends on the transposed weight matrix of the next layer, and off-by-one dimension errors are the most common bug.',
+            'The MLP was significantly more sensitive to hyperparameters than logistic regression — too high a learning rate caused oscillating loss, too low meant convergence took thousands of extra epochs.',
+          ],
+        },
+        {
+          title: 'Evaluation Metrics — From Scratch',
+          description: 'Implemented confusion matrix computation (TP, TN, FP, FN), accuracy, precision, recall, and F1 score manually without sklearn. Evaluated both models on the held-out test set.',
+          learnings: [
+            'The MLP improved recall from 92.4% to 95.2% — in a medical context, this means fewer missed heart disease cases, which is the clinically important metric.',
+            'Precision dropped slightly for the MLP, indicating a precision-recall trade-off: the network was more aggressive at predicting disease, catching more true positives but also adding a few false positives.',
+            'Writing metrics from scratch made the TP/FP/FN/TN definitions concrete — it\'s easy to confuse precision and recall until you manually count the quadrants.',
+          ],
+        },
+        {
+          title: 'Training Dynamics & Analysis',
+          description: 'Plotted training loss curves, accuracy progression, and performance comparison charts. Analysed convergence behaviour, training time trade-offs, and when the added complexity of an MLP is justified.',
+          learnings: [
+            'Logistic regression converged in ~500 epochs and trained in under a second. The MLP needed 1,600+ epochs and was orders of magnitude slower — a concrete lesson in the bias-variance-compute trade-off.',
+            'The MLP loss curve showed the network continued learning non-linear patterns long after the baseline had plateaued, confirming that hidden layers capture feature interactions (e.g., chest pain × exercise angina) that a linear boundary cannot.',
+            'Overall conclusion: on structured tabular data with mild non-linearity, a shallow MLP offers modest but real improvement over logistic regression — but the linear baseline remains competitive and far more interpretable.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'cnn-image-classification',
+      category: 'ai',
+      title: 'CNN for Image Classification — Custom vs Transfer Learning',
+      summary: 'Built a custom 4-layer CNN from scratch in PyTorch and compared it against a fine-tuned ResNet18 on the Kaggle Cats vs Dogs dataset (25,000 images). Both architectures use Global Average Pooling instead of large fully-connected layers. The transfer learning model outperformed the custom CNN in accuracy, precision, recall, and F1 — while training faster thanks to frozen backbone weights. The project demonstrates the full deep learning workflow: data augmentation, training loops, evaluation, confusion matrices, and a structured model comparison.',
+      image: 'Projects/CNN-for-Image-Classification/single_slider.png',
+      github: 'https://github.com/shray028/CNN-for-Image-Classification',
+      tags: ['Python', 'PyTorch', 'ResNet18', 'CNN', 'Transfer Learning'],
+      results: [
+        { value: '2', label: 'Models Compared' },
+        { value: 'GAP', label: 'Pooling Strategy' },
+        { value: '25K', label: 'Images' },
+      ],
+      steps: [
+        {
+          title: 'Dataset Loading & Exploration',
+          description: 'Downloaded the Kaggle Cats vs Dogs dataset (~25,000 images, 2 classes). Explored class distribution, visualised sample images, and computed image statistics (min/max dimensions, channel means). Confirmed the dataset is balanced, justifying accuracy as the primary metric.',
+          learnings: [
+            'Verified balanced class distribution (~12,500 per class), which means accuracy is a reliable metric — no need for weighted F1 or stratified sampling adjustments.',
+            'Raw images had highly variable resolutions — some as small as 30×30, others over 500×500 — making a fixed resize to 224×224 essential before batching.',
+            'A small number of corrupt/truncated files existed in the dataset and had to be filtered out during loading to prevent runtime crashes in the data pipeline.',
+          ],
+        },
+        {
+          title: 'Data Preprocessing & Augmentation',
+          description: 'Resized all images to 224×224, normalised with ImageNet channel means/stds, and applied training-time augmentation (random horizontal flips, random rotations). Used an 85/15 train-test split with PyTorch DataLoaders for batched GPU loading.',
+          learnings: [
+            'Normalising with ImageNet statistics (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) is essential when using pretrained ResNet — the backbone expects inputs in this distribution.',
+            'Data augmentation (flips, rotations) was applied only to the training set — augmenting test data would corrupt evaluation by introducing artificial variance in predictions.',
+            'PyTorch DataLoaders with num_workers and pin_memory significantly sped up GPU utilisation by overlapping data loading with forward/backward passes.',
+          ],
+        },
+        {
+          title: 'Custom CNN Architecture',
+          description: 'Designed a 4-block CNN in PyTorch: Conv(3→32)→ReLU→MaxPool, Conv(32→64)→ReLU→MaxPool, Conv(64→128)→ReLU, Conv(128→256)→ReLU, followed by Global Average Pooling and a single Linear(256→2) classifier. Trained for 15 epochs with Adam (lr=0.001) and CrossEntropyLoss.',
+          learnings: [
+            'Global Average Pooling (GAP) replaces large fully-connected layers by averaging each feature map to a single value — drastically reducing parameters and acting as a structural regulariser against overfitting.',
+            'Progressively doubling filter counts (32→64→128→256) lets early layers capture edges and textures while deeper layers learn higher-level patterns like ears and eyes.',
+            'Using only 2 MaxPool layers (224→112→56) followed by GAP gave sufficient spatial reduction without losing too much spatial detail in the intermediate feature maps.',
+          ],
+        },
+        {
+          title: 'Transfer Learning with ResNet18',
+          description: 'Loaded a pretrained ResNet18, froze all backbone layers, stripped the original avgpool + FC head, and attached a custom classification head: GAP → Linear(512→256) → ReLU → Dropout(0.4) → Linear(256→2). Only the new head was trained, using Adam and CrossEntropyLoss.',
+          learnings: [
+            'Freezing the backbone and using torch.no_grad() during the forward pass through ResNet eliminated gradient computation for millions of parameters — cutting training time substantially.',
+            'Setting the backbone to eval mode was critical because ResNet contains BatchNorm layers — in train mode, BN would update running statistics using the new dataset, degrading the pretrained feature quality.',
+            'Dropout(0.4) in the classification head prevented the small trainable head from overfitting to the training set, especially since the frozen features are already highly expressive.',
+          ],
+        },
+        {
+          title: 'Evaluation & Model Comparison',
+          description: 'Evaluated both models on the held-out test set using accuracy, precision, recall, and F1. Generated confusion matrices and plotted training loss/accuracy curves. Compared convergence speed, parameter counts, and training time side-by-side.',
+          learnings: [
+            'Transfer learning outperformed the custom CNN across all metrics — pretrained ImageNet features already encode rich visual representations that a 15-epoch custom CNN cannot learn from scratch.',
+            'The custom CNN\'s loss curve showed it was still improving at epoch 15, suggesting more epochs or a learning rate scheduler could close the gap — but training time would increase significantly.',
+            'GAP made both models lightweight at the classification stage, but the custom CNN had far fewer backbone parameters — showing that architecture depth and pretrained knowledge matter more than parameter count alone.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'stock-price-forecasting',
+      category: 'ai',
+      title: 'Stock Price Forecasting — LSTM vs Transformer',
+      summary: 'Implemented a stacked LSTM and a Transformer encoder from scratch in PyTorch to forecast AMX stock closing prices. Built custom sinusoidal positional encodings, multi-head self-attention, and sequence windowing — no pretrained models used. The Transformer achieved lower RMSE and higher R² than the LSTM, demonstrating how attention mechanisms capture long-range temporal dependencies more effectively than recurrent gating. Includes inverse-scaled evaluation, residual diagnostics, and a structured architecture comparison.',
+      image: 'Projects/stock-Price-Forecasting/single_slider.png',
+      github: 'https://github.com/shray028/stock-Price-Forecasting',
+      tags: ['Python', 'PyTorch', 'LSTM', 'Transformer', 'Time Series'],
+      results: [
+        { value: '2', label: 'Models Compared' },
+        { value: 'RMSE', label: 'Primary Metric' },
+        { value: 'R²', label: 'Best: Transformer' },
+      ],
+      steps: [
+        {
+          title: 'Dataset Loading & Time Series Exploration',
+          description: 'Loaded AMX stock price data from a hosted CSV. Explored the closing price series, checked for trends and stationarity, and visualised the full price history. Selected RMSE as the primary metric because it penalises large prediction errors — critical in financial forecasting.',
+          learnings: [
+            'Stock price data is inherently non-stationary (trending upward/downward over time), which means models must learn from relative changes and patterns rather than absolute levels.',
+            'RMSE was chosen over MAE because squaring amplifies large errors — in stock trading, a single large misprediction can be far more costly than many small ones.',
+            'Visualising the full time series revealed regime changes (volatile vs calm periods) that any model would need to adapt to during different test windows.',
+          ],
+        },
+        {
+          title: 'Preprocessing & Sequence Creation',
+          description: 'Applied MinMaxScaler to normalise prices to [0, 1], created sliding-window sequences with a configurable lookback length and prediction horizon, and performed a temporal (non-shuffled) train-test split to prevent future data leakage.',
+          learnings: [
+            'Temporal splitting is mandatory for time series — random shuffling would leak future price information into training, producing unrealistically good metrics that collapse in production.',
+            'MinMaxScaler was chosen over StandardScaler because stock prices are bounded and non-negative, making [0,1] normalisation more natural and preserving the proportional relationships.',
+            'Sequence length (lookback window) directly controls how much history each prediction sees — too short misses trends, too long adds noise and slows training.',
+          ],
+        },
+        {
+          title: 'Stacked LSTM Implementation',
+          description: 'Built a 2-layer stacked LSTM in PyTorch with hidden sizes [64, 32], dropout between layers, and a final Linear head. Trained with Adam (lr=0.001) and MSELoss. Used only the last timestep output from the second LSTM for prediction.',
+          learnings: [
+            'Stacking two LSTM layers lets the second layer learn higher-level temporal abstractions from the first layer\'s output sequence — similar to how deeper CNN layers learn progressively abstract features.',
+            'Taking only the last timestep output (out[:, -1, :]) for prediction forces the network to compress the entire lookback window into a fixed-size representation — a bottleneck that encourages learning the most informative temporal features.',
+            'Dropout between LSTM layers acts as temporal regularisation — randomly zeroing hidden units prevents the network from memorising specific price sequences seen during training.',
+          ],
+        },
+        {
+          title: 'Transformer Encoder with Positional Encoding',
+          description: 'Implemented a Transformer encoder with custom sinusoidal positional encodings (sin/cos), input projection to d_model dimensions, multi-head self-attention, feedforward layers, and a final Linear output. No pretrained weights — built entirely from PyTorch primitives.',
+          learnings: [
+            'Sinusoidal positional encoding (PE(pos, 2i) = sin(pos/10000^(2i/d))) injects order information without learnable parameters — essential because Transformers process all positions in parallel and have no built-in notion of sequence order.',
+            'Multi-head attention computes relevance scores between all time steps simultaneously, allowing the model to directly attend to distant past events — unlike LSTMs which must propagate information step-by-step through hidden states.',
+            'The input projection (Linear(n_features → d_model)) maps raw features into the attention space — the Transformer operates in d_model dimensions throughout, so this alignment step is structurally necessary.',
+          ],
+        },
+        {
+          title: 'Evaluation & Architecture Comparison',
+          description: 'Evaluated both models on the held-out test set using MAE, RMSE, MAPE, and R². Inverse-transformed predictions back to original price scale for meaningful comparison. Plotted actual vs predicted curves, residual distributions, and training loss convergence for both architectures side-by-side.',
+          learnings: [
+            'The Transformer achieved lower RMSE and higher R² than the LSTM, confirming that attention-based global dependency modelling outperforms sequential gating on this dataset — especially for capturing long-range price patterns.',
+            'The Transformer had significantly more parameters and longer training time than the LSTM — a concrete demonstration that attention\'s superior modelling power comes with higher computational cost.',
+            'Residual analysis showed both models produced approximately zero-mean residuals, but the Transformer\'s residual distribution was tighter (lower variance), indicating more consistent predictions across different market conditions.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'nlp-resume-classification',
+      category: 'ml',
+      title: 'Intelligent Resume Screening — Full NLP Pipeline',
+      summary: 'Built a 7-phase NLP pipeline that classifies resumes into 24 job categories. Phases include an LSTM language model for next-word prediction, Word2Vec Skip-gram embeddings, spaCy POS tagging for skill extraction, a custom HMM with Viterbi decoding for POS and section segmentation, dependency parsing for SVO relationship extraction, and a soft-voting ensemble (LinearSVC + Random Forest + Logistic Regression) over a 10,211-feature stack (TF-IDF + Word2Vec + POS + parse features). The ensemble achieved 97%+ classification accuracy across 24 categories on 2,484 resumes.',
+      image: 'Projects/NLP_resume_classification/single_slider.png',
+      github: 'https://github.com/shray028/NLP_resume_classification',
+      tags: ['Python', 'PyTorch', 'spaCy', 'Word2Vec', 'HMM', 'NLP'],
+      results: [
+        { value: '97%+', label: 'Ensemble Accuracy' },
+        { value: '24', label: 'Job Categories' },
+        { value: '7', label: 'Pipeline Phases' },
+      ],
+      steps: [
+        {
+          title: 'Phase 0 — Data Loading & Preprocessing',
+          description: 'Loaded 2,484 resumes across 24 job categories from a Kaggle dataset. Cleaned HTML tags, URLs, emails, phone numbers, and special characters. Tokenised into words and sentences, label-encoded categories, and performed a stratified 80/20 train-test split.',
+          learnings: [
+            'Stratified splitting was essential because some categories (e.g., BPO with 22 samples, Automobile with 36) are severely underrepresented — random splitting could leave entire classes out of the test set.',
+            'Dropping the Resume_html column immediately saved ~25 MB of RAM — a practical consideration when running on Colab\'s free tier with limited memory.',
+            'Heavy NLP processing (lemmatisation, POS, parsing) was deferred to later phases rather than done upfront — this avoids wasting compute on features that might not be needed if earlier phases are cached.',
+          ],
+        },
+        {
+          title: 'Phase 1 — LSTM Neural Language Model',
+          description: 'Trained a 2-layer LSTM language model (embedding dim=128, hidden dim=256, ~4.5M parameters) on the resume corpus for next-word prediction. Used sliding-window sequences of length 10 and evaluated with perplexity on the test set.',
+          learnings: [
+            'The LSTM language model learns resume-specific language patterns — given a prompt like "experienced in project", it predicts domain-relevant continuations like "management" or "development", confirming it captured the resume vocabulary.',
+            'Perplexity on the test set measured how well the model generalises to unseen resume text — lower perplexity means the model assigns higher probability to the actual next words.',
+            'LSTM was chosen over a Transformer for the language model because the moderate corpus size (~1.5M sequences) doesn\'t justify the attention mechanism\'s quadratic memory cost — LSTMs are more parameter-efficient at this scale.',
+          ],
+        },
+        {
+          title: 'Phase 2 & 3 — Word2Vec Embeddings & POS Tagging',
+          description: 'Trained Word2Vec Skip-gram (dim=200) via Gensim on the resume corpus to produce dense word and document vectors. Applied spaCy\'s POS tagger to extract action verbs, skills/technologies (NOUN/PROPN + keyword matching), and qualifications from every resume.',
+          learnings: [
+            'TF-IDF-weighted document averaging produced better document vectors than simple mean pooling — weighting by term importance ensures rare but informative words (like specific technologies) contribute more to the resume\'s semantic representation.',
+            'Skip-gram was chosen over CBOW because it better captures semantic relationships in moderate-sized corpora — important for distinguishing domain-specific terms like "kubernetes" vs "docker" vs "terraform".',
+            'spaCy\'s POS tagger (~97% accuracy, 10x faster than NLTK) extracted structured features: skill count, action verb count, and qualification count per resume — turning unstructured text into numerical classification features.',
+          ],
+        },
+        {
+          title: 'Phase 4 & 5 — HMM & Dependency Parsing',
+          description: 'Built a custom Hidden Markov Model with Viterbi decoding for POS tagging and resume section segmentation (HEADER, OBJECTIVE, EXPERIENCE, EDUCATION, SKILLS). Used spaCy dependency parsing to extract SVO triples, skill-experience links, and education information from dependency trees.',
+          learnings: [
+            'The custom HMM POS tagger was compared against spaCy\'s neural tagger — showing per-tag accuracy differences that highlight where probabilistic sequence models struggle vs neural approaches.',
+            'HMM section segmentation treated resume sections as hidden states and word-level features (keywords, capitalisation, position) as observations — a classic application of sequence labelling to document structure.',
+            'Dependency parsing extracted "who did what" relationships (SVO triples) and skill-action links — these structural features capture information that bag-of-words approaches like TF-IDF completely miss.',
+          ],
+        },
+        {
+          title: 'Phase 6 & 7 — Classification Ensemble & End-to-End Pipeline',
+          description: 'Combined 10,211 features (TF-IDF 10K unigrams+bigrams, Word2Vec 200-dim, POS 7 features, parse 4 features) into a unified feature matrix. Trained LinearSVC (C=5.0), Random Forest (balanced class weights), and Logistic Regression (L2). Combined via soft voting ensemble. Built a unified analyze_resume() function that runs all 7 phases on raw text.',
+          learnings: [
+            'The soft voting ensemble achieved 97%+ accuracy by combining three complementary classifiers: LinearSVC excels on the high-dimensional sparse TF-IDF space, Random Forest captures non-linear feature interactions, and Logistic Regression provides well-calibrated probabilities.',
+            'Feature ablation confirmed that TF-IDF alone reaches ~95% — the additional 2% from Word2Vec + POS + parse features represents the value of semantic and structural NLP over pure bag-of-words.',
+            'The end-to-end pipeline processes a raw resume string through all 7 phases in sequence, producing a predicted job category, confidence score, extracted skills, perplexity score, and semantic similarity to category centroids.',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'autosar-rag-chatbot',
+      category: 'ml',
+      title: 'AUTOSAR RAG Chatbot — Production RAG with Microservices',
+      summary: 'Built a Retrieval-Augmented Generation system that ingests thousands of pages of AUTOSAR BSW specification PDFs and answers natural language questions with citation-backed responses. The backend uses FastAPI with a microservices architecture (Ingestion, Retrieval, Inference services), ChromaDB as the vector store, Ollama for local LLM inference and embeddings (nomic-embed-text + llama3.2), semantic chunking that preserves AUTOSAR section hierarchy and requirement IDs, cross-encoder re-ranking, anti-hallucination prompt guardrails, and a feedback loop for continuous improvement. Includes heartbeat monitoring, circuit breakers, and structured logging.',
+      image: 'Projects/Autosar_rag_chatbot/single_slider.png',
+      github: 'https://github.com/shray028/Autosar_rag_chatbot',
+      tags: ['Python', 'FastAPI', 'ChromaDB', 'Ollama', 'RAG', 'Microservices'],
+      results: [
+        { value: 'RAG', label: 'Architecture' },
+        { value: '<3s', label: 'Query Latency' },
+        { value: '3', label: 'Microservices' },
+      ],
+      steps: [
+        {
+          title: 'Foundation & Infrastructure',
+          description: 'Set up a FastAPI application scaffold with CORS, structured JSON logging, and environment configuration. Configured Ollama to serve both the embedding model (nomic-embed-text, 768-dim) and the LLM (llama3.2) locally. Initialised ChromaDB with persistent storage and cosine similarity indexing.',
+          learnings: [
+            'Running both the embedding model and LLM locally via Ollama eliminates API costs and data-privacy concerns — critical for proprietary AUTOSAR specifications that cannot be sent to external APIs.',
+            'Separating embedding and LLM model configuration into environment variables (.env) allows swapping models (e.g., mistral instead of llama3.2) without code changes.',
+            'A /health endpoint that checks Ollama model availability and ChromaDB connectivity provides the baseline for the heartbeat monitoring implemented in later phases.',
+          ],
+        },
+        {
+          title: 'Document Ingestion Pipeline',
+          description: 'Built a PDF ingestion pipeline: PyMuPDF extracts text preserving section hierarchy, a semantic chunker splits by AUTOSAR headings with configurable chunk size (512 tokens) and overlap (50 tokens), nomic-embed-text generates 768-dim vectors, and metadata enrichment attaches source document, page numbers, module names, and requirement IDs (SWS tags) to each chunk before indexing into ChromaDB.',
+          learnings: [
+            'Semantic chunking by AUTOSAR section headings (e.g., "7.1.2 Com_Init", "[SWS_Com_00432]") preserves the logical structure of the specification — naive fixed-size chunking would split mid-requirement, producing incoherent retrieval results.',
+            'Chunk overlap (50 tokens) ensures that information at chunk boundaries is not lost — a requirement that starts at the end of one chunk is fully captured in the next.',
+            'Idempotent ingestion (re-ingesting the same document replaces old embeddings) prevents duplicate chunks from polluting search results when specifications are updated.',
+          ],
+        },
+        {
+          title: 'Retrieval & Reasoning Engine (RAG Core)',
+          description: 'Implemented the full RAG query pipeline: query embedding → top-k semantic search (k=10) → cross-encoder re-ranking via the LLM → context assembly ordered by document position → prompt construction with AUTOSAR domain instructions, anti-hallucination guardrails, and citation markers → streamed LLM inference with confidence scoring.',
+          learnings: [
+            'Cross-encoder re-ranking using the LLM itself scores each retrieved chunk for query relevance, then selects the top 5 — this dramatically improves precision over raw embedding similarity alone, especially for technical queries where lexical overlap is misleading.',
+            'Anti-hallucination guardrails in the system prompt instruct the LLM to say "I don\'t have enough context" rather than fabricate answers — essential for a technical reference system where incorrect specifications could cause safety-critical bugs.',
+            'Ordering re-ranked chunks by their original document position (not relevance score) in the assembled context helps the LLM produce coherent answers that follow the specification\'s logical flow.',
+          ],
+        },
+        {
+          title: 'Microservices Architecture',
+          description: 'Decomposed the monolith into three microservices: Ingestion Service (PDF upload, parsing, chunking, embedding), Retrieval Service (query processing, semantic search, re-ranking), and LLM Inference Service (Ollama interaction, prompt construction, response generation). Added inter-service REST communication, heartbeat monitoring (30s intervals), and circuit breaker patterns for Ollama calls.',
+          learnings: [
+            'Separating ingestion from retrieval allows scaling them independently — ingestion is CPU/IO-heavy and bursty (batch uploads), while retrieval is latency-sensitive and steady (user queries).',
+            'The circuit breaker pattern on Ollama calls prevents cascading failures — if the LLM is slow or unresponsive, the system returns a graceful error instead of queuing requests until memory exhaustion.',
+            'Heartbeat monitoring on each service enables proactive detection of degradation (e.g., embedding model unresponsive, ChromaDB disk full) before users notice query failures.',
+          ],
+        },
+        {
+          title: 'Feedback Loop & Quality',
+          description: 'Implemented a user feedback mechanism to rate answer quality, integrated structured logging and observability for monitoring retrieval precision and latency, and added a test suite with pytest. The feedback loop enables future re-ranking optimisation based on real user signals.',
+          learnings: [
+            'Storing user feedback (thumbs up/down + optional correction) alongside the query, retrieved chunks, and generated answer creates a labelled dataset for future retrieval and ranking improvements — turning the system into a learning loop.',
+            'Structured JSON logging with query latency, chunk count, confidence score, and model used per request provides the observability needed to diagnose quality issues in production.',
+            'Pytest-based integration tests that ingest a sample PDF and verify end-to-end query-answer quality ensure that model or prompt changes don\'t silently degrade answer accuracy.',
+          ],
+        },
+      ],
+    },
   ];
 
   /* ----------------------------------------------------------
@@ -964,12 +1356,42 @@
   function renderProjectTiles() {
     projectTilesContainer.innerHTML = '';
 
-    PROJECTS.forEach((project, index) => {
-      const tile = document.createElement('div');
-      tile.className = 'project-tile';
-      tile.dataset.projectId = project.id;
+    // Define display order
+    const projectOrder = [
+      'autosar-rag-chatbot', 'nlp-resume-classification', 'breast-cancer', 'bike-sharing',
+      'stock-price-forecasting', 'cnn-image-classification', 'linear-vs-mlp',
+    ];
+    const orderedProjects = projectOrder
+      .map((id) => PROJECTS.find((p) => p.id === id))
+      .filter(Boolean)
+      .concat(PROJECTS.filter((p) => !projectOrder.includes(p.id)));
 
-      const num = String(index + 1).padStart(2, '0');
+    const activeFilter = document.querySelector('.project-filter-btn.active');
+    const filter = activeFilter ? activeFilter.dataset.filter : 'all';
+
+    const categories = [
+      { key: 'ml', label: 'ML ENGINEERING', description: 'End-to-end pipelines, deployments, and production systems' },
+      { key: 'ai', label: 'AI / DEEP LEARNING', description: 'Algorithm implementations, architecture comparisons, and concept explorations' },
+    ];
+
+    let globalIndex = 0;
+
+    categories.forEach((cat) => {
+      if (filter !== 'all' && filter !== cat.key) return;
+      const catProjects = orderedProjects.filter((p) => p.category === cat.key);
+      if (!catProjects.length) return;
+
+      const header = document.createElement('div');
+      header.className = 'project-category-header';
+      header.innerHTML = '<span class="section-eyebrow">' + cat.label + '</span><p>' + cat.description + '</p>';
+      projectTilesContainer.appendChild(header);
+
+      catProjects.forEach((project) => {
+        const index = PROJECTS.indexOf(project);
+        const tile = document.createElement('div');
+        tile.className = 'project-tile';
+        tile.dataset.projectId = project.id;
+
       const tagsHtml = project.tags.map((t) => `<span class="ptag">${t}</span>`).join('');
 
       tile.innerHTML = `
@@ -981,7 +1403,6 @@
           </span>
         </div>
         <div class="project-tile-content">
-          <span class="project-number">PROJECT ${num}</span>
           <h3>${project.title}</h3>
           <p class="project-summary">${project.summary}</p>
           <div class="project-tags">${tagsHtml}</div>
@@ -1002,7 +1423,9 @@
 
       // Animate in after a short delay
       requestAnimationFrame(() => {
-        setTimeout(() => tile.classList.add('visible'), index * 120 + 100);
+        setTimeout(() => tile.classList.add('visible'), globalIndex * 120 + 100);
+      });
+      globalIndex++;
       });
     });
 
@@ -1017,15 +1440,25 @@
     });
   }
 
+  // Filter button listeners
+  document.querySelectorAll('.project-filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.project-filter-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderProjectTiles();
+    });
+  });
+
   /* ----------------------------------------------------------
      PROJECT DETAIL OVERLAY
      ---------------------------------------------------------- */
   let currentProject = null;
 
-  function openProjectDetail(project) {
+  function openProjectDetail(project, skipHash) {
     currentProject = project;
     projectDetailTitle.textContent = project.title;
     projectDetailGithub.href = project.github;
+    if (!skipHash) setHash('projects/' + project.id);
 
     // Build detail content
     const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -1091,13 +1524,14 @@
     document.body.style.overflow = 'hidden';
   }
 
-  function closeProjectDetail() {
+  function closeProjectDetail(skipHash) {
     projectDetailOverlay.classList.remove('open');
     document.body.style.overflow = '';
+    if (!skipHash) setHash('projects');
     currentProject = null;
   }
 
-  projectDetailBack.addEventListener('click', closeProjectDetail);
+  projectDetailBack.addEventListener('click', () => closeProjectDetail());
 
   /* ----------------------------------------------------------
      GLOBAL KEY HANDLERS
@@ -1129,11 +1563,63 @@
   }
 
   /* ----------------------------------------------------------
+     HASH ROUTING
+     ---------------------------------------------------------- */
+  function setHash(path) {
+    history.pushState(null, '', '#' + path);
+  }
+
+  function navigate(sectionId, skipHash) {
+    switchSection(sectionId);
+    if (!skipHash) setHash(sectionId);
+  }
+
+  function handleRoute() {
+    const hash = location.hash.replace('#', '');
+    const parts = hash.split('/');
+
+    // Close any open overlays first
+    if (projectDetailOverlay.classList.contains('open')) closeProjectDetail(true);
+    if (iframeOverlay.classList.contains('open')) closeIframe();
+    if (theoryOverlay.classList.contains('open')) closeTheory();
+
+    if (parts[0] === 'subjects') {
+      switchSection('subjects');
+      if (parts[1]) {
+        const subject = SUBJECTS.find((s) => s.id === parts[1]);
+        if (subject) openSubject(subject, true);
+      } else {
+        // Show subjects list
+        if (currentSubject) closeSubject(true);
+      }
+    } else if (parts[0] === 'projects') {
+      switchSection('projects');
+      if (parts[1]) {
+        const project = PROJECTS.find((p) => p.id === parts[1]);
+        if (project) openProjectDetail(project, true);
+      }
+    } else {
+      // Default: show projects
+      switchSection('projects');
+    }
+  }
+
+  window.addEventListener('popstate', handleRoute);
+
+  /* ----------------------------------------------------------
      INIT
      ---------------------------------------------------------- */
   renderSubjectsList();
   renderProjectTiles();
   updateStats();
+
+  // Restore view from URL hash on first load
+  if (location.hash) {
+    handleRoute();
+  } else {
+    switchSection('projects');
+  }
+
   requestAnimationFrame(() => initScrollReveal());
 })();
 
