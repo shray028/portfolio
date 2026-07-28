@@ -494,15 +494,38 @@
   ];
 
   /* ----------------------------------------------------------
+     DATA — SEML Concept Groups & Topics
+     All groups use the subject-level accent (orange)
+     ---------------------------------------------------------- */
+  const SEML_CONCEPTS = [
+    {
+      id: 'seml-rag',
+      title: 'Retrieval Augmented Generation',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+      topics: [
+        {
+          title: 'RAG Pipeline — From Documents to Intelligent Answers',
+          notes: 'RAG grounds LLMs in external knowledge by retrieving relevant context at query time. The ingestion phase chunks documents, converts them to embeddings via an encoder model, and indexes them in a vector database. At query time the same encoder embeds the user question, cosine similarity retrieves the top-k chunks, and these are injected into the LLM prompt as context — preventing hallucinations and enabling up-to-date responses without retraining.',
+          formulas: [
+            '\\(\\text{similarity}(\\mathbf{q}, \\mathbf{d}) = \\frac{\\mathbf{q}^T\\mathbf{d}}{\\|\\mathbf{q}\\|\\,\\|\\mathbf{d}\\|}\\)',
+          ],
+          interactive: { file: '../Rag_illustration/index.html', label: 'RAG Pipeline Interactive' },
+          tags: ['RAG', 'LLM', 'Embeddings', 'Vector DB'],
+        },
+      ],
+    },
+  ];
+
+  /* ----------------------------------------------------------
      SUBJECTS — each wraps its concept groups
      ---------------------------------------------------------- */
   const SUBJECTS = [
     {
       id: 'mfml',
       title: 'Mathematical Foundations for ML',
-      code: 'MFML \u2014 AIMLC ZC416',
-      description: 'Linear algebra, calculus, optimisation, PCA, and SVMs \u2014 with interactive visuals and key formulas.',
-      emoji: '\ud83d\udcd0',
+      code: 'MFML — AIMLC ZC416',
+      description: 'Linear algebra, calculus, optimisation, PCA, and SVMs — with interactive visuals and key formulas.',
+      emoji: '📐',
       accent: 'lavender',
       folder: 'Subject_1_MFML',
       conceptGroups: MFML_CONCEPTS,
@@ -510,12 +533,22 @@
     {
       id: 'ml',
       title: 'Machine Learning',
-      code: 'ML \u2014 AIMLC ZG565',
-      description: 'Regression, classification, trees, SVMs, Bayesian learning, ensembles, clustering, and evaluation \u2014 concept-first revision notes.',
-      emoji: '\ud83e\udde0',
+      code: 'ML — AIMLC ZG565',
+      description: 'Regression, classification, trees, SVMs, Bayesian learning, ensembles, clustering, and evaluation — concept-first revision notes.',
+      emoji: '🧠',
       accent: 'teal',
       folder: 'Subject_3_ML',
       conceptGroups: ML_CONCEPTS,
+    },
+    {
+      id: 'seml',
+      title: 'Software Engineering for ML',
+      code: 'SEML — AIMLC ZG566',
+      description: 'Production GenAI systems, RAG pipelines, embeddings, vector databases, and LLM integration — with step-by-step interactive illustrations.',
+      emoji: '⚡',
+      accent: 'orange',
+      folder: 'Rag_illustration',
+      conceptGroups: SEML_CONCEPTS,
     },
   ];
 

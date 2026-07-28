@@ -35,6 +35,9 @@
   --teal: #5EB8A0;
   --teal-light: #7DD4BF;
   --teal-dark: #4A9E8C;
+  --orange: #F59E42;
+  --orange-light: #FFBA6B;
+  --orange-dark: #D4801F;
 
   /* Utility colors */
   --green: #56c878;
@@ -413,6 +416,10 @@ input {
   background: linear-gradient(180deg, var(--teal-dark), var(--teal-light));
 }
 
+.subject-card.accent-orange::before {
+  background: linear-gradient(180deg, var(--orange-dark), var(--orange-light));
+}
+
 .subject-card:hover {
   transform: translateY(-3px);
 }
@@ -425,6 +432,11 @@ input {
 .subject-card.accent-teal:hover {
   border-color: rgba(94, 184, 160, 0.35);
   box-shadow: 0 14px 44px rgba(94, 184, 160, 0.10);
+}
+
+.subject-card.accent-orange:hover {
+  border-color: rgba(245, 158, 66, 0.35);
+  box-shadow: 0 14px 44px rgba(245, 158, 66, 0.10);
 }
 
 .sc-left {
@@ -628,6 +640,10 @@ input {
   background: var(--teal);
 }
 
+.concept-group-header.accent-orange::before {
+  background: var(--orange);
+}
+
 /* Accent glow behind header */
 .concept-group-header.accent-lavender {
   background: linear-gradient(135deg, rgba(155, 138, 202, 0.06), rgba(10, 12, 19, 0.95));
@@ -635,6 +651,10 @@ input {
 
 .concept-group-header.accent-teal {
   background: linear-gradient(135deg, rgba(94, 184, 160, 0.06), rgba(10, 12, 19, 0.95));
+}
+
+.concept-group-header.accent-orange {
+  background: linear-gradient(135deg, rgba(245, 158, 66, 0.06), rgba(10, 12, 19, 0.95));
 }
 
 .cg-icon {
@@ -660,6 +680,11 @@ input {
 .accent-teal .cg-icon {
   background: rgba(94, 184, 160, 0.15);
   color: var(--teal-light);
+}
+
+.accent-orange .cg-icon {
+  background: rgba(245, 158, 66, 0.15);
+  color: var(--orange-light);
 }
 
 .cg-info h3 {
@@ -711,6 +736,11 @@ input {
   box-shadow: 0 12px 40px rgba(94, 184, 160, 0.12);
 }
 
+.topic-card.accent-orange:hover {
+  border-color: rgba(245, 158, 66, 0.4);
+  box-shadow: 0 12px 40px rgba(245, 158, 66, 0.12);
+}
+
 /* Card Accent Bar */
 .card-accent-bar {
   height: 3px;
@@ -723,6 +753,10 @@ input {
 
 .accent-teal .card-accent-bar {
   background: linear-gradient(90deg, var(--teal-dark), var(--teal-light));
+}
+
+.accent-orange .card-accent-bar {
+  background: linear-gradient(90deg, var(--orange-dark), var(--orange-light));
 }
 
 /* Card Body */
@@ -802,6 +836,11 @@ input {
   border: 1px solid rgba(94, 184, 160, 0.1);
 }
 
+.accent-orange .topic-formulas {
+  background: rgba(245, 158, 66, 0.04);
+  border: 1px solid rgba(245, 158, 66, 0.1);
+}
+
 /* Card Footer */
 .card-footer {
   border-top: 1px solid var(--line);
@@ -845,6 +884,10 @@ input {
 
 .accent-teal .card-action {
   color: var(--teal-light);
+}
+
+.accent-orange .card-action {
+  color: var(--orange-light);
 }
 
 /* ============================================================

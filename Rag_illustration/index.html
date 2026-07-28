@@ -1,0 +1,2766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Pipeline — Interactive Illustration</title>
+  <meta name="description" content="Interactive step-by-step illustration of Retrieval Augmented Generation (RAG) pipeline — from document chunking to embeddings, vector search, and LLM response.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       Design Tokens — Portfolio Theme
+       ============================================================ */
+    :root {
+      --bg: #07080d;
+      --panel: #0d1018;
+      --panel2: #111621;
+      --surface: #151a26;
+      --line: #232a38;
+      --line-light: #2c3444;
+      --text: #f3f5fb;
+      --text-secondary: #c5c9d6;
+      --muted: #8992a7;
+      --dim: #626b7e;
+      --accent: #6AADDB;
+      --accent-light: #89C2ED;
+      --accent-dark: #5299C7;
+      --lavender: #9B8ACA;
+      --lavender-light: #B8A5E0;
+      --teal: #5EB8A0;
+      --teal-light: #7DD4BF;
+      --green: #56c878;
+      --blue: #4b9fff;
+      --red: #ff4d4d;
+      --orange: #F59E42;
+      --pink: #E879A6;
+      --grad-accent: linear-gradient(135deg, #5299C7, #89C2ED);
+      --grad-card: linear-gradient(145deg, rgba(18, 22, 32, 0.92), rgba(10, 12, 19, 0.92));
+      --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+      color-scheme: dark;
+    }
+
+    /* ============================================================
+       Reset & Base
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(circle at 50% -15%, rgba(106, 173, 219, 0.10), transparent 34%),
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 0),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 0);
+      background-size: auto, 42px 42px, 42px 42px;
+      background-attachment: fixed;
+    }
+
+    /* ============================================================
+       Topbar
+       ============================================================ */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      height: 72px; display: flex; align-items: center;
+      padding: 0 max(24px, calc(50vw - 580px));
+      background: rgba(7, 8, 13, 0.82);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font: 700 18px/1 var(--font-body); flex-shrink: 0; text-decoration: none; color: var(--text); }
+    .logo-mark {
+      width: 33px; height: 33px; display: grid; place-items: center;
+      background: var(--grad-accent); border-radius: 9px; color: #fff;
+      box-shadow: 0 0 18px rgba(106, 173, 219, 0.28);
+    }
+    .logo-mark svg { width: 18px; height: 18px; }
+    .logo-text span { color: var(--accent-light); }
+    .topbar-center { margin: 0 auto; display: flex; align-items: center; gap: 6px; }
+    .topbar-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 8px;
+      background: rgba(106, 173, 219, 0.08);
+      border: 1px solid rgba(106, 173, 219, 0.2);
+      color: var(--accent-light); font-size: 12px; font-weight: 600;
+    }
+    .topbar-badge svg { width: 14px; height: 14px; }
+
+    /* ============================================================
+       Hero / Title
+       ============================================================ */
+    .hero {
+      text-align: center; padding: 50px 20px 10px;
+      max-width: 900px; margin: 0 auto;
+    }
+    .hero h1 {
+      font: 800 clamp(28px, 4.5vw, 44px)/1.15 var(--font-body);
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, var(--text), var(--accent-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      max-width: 640px; color: var(--muted); margin: 12px auto 0;
+      font-size: 14px; line-height: 1.7;
+    }
+
+    /* ============================================================
+       Controls Bar
+       ============================================================ */
+    .controls-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; padding: 20px 20px 10px;
+      position: sticky; top: 72px; z-index: 50;
+      background: rgba(7, 8, 13, 0.85);
+      backdrop-filter: blur(12px);
+    }
+    .play-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 24px; border: none; border-radius: 10px;
+      font: 600 14px var(--font-body); cursor: pointer;
+      transition: all 0.25s var(--ease); color: #fff;
+      background: var(--grad-accent);
+      box-shadow: 0 4px 20px rgba(106, 173, 219, 0.3);
+    }
+    .play-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(106, 173, 219, 0.4); }
+    .play-btn svg { width: 18px; height: 18px; }
+    .play-btn.playing { background: linear-gradient(135deg, #E879A6, #F59E42); box-shadow: 0 4px 20px rgba(232, 121, 166, 0.3); }
+    .play-btn.playing:hover { box-shadow: 0 6px 28px rgba(232, 121, 166, 0.4); }
+
+    .speed-control {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 8px;
+      background: var(--surface); border: 1px solid var(--line);
+    }
+    .speed-control label { font-size: 11px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .speed-control select {
+      background: var(--panel2); border: 1px solid var(--line);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font: 500 12px var(--font-body); cursor: pointer;
+    }
+    .progress-track {
+      flex: 1; max-width: 300px; height: 6px; border-radius: 3px;
+      background: var(--panel2); overflow: hidden;
+      display: none; /* hidden when step-progress is used */
+    }
+    .progress-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--grad-accent);
+      transition: width 0.3s var(--ease); width: 0%;
+    }
+    .step-label {
+      font-size: 12px; color: var(--muted); font-weight: 500;
+      min-width: 140px; text-align: right;
+      white-space: nowrap;
+    }
+
+    /* ── Segmented Step Progress Bar ── */
+    .step-progress {
+      display: flex; align-items: center; flex: 1; max-width: 480px;
+    }
+    .sp-segment {
+      display: flex; align-items: center; flex: 1;
+    }
+    .sp-segment:last-child { flex: 0; }
+    .sp-dot {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--panel2); border: 2px solid var(--line);
+      display: grid; place-items: center;
+      font: 700 10px/1 var(--font-body); color: var(--dim);
+      cursor: pointer; flex-shrink: 0; position: relative;
+      transition: all 0.4s var(--ease);
+    }
+    .sp-dot:hover { border-color: var(--accent); color: var(--text-secondary); transform: scale(1.15); }
+    .sp-segment.active .sp-dot {
+      border-color: var(--accent); color: #fff; background: var(--accent-dark);
+      box-shadow: 0 0 14px rgba(106,173,219,0.35);
+      animation: spPulse 2s ease-in-out infinite;
+    }
+    @keyframes spPulse {
+      0%,100% { box-shadow: 0 0 14px rgba(106,173,219,0.35); }
+      50% { box-shadow: 0 0 24px rgba(106,173,219,0.55); }
+    }
+    .sp-segment.completed .sp-dot {
+      border-color: var(--green); color: #fff; background: rgba(86,200,120,0.7);
+    }
+    .sp-connector {
+      flex: 1; height: 2px; background: var(--line); margin: 0 1px;
+      transition: background 0.4s;
+    }
+    .sp-segment.completed .sp-connector { background: var(--green); }
+    .sp-segment.active .sp-connector { background: linear-gradient(90deg, var(--green), var(--accent)); }
+    .sp-tooltip {
+      position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      padding: 4px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
+      font: 500 10px/1 var(--font-body); color: var(--text-secondary);
+      white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .sp-tooltip::after {
+      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 4px solid transparent; border-top-color: var(--line);
+    }
+    .sp-dot:hover .sp-tooltip { opacity: 1; }
+
+    /* ============================================================
+       Canvas — Main Pipeline Area
+       ============================================================ */
+    .pipeline-canvas {
+      max-width: 1200px; margin: 20px auto; padding: 0 20px;
+      position: relative;
+    }
+
+    /* Section Layout */
+    .pipeline-section {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+      margin-bottom: 40px;
+    }
+    .pipeline-section.visible { opacity: 1; transform: translateY(0); }
+
+    .section-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 8px; margin-bottom: 16px;
+      font: 700 11px/1 var(--font-body);
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+    .section-label.blue { background: rgba(75, 159, 255, 0.1); color: var(--blue); border: 1px solid rgba(75, 159, 255, 0.2); }
+    .section-label.teal { background: rgba(94, 184, 160, 0.1); color: var(--teal-light); border: 1px solid rgba(94, 184, 160, 0.2); }
+    .section-label.lavender { background: rgba(155, 138, 202, 0.1); color: var(--lavender-light); border: 1px solid rgba(155, 138, 202, 0.2); }
+    .section-label.orange { background: rgba(245, 158, 66, 0.1); color: var(--orange); border: 1px solid rgba(245, 158, 66, 0.2); }
+    .section-label.pink { background: rgba(232, 121, 166, 0.1); color: var(--pink); border: 1px solid rgba(232, 121, 166, 0.2); }
+    .section-label.green { background: rgba(86, 200, 120, 0.1); color: var(--green); border: 1px solid rgba(86, 200, 120, 0.2); }
+    .section-label .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      font-size: 11px; font-weight: 800;
+    }
+    .section-label.blue .step-num { background: rgba(75, 159, 255, 0.2); }
+    .section-label.teal .step-num { background: rgba(94, 184, 160, 0.2); }
+    .section-label.lavender .step-num { background: rgba(155, 138, 202, 0.2); }
+    .section-label.orange .step-num { background: rgba(245, 158, 66, 0.2); }
+    .section-label.pink .step-num { background: rgba(232, 121, 166, 0.2); }
+    .section-label.green .step-num { background: rgba(86, 200, 120, 0.2); }
+
+    .section-desc {
+      font-size: 13px; color: var(--muted); margin-bottom: 20px;
+      max-width: 700px; line-height: 1.65;
+    }
+
+    /* ============================================================
+       Flow Arrow Connector
+       ============================================================ */
+    .flow-arrow {
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 0; opacity: 0;
+      transition: opacity 0.4s var(--ease);
+    }
+    .flow-arrow.visible { opacity: 1; }
+    .flow-arrow svg { color: var(--dim); }
+
+    /* ============================================================
+       Document Card (PDF)
+       ============================================================ */
+    .doc-card {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 14px; overflow: hidden; max-width: 580px;
+    }
+    .doc-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--line);
+      background: rgba(255, 77, 77, 0.04);
+    }
+    .doc-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: rgba(255, 77, 77, 0.12); display: grid; place-items: center;
+      color: var(--red);
+    }
+    .doc-icon svg { width: 18px; height: 18px; }
+    .doc-meta h3 { font: 600 14px/1.2 var(--font-body); }
+    .doc-meta span { font-size: 11px; color: var(--dim); }
+    .doc-body { padding: 18px; }
+    .doc-body p {
+      font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .doc-body p:last-child { margin-bottom: 0; }
+    .highlight-word {
+      position: relative; padding: 1px 4px; border-radius: 4px;
+      transition: background 0.3s, color 0.3s;
+    }
+    .highlight-word.active-highlight {
+      background: rgba(106, 173, 219, 0.2);
+      color: var(--accent-light);
+    }
+
+    /* ============================================================
+       Chunks Container
+       ============================================================ */
+    .chunks-row {
+      display: flex; gap: 14px; flex-wrap: wrap;
+    }
+    .chunk-card {
+      flex: 1; min-width: 220px; max-width: 340px;
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 12px; overflow: hidden;
+      opacity: 0; transform: scale(0.9);
+      transition: all 0.5s var(--ease);
+    }
+    .chunk-card.visible { opacity: 1; transform: scale(1); }
+    .chunk-header {
+      padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+      font: 600 12px var(--font-body); border-bottom: 1px solid var(--line);
+    }
+    .chunk-header .chunk-badge {
+      padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+    .chunk-1 .chunk-header { color: var(--blue); }
+    .chunk-1 .chunk-badge { background: rgba(75, 159, 255, 0.12); color: var(--blue); }
+    .chunk-2 .chunk-header { color: var(--teal-light); }
+    .chunk-2 .chunk-badge { background: rgba(94, 184, 160, 0.12); color: var(--teal-light); }
+    .chunk-body { padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.65; }
+
+    /* Scissors animation */
+    .scissors-line {
+      display: flex; align-items: center; justify-content: center;
+      gap: 4px; padding: 8px 0; opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .scissors-line.visible { opacity: 1; }
+    .scissors-line .cut-line {
+      flex: 1; height: 2px; border-top: 2px dashed var(--orange);
+      animation: cutDash 0.8s linear infinite;
+    }
+    @keyframes cutDash { to { border-color: transparent; } }
+    .scissors-icon { color: var(--orange); font-size: 18px; }
+
+    /* ============================================================
+       Embedding Visualization
+       ============================================================ */
+    .embed-process {
+      display: flex; align-items: stretch; gap: 20px; flex-wrap: wrap;
+    }
+    .embed-input, .embed-output {
+      flex: 1; min-width: 200px;
+    }
+    .embed-arrow-col {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; min-width: 80px;
+    }
+    .embed-api-box {
+      padding: 10px 16px; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(155, 138, 202, 0.15), rgba(106, 173, 219, 0.15));
+      border: 1px solid rgba(155, 138, 202, 0.3);
+      font: 600 11px var(--font-mono); color: var(--lavender-light);
+      text-align: center; white-space: nowrap;
+    }
+    .embed-api-box .api-label { font-size: 9px; color: var(--dim); display: block; margin-bottom: 2px; font-family: var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* Word to Number Grid */
+    .word-grid {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .word-row {
+      display: flex; align-items: center; gap: 8px;
+      opacity: 0; transform: translateX(-15px);
+      transition: all 0.4s var(--ease);
+    }
+    .word-row.visible { opacity: 1; transform: translateX(0); }
+    .word-token {
+      padding: 5px 10px; border-radius: 6px; font: 500 12px var(--font-mono);
+      background: var(--surface); border: 1px solid var(--line);
+      color: var(--text-secondary); min-width: 90px; text-align: center;
+    }
+    .word-arrow { color: var(--dim); font-size: 14px; transition: color 0.3s; }
+    .word-row.visible .word-arrow { color: var(--accent); }
+    .word-vector {
+      padding: 5px 10px; border-radius: 6px; font: 500 11px var(--font-mono);
+      background: rgba(106, 173, 219, 0.08); border: 1px solid rgba(106, 173, 219, 0.2);
+      color: var(--accent-light); min-width: 120px; text-align: center;
+    }
+
+    /* Embedding cards */
+    .embed-card {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+      opacity: 0; transform: translateX(20px);
+      transition: all 0.5s var(--ease);
+    }
+    .embed-card.visible { opacity: 1; transform: translateX(0); }
+    .embed-card-label { font: 600 11px var(--font-body); margin-bottom: 6px; }
+    .embed-card.c1 .embed-card-label { color: var(--blue); }
+    .embed-card.c2 .embed-card-label { color: var(--teal-light); }
+    .embed-numbers {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .embed-num {
+      padding: 3px 6px; border-radius: 4px; font: 500 10px var(--font-mono);
+      background: rgba(106, 173, 219, 0.06); color: var(--accent);
+      border: 1px solid rgba(106, 173, 219, 0.12);
+      opacity: 0; transform: scale(0.7);
+      transition: all 0.2s var(--ease);
+    }
+    .embed-num.visible { opacity: 1; transform: scale(1); }
+
+    /* ============================================================
+       Vector DB
+       ============================================================ */
+    .vdb-container {
+      display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+    }
+    .vdb-visual {
+      width: 180px; height: 200px; position: relative;
+      flex-shrink: 0;
+    }
+    .vdb-cylinder {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 140px; height: 170px;
+    }
+    .vdb-cylinder-body {
+      width: 100%; height: 130px; margin-top: 20px;
+      background: linear-gradient(180deg, rgba(106, 173, 219, 0.15), rgba(94, 184, 160, 0.10));
+      border: 1px solid rgba(106, 173, 219, 0.25);
+      border-radius: 0 0 50% 50% / 0 0 30px 30px;
+      position: relative; overflow: hidden;
+    }
+    .vdb-cylinder-top {
+      width: 100%; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(106, 173, 219, 0.2), rgba(94, 184, 160, 0.15));
+      border: 1px solid rgba(106, 173, 219, 0.3);
+      position: absolute; top: 0;
+    }
+    .vdb-cylinder-top-cover {
+      width: 100%; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(106, 173, 219, 0.12), rgba(94, 184, 160, 0.08));
+      border: 1px solid rgba(106, 173, 219, 0.2);
+      position: absolute; top: 0; z-index: 2;
+    }
+    .vdb-label {
+      position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+      font: 700 12px var(--font-body); color: var(--accent-light);
+      text-align: center; white-space: nowrap; z-index: 3;
+    }
+    .vdb-sublabel {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      font-size: 9px; color: var(--dim); text-align: center;
+      white-space: nowrap; z-index: 3;
+    }
+    /* Floating vectors inside DB */
+    .vdb-dot {
+      position: absolute; width: 6px; height: 6px; border-radius: 50%;
+      z-index: 1; opacity: 0; transition: opacity 0.3s;
+    }
+    .vdb-dot.visible { opacity: 1; animation: float 3s ease-in-out infinite; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .vdb-details {
+      flex: 1; min-width: 240px;
+    }
+    .vdb-detail-card {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px; margin-bottom: 8px;
+      opacity: 0; transform: translateY(10px);
+      transition: all 0.4s var(--ease);
+    }
+    .vdb-detail-card.visible { opacity: 1; transform: translateY(0); }
+    .vdb-detail-card h4 {
+      font: 600 12px var(--font-body); color: var(--accent-light);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .vdb-detail-card h4 svg { width: 14px; height: 14px; }
+    .vdb-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 5px 0; font-size: 11px;
+    }
+    .vdb-row .vdb-key { color: var(--dim); min-width: 60px; font-weight: 600; }
+    .vdb-row .vdb-val { color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px; }
+
+    /* ============================================================
+       Phase 2: Query
+       ============================================================ */
+    .phase-divider {
+      text-align: center; padding: 30px 0; opacity: 0;
+      transition: opacity 0.5s;
+    }
+    .phase-divider.visible { opacity: 1; }
+    .phase-divider-line {
+      width: 100%; height: 1px; margin-bottom: 20px;
+      background: linear-gradient(90deg, transparent, var(--line-light), transparent);
+    }
+    .phase-divider-text {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 20px; border-radius: 99px;
+      background: var(--surface); border: 1px solid var(--line);
+      font: 700 12px var(--font-body); color: var(--accent-light);
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .phase-divider-text svg { width: 16px; height: 16px; }
+
+    /* Query Box */
+    .query-box {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 20px; max-width: 500px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .query-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(106, 173, 219, 0.2), rgba(94, 184, 160, 0.15));
+      border: 1px solid rgba(106, 173, 219, 0.3);
+      display: grid; place-items: center; flex-shrink: 0;
+    }
+    .query-avatar svg { width: 20px; height: 20px; color: var(--accent-light); }
+    .query-text-area { flex: 1; }
+    .query-label { font-size: 10px; color: var(--dim); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .query-string {
+      font: 600 16px var(--font-body); color: var(--text);
+    }
+    .query-string .typing-cursor {
+      display: inline-block; width: 2px; height: 18px;
+      background: var(--accent); margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ============================================================
+       Cosine Similarity
+       ============================================================ */
+    .cosine-container {
+      display: flex; gap: 20px; flex-wrap: wrap; align-items: stretch;
+    }
+    .cosine-formula-card {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 12px; padding: 20px; flex: 1; min-width: 260px;
+    }
+    .cosine-formula-card h4 {
+      font: 700 13px var(--font-body); color: var(--lavender-light);
+      margin-bottom: 12px;
+    }
+    .formula-display {
+      padding: 14px; border-radius: 8px;
+      background: rgba(155, 138, 202, 0.06);
+      border: 1px solid rgba(155, 138, 202, 0.12);
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--text-secondary); text-align: center;
+      line-height: 1.8;
+    }
+    .formula-display .fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+    .formula-display .frac-top { border-bottom: 1px solid var(--muted); padding-bottom: 2px; }
+    .formula-display .frac-bot { padding-top: 2px; }
+
+    .cosine-results { flex: 1; min-width: 260px; }
+    .cosine-result-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: 10px; margin-bottom: 8px;
+      background: var(--grad-card); border: 1px solid var(--line);
+      opacity: 0; transform: translateX(20px);
+      transition: all 0.5s var(--ease);
+    }
+    .cosine-result-row.visible { opacity: 1; transform: translateX(0); }
+    .cosine-result-row.winner {
+      border-color: rgba(86, 200, 120, 0.4);
+      background: linear-gradient(145deg, rgba(86, 200, 120, 0.06), rgba(10, 12, 19, 0.92));
+    }
+    .cosine-chunk-label { font: 600 12px var(--font-body); flex-shrink: 0; min-width: 70px; }
+    .cosine-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+    .cosine-bar-fill {
+      height: 100%; border-radius: 4px;
+      transition: width 1s var(--ease);
+      width: 0%;
+    }
+    .cosine-bar-fill.high { background: linear-gradient(90deg, var(--green), var(--teal-light)); }
+    .cosine-bar-fill.low { background: linear-gradient(90deg, var(--dim), var(--muted)); }
+    .cosine-score { font: 700 13px var(--font-mono); min-width: 50px; text-align: right; }
+    .cosine-score.high { color: var(--green); }
+    .cosine-score.low { color: var(--dim); }
+    .cosine-winner-badge {
+      padding: 3px 8px; border-radius: 5px; font-size: 9px; font-weight: 700;
+      background: rgba(86, 200, 120, 0.15); color: var(--green);
+      letter-spacing: 0.05em;
+    }
+
+    /* ============================================================
+       LLM Section
+       ============================================================ */
+    .llm-container {
+      display: flex; gap: 20px; flex-wrap: wrap; align-items: stretch;
+    }
+    .llm-prompt-card {
+      flex: 1; min-width: 250px;
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 12px; padding: 18px; overflow: hidden;
+    }
+    .llm-prompt-card h4 {
+      font: 600 12px var(--font-body); color: var(--orange);
+      margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .llm-prompt-card h4 svg { width: 14px; height: 14px; }
+    .prompt-block {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 8px; padding: 12px; font-size: 12px;
+      font-family: var(--font-mono); color: var(--muted); line-height: 1.7;
+    }
+    .prompt-block .prompt-label {
+      color: var(--orange); font-weight: 700; font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      display: block; margin-bottom: 6px;
+    }
+    .prompt-block .prompt-context {
+      color: var(--blue); border-left: 2px solid rgba(75, 159, 255, 0.3);
+      padding-left: 10px; margin: 6px 0;
+    }
+    .prompt-block .prompt-question { color: var(--accent-light); }
+
+    .llm-brain {
+      width: 120px; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 10px; flex-shrink: 0;
+    }
+    .brain-icon {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(155, 138, 202, 0.2), rgba(232, 121, 166, 0.2));
+      border: 2px solid rgba(155, 138, 202, 0.3);
+      display: grid; place-items: center;
+      position: relative;
+    }
+    .brain-icon svg { width: 32px; height: 32px; color: var(--lavender-light); }
+    .brain-icon.thinking { animation: brainPulse 1.5s ease-in-out infinite; }
+    @keyframes brainPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(155, 138, 202, 0.3); }
+      50% { box-shadow: 0 0 30px 10px rgba(155, 138, 202, 0.15); }
+    }
+    .brain-label { font: 700 11px var(--font-body); color: var(--lavender-light); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* ============================================================
+       Answer Card
+       ============================================================ */
+    .answer-card {
+      background: var(--grad-card); border-radius: 14px; overflow: hidden;
+      max-width: 600px;
+      border: 1px solid rgba(86, 200, 120, 0.25);
+      box-shadow: 0 8px 40px rgba(86, 200, 120, 0.06);
+    }
+    .answer-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid rgba(86, 200, 120, 0.15);
+      background: rgba(86, 200, 120, 0.04);
+    }
+    .answer-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(86, 200, 120, 0.2), rgba(94, 184, 160, 0.2));
+      border: 1px solid rgba(86, 200, 120, 0.3);
+      display: grid; place-items: center;
+    }
+    .answer-avatar svg { width: 18px; height: 18px; color: var(--green); }
+    .answer-who { font: 600 13px var(--font-body); color: var(--green); }
+    .answer-body {
+      padding: 18px; font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+    }
+    .answer-body .answer-text { }
+    .answer-char { opacity: 0; transition: opacity 0.05s; }
+    .answer-char.visible { opacity: 1; }
+
+    /* ============================================================
+       Footer
+       ============================================================ */
+    footer {
+      text-align: center; padding: 36px 20px;
+      border-top: 1px solid var(--line);
+      margin-top: 40px;
+    }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      max-width: 1160px; margin: 0 auto;
+    }
+    .footer-brand {
+      font: 700 14px/1 var(--font-body); color: var(--text);
+    }
+    .footer-center {
+      font-size: 12px; color: var(--dim);
+    }
+    .footer-links {
+      display: flex; gap: 16px;
+    }
+    footer a { color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 500; }
+    footer a:hover { color: var(--accent-light); text-decoration: underline; }
+
+    /* ============================================================
+       Particle animation for data flow
+       ============================================================ */
+    .data-particles {
+      position: relative; height: 30px; overflow: hidden;
+    }
+    .particle {
+      position: absolute; width: 4px; height: 4px; border-radius: 50%;
+      top: 50%; transform: translateY(-50%);
+      opacity: 0;
+    }
+    .particle.active {
+      animation: particleFlow 1.2s var(--ease) forwards;
+    }
+    @keyframes particleFlow {
+      0% { left: 0; opacity: 0; }
+      20% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    /* ============================================================
+       FLOW DIAGRAM — Illustrative Overview
+       ============================================================ */
+    .flow-diagram-wrapper {
+      max-width: 1200px; margin: 0 auto; padding: 0 20px 10px;
+    }
+    .flow-diagram-title {
+      display: flex; align-items: center; gap: 8px;
+      font: 700 11px/1 var(--font-body);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim); margin-bottom: 14px;
+    }
+    .flow-diagram-title svg { width: 14px; height: 14px; }
+    .flow-diagram {
+      background: var(--grad-card); border: 1px solid var(--line);
+      border-radius: 16px; padding: 24px 20px 20px;
+      position: relative; overflow-x: auto; text-align: center;
+    }
+    .flow-diagram::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 30% 30%, rgba(106,173,219,0.04), transparent 60%);
+      pointer-events: none;
+    }
+    .fd-phase-label {
+      font: 700 9px/1 var(--font-body); letter-spacing: 0.16em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 5px; margin-bottom: 14px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .fd-phase-label.ingestion { color: var(--accent-light); background: rgba(106,173,219,0.08); border: 1px solid rgba(106,173,219,0.15); }
+    .fd-phase-label.retrieval { color: var(--pink); background: rgba(232,121,166,0.08); border: 1px solid rgba(232,121,166,0.15); }
+    .fd-row { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 8px; min-width: max-content; }
+    .fd-row:last-child { margin-bottom: 0; }
+
+    /* ── Arrows ── */
+    .fd-arrow {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 40px; flex-shrink: 0; gap: 2px;
+      color: var(--line-light); transition: color 0.5s var(--ease);
+    }
+    .fd-arrow.lit { color: var(--accent); }
+    .fd-arrow svg { width: 22px; height: 22px; }
+    .fd-arrow-label {
+      font: 500 7px/1 var(--font-body); color: var(--dim);
+      text-align: center; max-width: 50px; letter-spacing: 0.03em;
+    }
+    .fd-arrow.lit .fd-arrow-label { color: var(--accent); }
+    .fd-vertical-connector {
+      display: flex; align-items: center; justify-content: center;
+      padding-right: 0; margin: 2px 0 8px;
+      opacity: 0.2; transition: opacity 0.5s var(--ease);
+    }
+    .fd-vertical-connector.lit { opacity: 1; }
+    .fd-vertical-connector svg { color: var(--accent); }
+    .fd-vert-label {
+      font: 500 8px/1 var(--font-body); color: var(--dim); margin-left: 8px;
+    }
+    .fd-vertical-connector.lit .fd-vert-label { color: var(--accent); }
+
+    /* ── Illustrative Node ── */
+    .fd-node {
+      width: 130px; display: flex; flex-direction: column; align-items: center;
+      padding: 8px 6px 6px; border-radius: 12px;
+      background: rgba(255,255,255,0.015); border: 1px solid var(--line);
+      cursor: pointer; user-select: none; flex-shrink: 0;
+      opacity: 0.18; transition: all 0.5s var(--ease); position: relative;
+    }
+    .fd-node:hover { opacity: 0.35; border-color: var(--line-light); }
+    .fd-node.active {
+      opacity: 1; border-color: var(--accent);
+      background: rgba(106,173,219,0.06);
+      box-shadow: 0 0 28px rgba(106,173,219,0.18), inset 0 0 20px rgba(106,173,219,0.03);
+    }
+    .fd-node.active::after {
+      content: ''; position: absolute; inset: -2px; border-radius: 14px;
+      border: 2px solid var(--accent); opacity: 0.5;
+      animation: fdPulse 2s ease-in-out infinite;
+    }
+    @keyframes fdPulse {
+      0%,100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0; transform: scale(1.04); }
+    }
+    .fd-node.completed {
+      opacity: 0.6; border-color: rgba(86,200,120,0.3);
+      background: rgba(86,200,120,0.04);
+    }
+    .fd-node-label {
+      font: 700 8px/1 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--dim); margin-top: 5px; text-align: center; transition: color 0.5s;
+    }
+    .fd-node.active .fd-node-label { color: var(--accent-light); }
+    .fd-node.completed .fd-node-label { color: var(--green); }
+
+    /* ── Illustration Box ── */
+    .fd-illust {
+      width: 112px; height: 56px; display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; background: rgba(255,255,255,0.02); overflow: hidden; position: relative;
+    }
+
+    /* ── Step 1: Mini PDF ── */
+    .fd-mini-doc {
+      width: 34px; height: 42px; background: rgba(75,159,255,0.08);
+      border: 1px solid rgba(75,159,255,0.2); border-radius: 3px 6px 3px 3px;
+      padding: 5px 4px; display: flex; flex-direction: column; gap: 3px; position: relative;
+    }
+    .fd-mini-doc::before {
+      content: ''; position: absolute; top: 0; right: 0; width: 9px; height: 9px;
+      background: var(--panel); border-bottom-left-radius: 3px;
+      border-left: 1px solid rgba(75,159,255,0.2); border-bottom: 1px solid rgba(75,159,255,0.2);
+    }
+    .fd-mini-doc-title { font: 700 5px/1 var(--font-mono); color: var(--blue); }
+    .fd-mini-line { height: 2px; border-radius: 1px; background: rgba(75,159,255,0.2); }
+    .fd-mini-line.short { width: 65%; }
+
+    /* ── Step 2: Chunking Visual ── */
+    .fd-mini-split { display: flex; align-items: center; gap: 3px; }
+    .fd-mini-fulldoc {
+      width: 20px; height: 32px; background: rgba(94,184,160,0.08);
+      border: 1px dashed rgba(94,184,160,0.3); border-radius: 3px;
+      display: flex; flex-direction: column; gap: 1px; padding: 3px 2px;
+    }
+    .fd-mini-fulldoc .fd-mini-line { background: rgba(94,184,160,0.2); }
+    .fd-split-arrow { font: 500 10px/1 var(--font-body); color: var(--teal); }
+    .fd-mini-chunks { display: flex; gap: 3px; }
+    .fd-mini-chunk {
+      width: 20px; height: 26px; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font: 700 6px/1 var(--font-mono);
+    }
+    .fd-mini-chunk:nth-child(1) { background: rgba(94,184,160,0.15); border: 1px solid rgba(94,184,160,0.3); color: var(--teal); }
+    .fd-mini-chunk:nth-child(2) { background: rgba(232,121,166,0.12); border: 1px solid rgba(232,121,166,0.25); color: var(--pink); }
+    .fd-mini-chunk:nth-child(3) { background: rgba(245,158,66,0.12); border: 1px solid rgba(245,158,66,0.25); color: var(--orange); }
+
+    /* ── Step 3: Embedding Visual ── */
+    .fd-mini-embed-flow { display: flex; flex-direction: column; gap: 3px; }
+    .fd-embed-row { display: flex; align-items: center; gap: 2px; font: 500 6.5px/1 var(--font-mono); }
+    .fd-embed-word { color: var(--muted); width: 28px; text-align: right; overflow: hidden; text-overflow: ellipsis; }
+    .fd-embed-arr { color: var(--lavender); font-size: 7px; }
+    .fd-embed-num { color: var(--lavender-light); font-size: 6.5px; }
+
+    /* ── Step 4: Vector DB ── */
+    .fd-mini-vdb { position: relative; width: 40px; height: 48px; }
+    .fd-mini-vdb-cyl {
+      width: 40px; height: 48px; border-radius: 8px 8px 4px 4px;
+      background: rgba(245,158,66,0.08); border: 1px solid rgba(245,158,66,0.25);
+      position: relative; overflow: hidden;
+    }
+    .fd-mini-vdb-cyl::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 12px;
+      background: rgba(245,158,66,0.12); border-bottom: 1px solid rgba(245,158,66,0.2);
+      border-radius: 8px 8px 0 0;
+    }
+    .fd-vdb-dot {
+      width: 4px; height: 4px; border-radius: 50%; position: absolute;
+    }
+
+    /* ── Step 5: User Query ── */
+    .fd-mini-query { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .fd-mini-user {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(232,121,166,0.12); border: 1px solid rgba(232,121,166,0.25);
+      display: grid; place-items: center;
+    }
+    .fd-mini-user svg { width: 10px; height: 10px; color: var(--pink); }
+    .fd-mini-bubble {
+      padding: 3px 5px; background: rgba(232,121,166,0.08);
+      border: 1px solid rgba(232,121,166,0.2); border-radius: 5px 5px 5px 1px;
+      font: 500 5.5px/1.3 var(--font-mono); color: var(--pink); max-width: 95px; text-align: center;
+    }
+
+    /* ── Step 6: Query Embed ── */
+    .fd-mini-qembed { display: flex; flex-direction: column; align-items: center; gap: 2px; font: 500 6px/1.2 var(--font-mono); }
+    .fd-mini-qtext { color: var(--muted); font-size: 5.5px; }
+    .fd-mini-qarr { color: var(--lavender); font-size: 10px; }
+    .fd-mini-qnums { color: var(--lavender-light); font-size: 6px; }
+
+    /* ── Step 7: Cosine / Search ── */
+    .fd-mini-search { display: flex; flex-direction: column; gap: 3px; width: 90px; }
+    .fd-mini-bar-row { display: flex; align-items: center; gap: 3px; font: 700 6px/1 var(--font-mono); }
+    .fd-mini-bar-lbl { width: 14px; text-align: right; color: var(--dim); }
+    .fd-mini-bar { height: 5px; border-radius: 3px; }
+    .fd-mini-bar.high { width: 52px; background: linear-gradient(90deg, var(--green), var(--teal)); }
+    .fd-mini-bar.low { width: 22px; background: rgba(255,255,255,0.08); }
+    .fd-mini-bar-val { color: var(--text-secondary); font-size: 6px; }
+    .fd-mini-bar-badge { color: var(--green); font-size: 6px; }
+
+    /* ── Step 8: LLM Brain ── */
+    .fd-mini-brain { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .fd-mini-brain-icon {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(155,138,202,0.2), rgba(232,121,166,0.2));
+      border: 1px solid rgba(155,138,202,0.3); display: grid; place-items: center;
+    }
+    .fd-mini-brain-icon svg { width: 18px; height: 18px; color: var(--lavender-light); }
+    .fd-mini-brain-sub { font: 500 6px/1 var(--font-mono); color: var(--lavender); }
+
+    /* ── Step 9: Answer ── */
+    .fd-mini-answer { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .fd-mini-ans-icon {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: rgba(86,200,120,0.15); border: 1px solid rgba(86,200,120,0.3);
+      display: grid; place-items: center;
+    }
+    .fd-mini-ans-icon svg { width: 9px; height: 9px; color: var(--green); }
+    .fd-mini-ans-bubble {
+      padding: 3px 5px; background: rgba(86,200,120,0.06);
+      border: 1px solid rgba(86,200,120,0.15); border-radius: 5px;
+      font: 500 5px/1.3 var(--font-mono); color: var(--green); max-width: 100px; text-align: center;
+    }
+
+    /* ── Per-step active colors ── */
+    .fd-node.active[data-diagram-step="1"] { border-color: var(--blue); box-shadow: 0 0 24px rgba(75,159,255,0.15); }
+    .fd-node.active[data-diagram-step="2"] { border-color: var(--teal); box-shadow: 0 0 24px rgba(94,184,160,0.15); }
+    .fd-node.active[data-diagram-step="3"] { border-color: var(--lavender); box-shadow: 0 0 24px rgba(155,138,202,0.15); }
+    .fd-node.active[data-diagram-step="4"] { border-color: var(--orange); box-shadow: 0 0 24px rgba(245,158,66,0.15); }
+    .fd-node.active[data-diagram-step="5"] { border-color: var(--pink); box-shadow: 0 0 24px rgba(232,121,166,0.15); }
+    .fd-node.active[data-diagram-step="6"] { border-color: var(--lavender); box-shadow: 0 0 24px rgba(155,138,202,0.15); }
+    .fd-node.active[data-diagram-step="7"] { border-color: var(--orange); box-shadow: 0 0 24px rgba(245,158,66,0.15); }
+    .fd-node.active[data-diagram-step="8"] { border-color: var(--pink); box-shadow: 0 0 24px rgba(232,121,166,0.15); }
+    .fd-node.active[data-diagram-step="9"] { border-color: var(--green); box-shadow: 0 0 24px rgba(86,200,120,0.15); }
+    .fd-node.active[data-diagram-step="1"]::after { border-color: var(--blue); }
+    .fd-node.active[data-diagram-step="2"]::after { border-color: var(--teal); }
+    .fd-node.active[data-diagram-step="3"]::after { border-color: var(--lavender); }
+    .fd-node.active[data-diagram-step="4"]::after { border-color: var(--orange); }
+    .fd-node.active[data-diagram-step="5"]::after { border-color: var(--pink); }
+    .fd-node.active[data-diagram-step="6"]::after { border-color: var(--lavender); }
+    .fd-node.active[data-diagram-step="7"]::after { border-color: var(--orange); }
+    .fd-node.active[data-diagram-step="8"]::after { border-color: var(--pink); }
+    .fd-node.active[data-diagram-step="9"]::after { border-color: var(--green); }
+
+    /* ============================================================
+       Stage Info / Caution Buttons & Panels
+       ============================================================ */
+    .section-head {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 10px; margin-bottom: 16px;
+    }
+    .section-head .section-label { margin-bottom: 0; }
+    .info-toggles { display: inline-flex; gap: 6px; }
+    .info-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 11px; border-radius: 8px; cursor: pointer;
+      font: 700 10px/1 var(--font-body); letter-spacing: 0.07em; text-transform: uppercase;
+      border: 1px solid transparent; background: transparent;
+      transition: all 0.2s var(--ease); user-select: none;
+    }
+    .info-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .info-btn.info {
+      color: var(--green); background: rgba(86, 200, 120, 0.08);
+      border-color: rgba(86, 200, 120, 0.28);
+    }
+    .info-btn.info:hover, .info-btn.info.open {
+      background: rgba(86, 200, 120, 0.18);
+      box-shadow: 0 0 14px rgba(86, 200, 120, 0.22);
+    }
+    .info-btn.caution {
+      color: var(--red); background: rgba(255, 77, 77, 0.08);
+      border-color: rgba(255, 77, 77, 0.28);
+    }
+    .info-btn.caution:hover, .info-btn.caution.open {
+      background: rgba(255, 77, 77, 0.18);
+      box-shadow: 0 0 14px rgba(255, 77, 77, 0.22);
+    }
+
+    .info-panels { display: grid; gap: 12px; margin-bottom: 20px; }
+    .info-panel {
+      display: none; border-radius: 12px; padding: 16px 18px;
+      border: 1px solid var(--line); background: var(--grad-card);
+    }
+    .info-panel.open { display: block; animation: infoPanelIn 0.35s var(--ease); }
+    @keyframes infoPanelIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .info-panel.info {
+      border-color: rgba(86, 200, 120, 0.3);
+      background: linear-gradient(145deg, rgba(86, 200, 120, 0.06), rgba(10, 12, 19, 0.6));
+    }
+    .info-panel.caution {
+      border-color: rgba(255, 77, 77, 0.3);
+      background: linear-gradient(145deg, rgba(255, 77, 77, 0.06), rgba(10, 12, 19, 0.6));
+    }
+    .info-panel-title {
+      display: flex; align-items: center; gap: 8px;
+      font: 700 12px/1 var(--font-body); letter-spacing: 0.05em; text-transform: uppercase;
+      margin-bottom: 13px;
+    }
+    .info-panel.info .info-panel-title { color: var(--green); }
+    .info-panel.caution .info-panel-title { color: var(--red); }
+    .info-panel-title svg { width: 15px; height: 15px; }
+    .info-panel ul { list-style: none; display: grid; gap: 9px; }
+    .info-panel li {
+      position: relative; padding-left: 22px;
+      font-size: 12.5px; line-height: 1.62; color: var(--text-secondary);
+    }
+    .info-panel li::before {
+      position: absolute; left: 0; top: 0; font-size: 12px; font-weight: 800;
+    }
+    .info-panel.info li::before { content: '✓'; color: var(--green); }
+    .info-panel.caution li::before { content: '!'; color: var(--red); }
+    .info-panel li strong { color: var(--text); font-weight: 600; }
+    .info-panel .tname {
+      font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05); color: var(--accent-light);
+      white-space: nowrap;
+    }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 768px) {
+      .topbar { padding: 0 16px; }
+      .topbar-badge { display: none; }
+      .controls-bar { flex-wrap: wrap; gap: 10px; }
+      .progress-track { max-width: 100%; }
+      .step-progress { max-width: 100%; }
+      .step-label { min-width: auto; text-align: center; }
+      .embed-process { flex-direction: column; }
+      .embed-arrow-col { flex-direction: row; min-width: auto; }
+      .cosine-container { flex-direction: column; }
+      .llm-container { flex-direction: column; }
+      .llm-brain { flex-direction: row; width: auto; }
+      .vdb-container { flex-direction: column; align-items: center; }
+      .chunks-row { flex-direction: column; }
+      .chunk-card { max-width: 100%; }
+      .fd-row { gap: 0; }
+      .fd-node { width: 110px; padding: 6px 4px 5px; }
+      .fd-node-label { font-size: 7px; }
+      .fd-illust { width: 94px; height: 48px; }
+      .fd-arrow { min-width: 24px; }
+      .fd-arrow-label { font-size: 6px; }
+      .fd-vertical-connector { padding-right: 0; }
+      .sp-dot { width: 22px; height: 22px; font-size: 9px; }
+    }
+
+    /* Ensure smooth animation */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================
+       TOPBAR
+       ============================================ -->
+  <header class="topbar">
+    <a href="../" class="logo">
+      <span class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </span>
+      <span class="logo-text">Shray<span>Vijay</span></span>
+    </a>
+    <div class="topbar-center">
+      <div class="topbar-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        RAG Pipeline Demo
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================
+       HERO
+       ============================================ -->
+  <section class="hero">
+    <h1>How RAG Actually Works</h1>
+    <p>A visual, step-by-step walkthrough of Retrieval Augmented Generation — from raw documents to intelligent answers. Press play and watch every stage come alive.</p>
+  </section>
+
+  <!-- ============================================
+       FLOW DIAGRAM — Illustrative Overview
+       ============================================ -->
+  <div class="flow-diagram-wrapper" id="flow-diagram-wrapper">
+    <div class="flow-diagram-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Pipeline Overview — Click any stage to jump
+    </div>
+    <div class="flow-diagram" id="flow-diagram">
+
+      <!-- Phase 1: Ingestion -->
+      <div class="fd-phase-label ingestion">📥 Phase 1 — Ingestion</div>
+      <div class="fd-row">
+
+        <!-- Node 1: PDF Document -->
+        <div class="fd-node" data-diagram-step="1" data-scroll-to="step-doc" id="fd-node-1">
+          <div class="fd-illust">
+            <div class="fd-mini-doc">
+              <div class="fd-mini-doc-title">AUTOSAR</div>
+              <div class="fd-mini-line"></div>
+              <div class="fd-mini-line"></div>
+              <div class="fd-mini-line short"></div>
+              <div class="fd-mini-line"></div>
+              <div class="fd-mini-line short"></div>
+            </div>
+          </div>
+          <div class="fd-node-label">PDF Document</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">split</span>
+        </div>
+
+        <!-- Node 2: Text Chunking -->
+        <div class="fd-node" data-diagram-step="2" data-scroll-to="step-chunk" id="fd-node-2">
+          <div class="fd-illust">
+            <div class="fd-mini-split">
+              <div class="fd-mini-fulldoc">
+                <div class="fd-mini-line"></div>
+                <div class="fd-mini-line"></div>
+                <div class="fd-mini-line"></div>
+                <div class="fd-mini-line"></div>
+              </div>
+              <span class="fd-split-arrow">✂→</span>
+              <div class="fd-mini-chunks">
+                <div class="fd-mini-chunk">C1</div>
+                <div class="fd-mini-chunk">C2</div>
+                <div class="fd-mini-chunk">C3</div>
+              </div>
+            </div>
+          </div>
+          <div class="fd-node-label">Text Chunking</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">encode</span>
+        </div>
+
+        <!-- Node 3: Embeddings -->
+        <div class="fd-node" data-diagram-step="3" data-scroll-to="step-embed" id="fd-node-3">
+          <div class="fd-illust">
+            <div class="fd-mini-embed-flow">
+              <div class="fd-embed-row"><span class="fd-embed-word">AUTOSAR</span><span class="fd-embed-arr">→</span><span class="fd-embed-num">0.82</span></div>
+              <div class="fd-embed-row"><span class="fd-embed-word">software</span><span class="fd-embed-arr">→</span><span class="fd-embed-num">0.31</span></div>
+              <div class="fd-embed-row"><span class="fd-embed-word">CAN</span><span class="fd-embed-arr">→</span><span class="fd-embed-num">0.94</span></div>
+              <div class="fd-embed-row"><span class="fd-embed-word">FlexRay</span><span class="fd-embed-arr">→</span><span class="fd-embed-num">0.17</span></div>
+            </div>
+          </div>
+          <div class="fd-node-label">Embeddings</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">store</span>
+        </div>
+
+        <!-- Node 4: Vector DB -->
+        <div class="fd-node" data-diagram-step="4" data-scroll-to="step-vdb" id="fd-node-4">
+          <div class="fd-illust">
+            <div class="fd-mini-vdb">
+              <div class="fd-mini-vdb-cyl">
+                <span class="fd-vdb-dot" style="top:16px;left:8px;background:var(--teal)"></span>
+                <span class="fd-vdb-dot" style="top:22px;left:18px;background:var(--pink)"></span>
+                <span class="fd-vdb-dot" style="top:30px;left:10px;background:var(--orange)"></span>
+                <span class="fd-vdb-dot" style="top:18px;left:28px;background:var(--blue)"></span>
+                <span class="fd-vdb-dot" style="top:36px;left:24px;background:var(--lavender)"></span>
+                <span class="fd-vdb-dot" style="top:28px;left:6px;background:var(--green)"></span>
+              </div>
+            </div>
+          </div>
+          <div class="fd-node-label">Vector DB</div>
+        </div>
+
+      </div>
+
+      <!-- Vertical connector -->
+      <div class="fd-vertical-connector" id="fd-vert-conn">
+        <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="26"/><polyline points="6 20 12 26 18 20"/></svg>
+        <span class="fd-vert-label">retrieve</span>
+      </div>
+
+      <!-- Phase 2: Retrieval & Generation -->
+      <div class="fd-phase-label retrieval">🔍 Phase 2 — Retrieval & Generation</div>
+      <div class="fd-row">
+
+        <!-- Node 5: User Query -->
+        <div class="fd-node" data-diagram-step="5" data-scroll-to="step-query" id="fd-node-5">
+          <div class="fd-illust">
+            <div class="fd-mini-query">
+              <div class="fd-mini-user"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+              <div class="fd-mini-bubble">What is AUTOSAR?</div>
+            </div>
+          </div>
+          <div class="fd-node-label">User Query</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">embed</span>
+        </div>
+
+        <!-- Node 6: Query Embed -->
+        <div class="fd-node" data-diagram-step="6" data-scroll-to="step-query-embed" id="fd-node-6">
+          <div class="fd-illust">
+            <div class="fd-mini-qembed">
+              <span class="fd-mini-qtext">"What is AUTOSAR?"</span>
+              <span class="fd-mini-qarr">↓</span>
+              <span class="fd-mini-qnums">[0.80, 0.17, 0.63, …]</span>
+            </div>
+          </div>
+          <div class="fd-node-label">Query Embed</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-6">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">compare</span>
+        </div>
+
+        <!-- Node 7: Cosine Search -->
+        <div class="fd-node" data-diagram-step="7" data-scroll-to="step-cosine" id="fd-node-7">
+          <div class="fd-illust">
+            <div class="fd-mini-search">
+              <div class="fd-mini-bar-row"><span class="fd-mini-bar-lbl">C1</span><div class="fd-mini-bar high"></div><span class="fd-mini-bar-val">0.94</span><span class="fd-mini-bar-badge">✓</span></div>
+              <div class="fd-mini-bar-row"><span class="fd-mini-bar-lbl">C2</span><div class="fd-mini-bar low"></div><span class="fd-mini-bar-val">0.41</span></div>
+            </div>
+          </div>
+          <div class="fd-node-label">Cosine Search</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-7">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">prompt</span>
+        </div>
+
+        <!-- Node 8: LLM -->
+        <div class="fd-node" data-diagram-step="8" data-scroll-to="step-llm" id="fd-node-8">
+          <div class="fd-illust">
+            <div class="fd-mini-brain">
+              <div class="fd-mini-brain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2Z"/></svg></div>
+              <span class="fd-mini-brain-sub">context + query</span>
+            </div>
+          </div>
+          <div class="fd-node-label">LLM</div>
+        </div>
+
+        <div class="fd-arrow" id="fd-arrow-8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="fd-arrow-label">answer</span>
+        </div>
+
+        <!-- Node 9: Answer -->
+        <div class="fd-node" data-diagram-step="9" data-scroll-to="step-answer" id="fd-node-9">
+          <div class="fd-illust">
+            <div class="fd-mini-answer">
+              <div class="fd-mini-ans-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="fd-mini-ans-bubble">AUTOSAR is a standardized software architecture…</div>
+            </div>
+          </div>
+          <div class="fd-node-label">Answer</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================
+       CONTROLS
+       ============================================ -->
+  <div class="controls-bar" id="controls-bar">
+    <button class="play-btn" id="play-btn" aria-label="Play animation">
+      <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      <span id="play-label">Play</span>
+    </button>
+    <div class="speed-control">
+      <label for="speed-select">Speed</label>
+      <select id="speed-select">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+    </div>
+    <div class="step-progress" id="step-progress">
+      <div class="sp-segment" data-sp-step="1"><div class="sp-dot">1<span class="sp-tooltip">PDF Document</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="2"><div class="sp-dot">2<span class="sp-tooltip">Text Chunking</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="3"><div class="sp-dot">3<span class="sp-tooltip">Embeddings</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="4"><div class="sp-dot">4<span class="sp-tooltip">Vector DB</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="5"><div class="sp-dot">5<span class="sp-tooltip">User Query</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="6"><div class="sp-dot">6<span class="sp-tooltip">Query Embed</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="7"><div class="sp-dot">7<span class="sp-tooltip">Cosine Search</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="8"><div class="sp-dot">8<span class="sp-tooltip">LLM</span></div><div class="sp-connector"></div></div>
+      <div class="sp-segment" data-sp-step="9"><div class="sp-dot">9<span class="sp-tooltip">Answer</span></div></div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="step-label" id="step-label">Ready to play</div>
+  </div>
+
+  <!-- ============================================
+       PIPELINE CANVAS
+       ============================================ -->
+  <main class="pipeline-canvas">
+
+    <!-- ─── STEP 1: THE DOCUMENT ─── -->
+    <div class="pipeline-section" id="step-doc" data-step="1">
+      <div class="section-head">
+        <div class="section-label blue">
+          <span class="step-num">1</span> Source Document
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-1" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-1" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-1">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Ingest &amp; Parse — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>The &ldquo;extract content&rdquo; step does more work than it looks &mdash; PDFs are messy: multi-column layouts, tables, embedded images, scanned pages.</li>
+            <li><strong>Tooling:</strong> <span class="tname">PyMuPDF</span> (fast free text), <span class="tname">Docling</span> (layout-aware, tables &rarr; clean Markdown), <span class="tname">LlamaParse</span> (messy tables / scanned, API), <span class="tname">Unstructured.io</span> (docx, pptx, html, email), <span class="tname">Azure Doc Intelligence / AWS Textract</span> (OCR for scanned &amp; enterprise docs).</li>
+            <li><strong>Structured XML (e.g. ARXML):</strong> a purpose-built two-pass streaming parser with an in-memory object model beats any generic loader &mdash; it lets you navigate, edit and re-serialize the model, which chunk-and-embed loaders can&rsquo;t.</li>
+            <li><strong>Why it helps you:</strong> clean parsing = better answers downstream; a custom parser turns hours of manual doc digging into minutes.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-1">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> naive per-file synchronous parsing becomes the bottleneck &mdash; move parsing to a queued / parallel batch job, not an inline step.</li>
+            <li><strong>Mistake:</strong> one generic parser for every file type &mdash; scanned PDFs silently return empty or garbled text if OCR isn&rsquo;t triggered, and nobody notices until retrieval quality drops.</li>
+            <li><strong>Mistake:</strong> throwing away structure (headers, tables, XML hierarchy) at parse time &mdash; far more expensive to reconstruct later.</li>
+            <li><strong>Scale pain:</strong> re-ingesting the entire corpus on every update instead of diffing / incrementally updating only changed documents.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">Our journey begins with a PDF document. This could be any knowledge base — internal docs, research papers, manuals. Here's our sample AUTOSAR document:</p>
+      <div class="doc-card" id="doc-card">
+        <div class="doc-header">
+          <div class="doc-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <div class="doc-meta">
+            <h3>AUTOSAR_Overview.pdf</h3>
+            <span>2 paragraphs · 847 bytes</span>
+          </div>
+        </div>
+        <div class="doc-body" id="doc-body">
+          <p><span class="highlight-word" data-word="autosar">AUTOSAR</span> (<span class="highlight-word" data-word="automotive">AUTomotive</span> <span class="highlight-word" data-word="open">Open</span> <span class="highlight-word" data-word="system">System</span> <span class="highlight-word" data-word="architecture">ARchitecture</span>) is a standardized <span class="highlight-word" data-word="software">software</span> <span class="highlight-word" data-word="architecture">architecture</span> for <span class="highlight-word" data-word="automotive">automotive</span> <span class="highlight-word" data-word="ecu">electronic control units (ECUs)</span>. It defines a layered approach to building vehicle <span class="highlight-word" data-word="software">software</span>, enabling hardware-independent development and reuse across different car models and manufacturers.</p>
+          <p><span class="highlight-word" data-word="can">CAN</span>, <span class="highlight-word" data-word="flexray">FlexRay</span>, and <span class="highlight-word" data-word="ethernet">Ethernet</span> are <span class="highlight-word" data-word="communication">communication</span> <span class="highlight-word" data-word="protocols">protocols</span> used within the <span class="highlight-word" data-word="autosar">AUTOSAR</span> framework. <span class="highlight-word" data-word="can">CAN</span> handles low-speed body electronics, <span class="highlight-word" data-word="flexray">FlexRay</span> supports safety-critical real-time systems like braking and steering, and <span class="highlight-word" data-word="ethernet">Ethernet</span> enables high-bandwidth <span class="highlight-word" data-word="communication">communication</span> for advanced driver-assistance systems (ADAS) and infotainment.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 1→2 -->
+    <div class="flow-arrow" id="arrow-1-2">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 2: CHUNKING ─── -->
+    <div class="pipeline-section" id="step-chunk" data-step="2">
+      <div class="section-head">
+        <div class="section-label teal">
+          <span class="step-num">2</span> Text Chunking
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-2" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-2" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-2">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Chunking — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>The step most RAG systems get lazy about, yet usually the <strong>biggest single lever on retrieval quality</strong>.</li>
+            <li><strong>Fixed-size:</strong> split every N tokens with overlap &mdash; baseline only, breaks semantic units.</li>
+            <li><strong>Recursive character splitting:</strong> try paragraph &rarr; sentence &rarr; word boundaries in order (<span class="tname">RecursiveCharacterTextSplitter</span>) &mdash; solid default for prose.</li>
+            <li><strong>Semantic chunking:</strong> embed sentences, split where cosine similarity between consecutive sentences drops &mdash; better topic coherence.</li>
+            <li><strong>Structure-aware:</strong> split by headers, XML elements or code functions &mdash; best for structured docs like ARXML.</li>
+            <li><strong>Agentic / LLM-based:</strong> an LLM picks split points by meaning &mdash; highest quality, highest cost.</li>
+            <li><strong>Contextual retrieval:</strong> prepend a short LLM summary of surrounding context to each chunk before embedding &mdash; fixes the &ldquo;chunk loses meaning out of context&rdquo; problem. Newer models (e.g. Voyage contextual embeddings) push this into the embedder itself.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-2">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> a single fixed chunk size rarely fits both short FAQ-style content and long technical sections &mdash; one-size-fits-all chunking hurts recall as the corpus diversifies.</li>
+            <li><strong>Mistake:</strong> chunking without overlap &mdash; cuts sentences and references in half at boundaries and silently drops context.</li>
+            <li><strong>Mistake:</strong> re-chunking the whole corpus from scratch whenever the strategy changes, instead of versioning strategies so old and new can be compared.</li>
+            <li><strong>Scale pain:</strong> chunk count grows faster than document count with recursive splitting &mdash; index size and embedding cost scale non-linearly if chunk size isn&rsquo;t revisited.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">The document is split into smaller, meaningful pieces called <strong>chunks</strong>. Think of it like cutting a long story into paragraphs — each chunk should contain one complete idea.</p>
+
+      <div class="scissors-line" id="scissors-line">
+        <span class="scissors-icon">✂️</span>
+        <div class="cut-line"></div>
+        <span style="font-size: 10px; color: var(--dim); font-weight: 600; letter-spacing: 0.08em;">SPLITTING THE DOCUMENT</span>
+        <div class="cut-line"></div>
+        <span class="scissors-icon">✂️</span>
+      </div>
+
+      <div class="chunks-row" id="chunks-row">
+        <div class="chunk-card chunk-1" id="chunk-1">
+          <div class="chunk-header">
+            <span class="chunk-badge">CHUNK 1</span>
+            Paragraph 1 — Definition
+          </div>
+          <div class="chunk-body">
+            AUTOSAR (AUTomotive Open System ARchitecture) is a standardized software architecture for automotive electronic control units (ECUs). It defines a layered approach to building vehicle software, enabling hardware-independent development and reuse across different car models and manufacturers.
+          </div>
+        </div>
+        <div class="chunk-card chunk-2" id="chunk-2">
+          <div class="chunk-header">
+            <span class="chunk-badge">CHUNK 2</span>
+            Paragraph 2 — Protocols
+          </div>
+          <div class="chunk-body">
+            CAN, FlexRay, and Ethernet are communication protocols used within the AUTOSAR framework. CAN handles low-speed body electronics, FlexRay supports safety-critical real-time systems like braking and steering, and Ethernet enables high-bandwidth communication for ADAS and infotainment.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 2→3 -->
+    <div class="flow-arrow" id="arrow-2-3">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 3: EMBEDDINGS ─── -->
+    <div class="pipeline-section" id="step-embed" data-step="3">
+      <div class="section-head">
+        <div class="section-label lavender">
+          <span class="step-num">3</span> Generate Embeddings
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-3" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-3" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-3">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Embeddings — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>A <strong>cheaper embedder + a reranker often beats an expensive embedder alone</strong>, at lower total cost &mdash; worth remembering before over-optimizing this step in isolation.</li>
+            <li><strong>Open source:</strong> <span class="tname">BGE-M3</span> (2026 default, 100+ languages, pairs with BGE-reranker-v2), <span class="tname">Qwen3-Embedding-8B</span> (tops multilingual MTEB, self-hostable), <span class="tname">nomic-embed-text</span> (lightweight, laptop / edge via Ollama).</li>
+            <li><strong>API:</strong> <span class="tname">Voyage-3-large / voyage-context-4</span> (best for code &amp; technical docs), <span class="tname">Cohere Embed v4</span> (text + images, 128K context), <span class="tname">OpenAI text-embedding-3-large</span> (widest SDK support).</li>
+            <li><strong>Non-negotiable:</strong> whatever model embeds the documents must also embed the query &mdash; same model, same vector space.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-3">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> embedding cost &amp; latency scale linearly with corpus size &mdash; re-embedding everything on every model upgrade gets expensive; batch and cache early.</li>
+            <li><strong>Mistake:</strong> mixing vectors from two different models (or versions) in the same index &mdash; similarity scores become meaningless across the mismatch.</li>
+            <li><strong>Mistake:</strong> not tracking which model / version produced which vectors, making later migrations error-prone.</li>
+            <li><strong>Scale pain:</strong> dimensionality drives memory &mdash; a jump from 384-dim to 1536-dim can multiply storage 4&times; at large scale.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">Each chunk is converted into a list of numbers (a <strong>vector</strong>) by an Embedding Model. Words with similar meanings get similar numbers — this is how the computer "understands" language.</p>
+
+      <div class="embed-process">
+        <div class="embed-input">
+          <p style="font: 600 11px var(--font-body); color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px;">Words → Numbers</p>
+          <div class="word-grid" id="word-grid">
+            <div class="word-row" id="wr-1"><span class="word-token">"AUTOSAR"</span><span class="word-arrow">→</span><span class="word-vector">[0.82, 0.15, …]</span></div>
+            <div class="word-row" id="wr-2"><span class="word-token">"software"</span><span class="word-arrow">→</span><span class="word-vector">[0.71, 0.33, …]</span></div>
+            <div class="word-row" id="wr-3"><span class="word-token">"architecture"</span><span class="word-arrow">→</span><span class="word-vector">[0.68, 0.41, …]</span></div>
+            <div class="word-row" id="wr-4"><span class="word-token">"CAN"</span><span class="word-arrow">→</span><span class="word-vector">[0.23, 0.89, …]</span></div>
+            <div class="word-row" id="wr-5"><span class="word-token">"FlexRay"</span><span class="word-arrow">→</span><span class="word-vector">[0.19, 0.91, …]</span></div>
+          </div>
+        </div>
+
+        <div class="embed-arrow-col">
+          <div class="embed-api-box">
+            <span class="api-label">Model</span>
+            Embedding API
+          </div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+
+        <div class="embed-output" id="embed-output">
+          <p style="font: 600 11px var(--font-body); color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px;">Full Chunk Embeddings</p>
+          <div class="embed-card c1" id="embed-card-1">
+            <div class="embed-card-label">Chunk 1 Embedding — 1536 dimensions</div>
+            <div class="embed-numbers" id="embed-nums-1"></div>
+          </div>
+          <div class="embed-card c2" id="embed-card-2">
+            <div class="embed-card-label">Chunk 2 Embedding — 1536 dimensions</div>
+            <div class="embed-numbers" id="embed-nums-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 3→4 -->
+    <div class="flow-arrow" id="arrow-3-4">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 4: VECTOR DB ─── -->
+    <div class="pipeline-section" id="step-vdb" data-step="4">
+      <div class="section-head">
+        <div class="section-label orange">
+          <span class="step-num">4</span> Store in Vector Database
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-4" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-4" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-4">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Vector DB / Semantic Index — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>The field has fragmented by use case rather than one clear winner &mdash; pick by workload.</li>
+            <li><span class="tname">FAISS</span> &mdash; library, not a DB; fast local prototyping, no persistence / metadata layer.</li>
+            <li><span class="tname">ChromaDB</span> &mdash; great developer experience; fine up to a few million vectors.</li>
+            <li><span class="tname">Qdrant</span> &mdash; Rust, self-hosted; 10&ndash;25% faster on common workloads, strongest filtered search.</li>
+            <li><span class="tname">Weaviate</span> &mdash; bakes embedding generation into the DB, strong built-in hybrid search.</li>
+            <li><span class="tname">Milvus / Zilliz</span> &mdash; distributed, built for billion-scale similarity search.</li>
+            <li><span class="tname">pgvector</span> &mdash; right default for ~70% of workloads under 10M vectors when already on Postgres; metadata filtering comes &ldquo;free&rdquo; via SQL joins.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-4">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> flat / exact-search indexes (e.g. plain FAISS <span class="tname">IndexFlatL2</span>) stop being viable past millions of vectors &mdash; approximate indexes (HNSW, IVF) trade a small recall hit for large speed gains.</li>
+            <li><strong>Mistake:</strong> not planning metadata filtering early (date, source, permissions) &mdash; bolting on filters after the index is built is far more painful.</li>
+            <li><strong>Mistake:</strong> single-node Chroma / FAISS with no persistence or replication story &mdash; a hard wall once uptime or horizontal scale matters.</li>
+            <li><strong>Scale pain:</strong> index rebuild time grows with corpus size &mdash; full re-indexing on every update is fine at 10K docs, painful at 10M.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">The embeddings are stored in a <strong>Vector Database</strong> (like Pinecone, FAISS, or ChromaDB). Each entry stores both the embedding numbers AND the original text chunk — so we can retrieve the text later.</p>
+
+      <div class="vdb-container">
+        <div class="vdb-visual">
+          <div class="vdb-cylinder">
+            <div class="vdb-cylinder-top-cover"></div>
+            <div class="vdb-cylinder-top"></div>
+            <div class="vdb-cylinder-body">
+              <div class="vdb-dot" style="top: 30%; left: 25%; background: var(--blue);" id="vdb-d1"></div>
+              <div class="vdb-dot" style="top: 50%; left: 60%; background: var(--teal);" id="vdb-d2"></div>
+              <div class="vdb-dot" style="top: 70%; left: 35%; background: var(--lavender);" id="vdb-d3"></div>
+              <div class="vdb-dot" style="top: 40%; left: 75%; background: var(--accent);" id="vdb-d4"></div>
+              <div class="vdb-dot" style="top: 60%; left: 45%; background: var(--green);" id="vdb-d5"></div>
+              <div class="vdb-dot" style="top: 25%; left: 55%; background: var(--pink);" id="vdb-d6"></div>
+            </div>
+            <div class="vdb-label">Vector DB</div>
+            <div class="vdb-sublabel">Pinecone / FAISS / Chroma</div>
+          </div>
+        </div>
+
+        <div class="vdb-details">
+          <div class="vdb-detail-card" id="vdb-entry-1">
+            <h4>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              Record 1
+            </h4>
+            <div class="vdb-row"><span class="vdb-key">ID</span><span class="vdb-val">chunk_001</span></div>
+            <div class="vdb-row"><span class="vdb-key">Vector</span><span class="vdb-val">[0.82, 0.15, 0.43, … 1536 dims]</span></div>
+            <div class="vdb-row"><span class="vdb-key">Text</span><span class="vdb-val" style="color: var(--blue);">"AUTOSAR is a standardized…"</span></div>
+          </div>
+          <div class="vdb-detail-card" id="vdb-entry-2">
+            <h4>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              Record 2
+            </h4>
+            <div class="vdb-row"><span class="vdb-key">ID</span><span class="vdb-val">chunk_002</span></div>
+            <div class="vdb-row"><span class="vdb-key">Vector</span><span class="vdb-val">[0.23, 0.89, 0.11, … 1536 dims]</span></div>
+            <div class="vdb-row"><span class="vdb-key">Text</span><span class="vdb-val" style="color: var(--teal-light);">"CAN, FlexRay, and Ethernet…"</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- PHASE 2: RETRIEVAL & GENERATION             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="phase-divider" id="phase-divider">
+      <div class="phase-divider-line"></div>
+      <div class="phase-divider-text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Phase 2 — Retrieval & Generation
+      </div>
+    </div>
+
+    <!-- ─── STEP 5: USER QUERY ─── -->
+    <div class="pipeline-section" id="step-query" data-step="5">
+      <div class="section-head">
+        <div class="section-label pink">
+          <span class="step-num">5</span> User Asks a Question
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-5" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-5" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-5">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Semantic Search — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>Pure vector similarity alone underperforms in production. The trending default is <strong>hybrid search</strong>.</li>
+            <li><strong>Dense retrieval</strong> (embeddings) catches semantic / paraphrase matches.</li>
+            <li><strong>Sparse retrieval</strong> (BM25 / keyword) catches exact terms &mdash; critical when domain terms (e.g. ECU / ARXML element names) are exact-match and embeddings alone miss them.</li>
+            <li><strong>Reciprocal Rank Fusion (RRF)</strong> merges both ranked lists without needing to normalize scores.</li>
+            <li><strong>Query rewriting / HyDE:</strong> have an LLM rewrite a vague query into a retrieval-friendly form, or generate a hypothetical answer and embed that instead of the raw question.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-5">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Mistake:</strong> relying on dense retrieval alone and skipping BM25 / keyword matching, which quietly fails on exact identifiers, part numbers or domain jargon.</li>
+            <li><strong>Mistake:</strong> fixed top-k regardless of query type &mdash; a specific factual query and a broad exploratory query need different k, but most pipelines hardcode one value.</li>
+            <li><strong>Scale pain:</strong> top-k retrieval returns many near-duplicate chunks as the corpus grows, crowding out distinct results &mdash; diversity-aware retrieval (MMR) becomes necessary.</li>
+            <li><strong>Scale pain:</strong> query latency creeps up as both dense and sparse indexes grow; fusing two large ranked lists per query becomes a real cost at high volume.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">A user types a question. The system needs to find the most relevant chunk from our database to answer it.</p>
+
+      <div class="query-box" id="query-box">
+        <div class="query-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="query-text-area">
+          <div class="query-label">User Query</div>
+          <div class="query-string" id="query-string"><span class="typing-cursor"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 5→6 -->
+    <div class="flow-arrow" id="arrow-5-6">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 6: QUERY EMBEDDING ─── -->
+    <div class="pipeline-section" id="step-query-embed" data-step="6">
+      <div class="section-head">
+        <div class="section-label lavender">
+          <span class="step-num">6</span> Embed the Query
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-6" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-6" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-6">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Query Embedding — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>The question is embedded with the <strong>exact same model and vector space</strong> as the documents &mdash; this is what makes numbers comparable to numbers.</li>
+            <li>This step is the bridge between ingestion and retrieval: the same embedding stage from Step 3, now applied live to the user&rsquo;s question.</li>
+            <li>Cheap to cache &mdash; identical or repeated queries can reuse their embedding instead of re-computing it.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-6">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Mistake:</strong> embedding the query with a different model or version than the documents &mdash; similarity scores become meaningless.</li>
+            <li><strong>Mistake:</strong> forgetting to apply the same preprocessing / normalization at query time that was used at ingest time.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">The question is also converted to an embedding — the same way the document chunks were. Now we can compare numbers to numbers!</p>
+
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <div style="padding: 12px 18px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font: 500 14px var(--font-mono); color: var(--pink);">
+          "What is AUTOSAR?"
+        </div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <div class="embed-api-box">
+          <span class="api-label">Model</span>
+          Embedding API
+        </div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <div id="query-embed-result" style="padding: 12px 18px; border-radius: 10px; background: rgba(155, 138, 202, 0.08); border: 1px solid rgba(155, 138, 202, 0.2); font: 500 12px var(--font-mono); color: var(--lavender-light); opacity: 0; transition: opacity 0.5s;">
+          [0.80, 0.17, 0.39, … 1536 dims]
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 6→7 -->
+    <div class="flow-arrow" id="arrow-6-7">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 7: COSINE SIMILARITY ─── -->
+    <div class="pipeline-section" id="step-cosine" data-step="7">
+      <div class="section-head">
+        <div class="section-label orange">
+          <span class="step-num">7</span> Cosine Similarity Search
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-7" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-7" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-7">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Similarity + Reranking — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>Cosine similarity ranks first-stage candidates by the angle between vectors: <strong>0 = unrelated, 1 = identical meaning</strong>.</li>
+            <li><strong>Reranking is the single highest-leverage, lowest-effort fix in most RAG systems</strong> &mdash; it re-scores the top-N candidates with a cross-encoder that reads query and chunk together.</li>
+            <li><span class="tname">BGE-reranker-v2-m3</span> (open source, multilingual, default self-hosted), <span class="tname">Cohere Rerank 3.5 / 4</span> (API, via Bedrock), <span class="tname">ColBERTv2</span> (late-interaction, token-level scoring).</li>
+            <li><strong>Impact:</strong> rerankers typically lift ranking quality by 5&ndash;15 points (NDCG@10), 20+ on lexically hard data, for under 200ms of added latency.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-7">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> reranking every retrieved candidate (rather than a bounded top-N) becomes a latency bottleneck &mdash; reranker cost grows with candidates &times; queries, not just corpus size.</li>
+            <li><strong>Mistake:</strong> skipping reranking to save latency, then trying to fix poor answer quality at the generation stage instead &mdash; usually the wrong layer to fix it at.</li>
+            <li><strong>Mistake:</strong> using a reranker trained on general web data for a narrow technical domain without validating it actually improves ordering on that domain&rsquo;s queries.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">We compare the query embedding against every chunk embedding in the database. <strong>Cosine similarity</strong> measures the angle between two vectors — closer angle = more similar meaning!</p>
+
+      <div class="cosine-container">
+        <div class="cosine-formula-card">
+          <h4>📐 Cosine Similarity Formula</h4>
+          <div class="formula-display">
+            <div style="margin-bottom: 10px;">
+              similarity(A, B) = <span class="fraction"><span class="frac-top">A · B</span><span class="frac-bot">‖A‖ × ‖B‖</span></span>
+            </div>
+            <div style="font-size: 11px; color: var(--dim); text-align: left; margin-top: 12px; font-family: var(--font-body);">
+              <div style="margin-bottom: 4px;">🔹 <strong>A · B</strong> = dot product (multiply matching numbers, sum them up)</div>
+              <div style="margin-bottom: 4px;">🔹 <strong>‖A‖</strong> = magnitude (length) of vector A</div>
+              <div>🔹 Result ranges from <strong>0</strong> (unrelated) to <strong>1</strong> (identical meaning)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cosine-results" id="cosine-results">
+          <p style="font: 600 11px var(--font-body); color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px;">Similarity Scores</p>
+
+          <div class="cosine-result-row winner" id="cosine-row-1">
+            <div class="cosine-chunk-label" style="color: var(--blue);">Chunk 1</div>
+            <div class="cosine-bar-track"><div class="cosine-bar-fill high" id="cosine-bar-1"></div></div>
+            <div class="cosine-score high" id="cosine-score-1">0.00</div>
+            <span class="cosine-winner-badge" id="winner-badge" style="opacity: 0; transition: opacity 0.4s;">✓ BEST</span>
+          </div>
+          <div class="cosine-result-row" id="cosine-row-2">
+            <div class="cosine-chunk-label" style="color: var(--teal-light);">Chunk 2</div>
+            <div class="cosine-bar-track"><div class="cosine-bar-fill low" id="cosine-bar-2"></div></div>
+            <div class="cosine-score low" id="cosine-score-2">0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 7→8 -->
+    <div class="flow-arrow" id="arrow-7-8">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 8: LLM CALL ─── -->
+    <div class="pipeline-section" id="step-llm" data-step="8">
+      <div class="section-head">
+        <div class="section-label pink">
+          <span class="step-num">8</span> LLM Generates Answer
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-8" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-8" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-8">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Generation (LLM) — What it is &amp; why it helps
+          </div>
+          <ul>
+            <li>Implementation details matter more than model choice alone:</li>
+            <li><strong>Context assembly:</strong> order matters &mdash; put the most relevant chunk closest to the question, not buried in the middle (models attend less to the middle of long contexts).</li>
+            <li><strong>Citation grounding:</strong> instruct the model to cite chunk IDs, then post-verify the citation actually supports the claim.</li>
+            <li><strong>Fallback handling:</strong> explicitly tell it to say &ldquo;not found in context&rdquo; rather than hallucinate when retrieval returns nothing relevant.</li>
+            <li><strong>Local vs API:</strong> local models (e.g. via Ollama) keep data on-prem &mdash; important for internal engineering docs; hosted models (e.g. via Bedrock) give stronger reasoning for agentic RAG.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-8">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> stuffing more chunks into context to improve recall raises cost &amp; latency and can <em>drop</em> quality from &ldquo;lost in the middle&rdquo; effects &mdash; bigger context isn&rsquo;t a free win.</li>
+            <li><strong>Mistake:</strong> no citation verification step, so the model cites a chunk ID that doesn&rsquo;t support the claim &mdash; erodes trust quietly since it looks grounded.</li>
+            <li><strong>Mistake:</strong> no fallback instruction for empty / weak retrieval, so the model hallucinates a plausible answer instead of saying it doesn&rsquo;t know.</li>
+            <li><strong>Scale pain:</strong> generation is usually the most expensive stage per query &mdash; uncontrolled context length is the single biggest cost driver in the whole pipeline.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">The best matching chunk is sent to the LLM as <strong>context</strong> along with the original question. The LLM reads the context and generates a grounded, accurate answer — no hallucination!</p>
+
+      <div class="llm-container">
+        <div class="llm-prompt-card" id="llm-prompt-card">
+          <h4>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Prompt sent to LLM
+          </h4>
+          <div class="prompt-block">
+            <span class="prompt-label">System</span>
+            Answer the user's question using ONLY the provided context. If the context doesn't contain the answer, say "I don't know."
+            <br><br>
+            <span class="prompt-label">Context</span>
+            <div class="prompt-context">
+              AUTOSAR (AUTomotive Open System ARchitecture) is a standardized software architecture for automotive electronic control units (ECUs). It defines a layered approach to building vehicle software, enabling hardware-independent development and reuse across different car models and manufacturers.
+            </div>
+            <br>
+            <span class="prompt-label">Question</span>
+            <span class="prompt-question">What is AUTOSAR?</span>
+          </div>
+        </div>
+
+        <div class="llm-brain">
+          <div class="brain-icon" id="brain-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+            </svg>
+          </div>
+          <span class="brain-label">LLM</span>
+          <span style="font-size: 9px; color: var(--dim);">GPT / Gemini / Claude</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 8→9 -->
+    <div class="flow-arrow" id="arrow-8-9">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <!-- ─── STEP 9: ANSWER ─── -->
+    <div class="pipeline-section" id="step-answer" data-step="9">
+      <div class="section-head">
+        <div class="section-label green">
+          <span class="step-num">9</span> Final Answer
+        </div>
+        <div class="info-toggles">
+          <button class="info-btn info" data-info-target="info-9" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Info
+          </button>
+          <button class="info-btn caution" data-info-target="caution-9" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Watch Out
+          </button>
+        </div>
+      </div>
+      <div class="info-panels">
+        <div class="info-panel info" id="info-9">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Why RAG Matters + Orchestration
+          </div>
+          <ul>
+            <li><strong>Why RAG helps your tasks:</strong> it grounds answers in <em>your own</em> documents (no hallucination), keeps knowledge current without retraining the model, cites its sources, and turns days of manual doc digging into minutes.</li>
+            <li>The whole pipeline is wrapped by an <strong>orchestration layer</strong>: <span class="tname">LangChain</span> (broad integrations, chains), <span class="tname">LlamaIndex</span> (retrieval-first, best-in-class ingestion / indexing), <span class="tname">LangGraph</span> (agentic, cyclical retrieve &rarr; grade &rarr; rewrite &rarr; re-retrieve), <span class="tname">DSPy</span> (prompt optimization), <span class="tname">Haystack</span> (modular).</li>
+            <li>The pattern most teams settle on: <strong>LlamaIndex for retrieval + LangChain / LangGraph for orchestration + RAGAS for eval</strong>.</li>
+            <li><strong>Next step / differentiator:</strong> frame it as an agentic LangGraph loop; consider <span class="tname">GraphRAG</span> (retrieval over a knowledge / entity graph) for structured domains like ARXML.</li>
+          </ul>
+        </div>
+        <div class="info-panel caution" id="caution-9">
+          <div class="info-panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Things to be careful of
+          </div>
+          <ul>
+            <li><strong>Scale pain:</strong> linear chains that worked in prototyping break once real queries need retries, branching or re-retrieval &mdash; the move to a graph / cyclical orchestration usually happens later than it should.</li>
+            <li><strong>Mistake:</strong> no evaluation harness (e.g. RAGAS) before scaling traffic, so regressions from a chunking, embedding or prompt change go unnoticed until users complain.</li>
+            <li><strong>Mistake:</strong> tightly coupling orchestration logic to one vector DB or one LLM provider, making later swaps expensive.</li>
+            <li><strong>Note:</strong> tooling reflects the mid-2026 landscape &mdash; re-verify against vendor docs before committing to a stack.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="section-desc">The LLM produces a natural language response, grounded in the retrieved context. The user gets an accurate answer — that's RAG in action!</p>
+
+      <div class="answer-card" id="answer-card">
+        <div class="answer-header">
+          <div class="answer-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+            </svg>
+          </div>
+          <div class="answer-who">AI Assistant</div>
+        </div>
+        <div class="answer-body">
+          <div class="answer-text" id="answer-text"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ============================================
+       FOOTER
+       ============================================ -->
+  <footer>
+    <div class="footer-inner">
+      <span class="footer-brand">Shray Vijay</span>
+      <span class="footer-center">SEML Interactive · RAG Pipeline Demo · 2026</span>
+      <div class="footer-links">
+        <a href="mailto:shrayvijay028@gmail.com">shrayvijay028@gmail.com</a>
+        <a href="https://linkedin.com/in/shrayvijay/" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="https://github.com/shray028" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============================================
+       SCRIPT
+       ============================================ -->
+  <script>
+    (() => {
+      'use strict';
+
+      // --- DOM refs ---
+      const playBtn = document.getElementById('play-btn');
+      const playIcon = document.getElementById('play-icon');
+      const pauseIcon = document.getElementById('pause-icon');
+      const playLabel = document.getElementById('play-label');
+      const speedSelect = document.getElementById('speed-select');
+      const progressFill = document.getElementById('progress-fill');
+      const stepLabel = document.getElementById('step-label');
+
+      // --- State ---
+      let isPlaying = false;
+      let isPaused = false;
+      let animationQueue = [];
+      let currentTimeout = null;
+      let currentStepIndex = 0;
+      let totalSteps = 0;
+      let hasStarted = false;
+
+      // --- Pausable delay state ---
+      let delayResolve = null;   // resolver for the currently-awaited delay
+      let delayRemaining = 0;    // ms left on the current delay
+      let delayStartTs = 0;      // timestamp the current delay's timer started
+
+      function getSpeed() {
+        return parseFloat(speedSelect.value) || 1;
+      }
+      function delay(ms) {
+        const scaled = ms / getSpeed();
+        return new Promise(resolve => {
+          delayResolve = resolve;
+          delayRemaining = scaled;
+          delayStartTs = Date.now();
+          // If paused, don't start the timer — resumeAnimation() will start it.
+          if (isPaused) return;
+          currentTimeout = setTimeout(() => {
+            currentTimeout = null;
+            delayResolve = null;
+            resolve();
+          }, scaled);
+        });
+      }
+
+      // --- Pause: freeze the animation where it is ---
+      function pauseAnimation() {
+        if (!isPlaying || isPaused) return;
+        isPaused = true;
+        if (currentTimeout) {
+          clearTimeout(currentTimeout);
+          currentTimeout = null;
+          delayRemaining = Math.max(0, delayRemaining - (Date.now() - delayStartTs));
+        }
+        playIcon.style.display = '';
+        pauseIcon.style.display = 'none';
+        playLabel.textContent = 'Resume';
+        playBtn.classList.remove('playing');
+      }
+
+      // --- Resume: continue the frozen animation ---
+      function resumeAnimation() {
+        if (!isPlaying || !isPaused) return;
+        isPaused = false;
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = '';
+        playLabel.textContent = 'Pause';
+        playBtn.classList.add('playing');
+        if (delayResolve) {
+          delayStartTs = Date.now();
+          currentTimeout = setTimeout(() => {
+            currentTimeout = null;
+            const r = delayResolve;
+            delayResolve = null;
+            r();
+          }, delayRemaining);
+        }
+      }
+
+      // --- Utility: show element ---
+      function show(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('visible');
+      }
+
+      function updateProgress(step, label) {
+        const pct = Math.round((step / 13) * 100);
+        progressFill.style.width = pct + '%';
+        stepLabel.textContent = label;
+      }
+
+      // --- Typing Effect ---
+      async function typeText(targetId, text, charDelay = 50) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        el.innerHTML = '';
+        for (let i = 0; i < text.length; i++) {
+          if (!isPlaying) return;
+          const span = document.createElement('span');
+          span.textContent = text[i];
+          span.className = 'answer-char';
+          el.appendChild(span);
+          await delay(charDelay);
+          span.classList.add('visible');
+        }
+      }
+
+      // --- Typing effect for query ---
+      async function typeQuery(targetId, text, charDelay = 70) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        el.innerHTML = '';
+        for (let i = 0; i < text.length; i++) {
+          if (!isPlaying) return;
+          el.textContent = text.substring(0, i + 1);
+          await delay(charDelay);
+        }
+        // Add blinking cursor back
+        const cursor = document.createElement('span');
+        cursor.className = 'typing-cursor';
+        el.appendChild(cursor);
+      }
+
+      // --- Animate embed numbers ---
+      async function animateEmbedNums(containerId, count) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        const nums = [];
+        for (let i = 0; i < count; i++) {
+          nums.push((Math.random() * 2 - 1).toFixed(3));
+        }
+        // Add "..." at the end
+        const allNums = [...nums, '…'];
+        for (let i = 0; i < allNums.length; i++) {
+          const span = document.createElement('span');
+          span.className = 'embed-num';
+          span.textContent = allNums[i];
+          container.appendChild(span);
+        }
+        // Animate in
+        const spans = container.querySelectorAll('.embed-num');
+        for (let i = 0; i < spans.length; i++) {
+          if (!isPlaying) return;
+          await delay(40);
+          spans[i].classList.add('visible');
+        }
+      }
+
+      // --- Cosine animation ---
+      async function animateCosine(barId, scoreId, targetValue, steps = 60) {
+        const bar = document.getElementById(barId);
+        const score = document.getElementById(scoreId);
+        if (!bar || !score) return;
+        for (let i = 0; i <= steps; i++) {
+          if (!isPlaying) return;
+          const val = (targetValue * (i / steps));
+          bar.style.width = (val * 100) + '%';
+          score.textContent = val.toFixed(2);
+          await delay(20);
+        }
+      }
+
+      // --- Highlight words in doc ---
+      async function highlightDocWords() {
+        const words = document.querySelectorAll('.highlight-word');
+        for (const w of words) {
+          if (!isPlaying) return;
+          w.classList.add('active-highlight');
+          await delay(60);
+        }
+        await delay(400);
+        words.forEach(w => w.classList.remove('active-highlight'));
+      }
+
+      // ===================================================
+      // DIAGRAM SYNC FUNCTIONS
+      // ===================================================
+      function setDiagramStep(stepNum) {
+        // Mark all previous steps as completed, current as active
+        for (let i = 1; i <= 9; i++) {
+          const node = document.getElementById('fd-node-' + i);
+          if (!node) continue;
+          node.classList.remove('active', 'completed');
+          if (i < stepNum) {
+            node.classList.add('completed');
+          } else if (i === stepNum) {
+            node.classList.add('active');
+          }
+        }
+        // Light up connector arrows leading to current step
+        for (let i = 1; i <= 8; i++) {
+          const arrow = document.getElementById('fd-arrow-' + i);
+          if (arrow) {
+            if (i < stepNum) arrow.classList.add('lit');
+            else arrow.classList.remove('lit');
+          }
+        }
+        // Vertical connector lights when step >= 5
+        const vert = document.getElementById('fd-vert-conn');
+        if (vert) {
+          if (stepNum >= 5) vert.classList.add('lit');
+          else vert.classList.remove('lit');
+        }
+      }
+
+      function resetDiagram() {
+        for (let i = 1; i <= 9; i++) {
+          const node = document.getElementById('fd-node-' + i);
+          if (node) node.classList.remove('active', 'completed');
+        }
+        for (let i = 1; i <= 8; i++) {
+          const arrow = document.getElementById('fd-arrow-' + i);
+          if (arrow) arrow.classList.remove('lit');
+        }
+        const vert = document.getElementById('fd-vert-conn');
+        if (vert) vert.classList.remove('lit');
+      }
+
+      // ===================================================
+      // STEP PROGRESS BAR SYNC
+      // ===================================================
+      function updateStepProgress(stepNum) {
+        document.querySelectorAll('.sp-segment').forEach(seg => {
+          const s = parseInt(seg.getAttribute('data-sp-step'));
+          seg.classList.remove('active', 'completed');
+          if (s < stepNum) seg.classList.add('completed');
+          else if (s === stepNum) seg.classList.add('active');
+        });
+      }
+
+      function resetStepProgress() {
+        document.querySelectorAll('.sp-segment').forEach(seg => {
+          seg.classList.remove('active', 'completed');
+        });
+      }
+
+      // ===================================================
+      // INSTANT REVEAL UP TO STEP N (for jump-to-step)
+      // ===================================================
+      function fillEmbedNumsInstant(containerId, count) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        for (let i = 0; i < count; i++) {
+          const span = document.createElement('span');
+          span.className = 'embed-num-cell';
+          span.textContent = (Math.random() * 2 - 1).toFixed(3);
+          container.appendChild(span);
+        }
+      }
+
+      function revealUpToStep(n) {
+        // Step 1: Document
+        if (n >= 1) {
+          document.getElementById('step-doc').classList.add('visible');
+          document.querySelectorAll('.highlight-word').forEach(w => w.classList.add('active-highlight'));
+        }
+        // Step 2: Chunking
+        if (n >= 2) {
+          show('arrow-1-2');
+          document.getElementById('step-chunk').classList.add('visible');
+          document.getElementById('scissors-line').classList.add('visible');
+          document.getElementById('chunk-1').classList.add('visible');
+          document.getElementById('chunk-2').classList.add('visible');
+        }
+        // Step 3: Embeddings
+        if (n >= 3) {
+          show('arrow-2-3');
+          document.getElementById('step-embed').classList.add('visible');
+          for (let i = 1; i <= 5; i++) {
+            const wr = document.getElementById('wr-' + i);
+            if (wr) wr.classList.add('visible');
+          }
+          const ec1 = document.getElementById('embed-card-1');
+          const ec2 = document.getElementById('embed-card-2');
+          if (ec1) ec1.classList.add('visible');
+          if (ec2) ec2.classList.add('visible');
+          fillEmbedNumsInstant('embed-nums-1', 12);
+          fillEmbedNumsInstant('embed-nums-2', 12);
+        }
+        // Step 4: Vector DB
+        if (n >= 4) {
+          show('arrow-3-4');
+          document.getElementById('step-vdb').classList.add('visible');
+          for (let i = 1; i <= 6; i++) {
+            const d = document.getElementById('vdb-d' + i);
+            if (d) d.classList.add('visible');
+          }
+          const ve1 = document.getElementById('vdb-entry-1');
+          const ve2 = document.getElementById('vdb-entry-2');
+          if (ve1) ve1.classList.add('visible');
+          if (ve2) ve2.classList.add('visible');
+        }
+        // Step 5: User Query
+        if (n >= 5) {
+          document.getElementById('phase-divider').classList.add('visible');
+          document.getElementById('step-query').classList.add('visible');
+          document.getElementById('query-string').textContent = 'What is AUTOSAR?';
+        }
+        // Step 6: Query Embed
+        if (n >= 6) {
+          show('arrow-5-6');
+          document.getElementById('step-query-embed').classList.add('visible');
+          document.getElementById('query-embed-result').style.opacity = '1';
+        }
+        // Step 7: Cosine Search
+        if (n >= 7) {
+          show('arrow-6-7');
+          document.getElementById('step-cosine').classList.add('visible');
+          document.getElementById('cosine-row-1').classList.add('visible');
+          document.getElementById('cosine-row-2').classList.add('visible');
+          document.getElementById('cosine-bar-1').style.width = '94%';
+          document.getElementById('cosine-bar-2').style.width = '41%';
+          document.getElementById('cosine-score-1').textContent = '0.94';
+          document.getElementById('cosine-score-2').textContent = '0.41';
+          document.getElementById('winner-badge').style.opacity = '1';
+        }
+        // Step 8: LLM
+        if (n >= 8) {
+          show('arrow-7-8');
+          document.getElementById('step-llm').classList.add('visible');
+        }
+        // Step 9: Answer
+        if (n >= 9) {
+          show('arrow-8-9');
+          document.getElementById('step-answer').classList.add('visible');
+          document.getElementById('answer-text').textContent = 'AUTOSAR (AUTomotive Open System ARchitecture) is a standardized software architecture designed specifically for automotive electronic control units (ECUs). It provides a layered approach to building vehicle software that enables hardware-independent development, allowing software components to be reused across different car models and manufacturers.';
+        }
+      }
+
+      // ===================================================
+      // JUMP TO STEP (click-to-navigate)
+      // ===================================================
+      const stepSectionIds = ['step-doc','step-chunk','step-embed','step-vdb','step-query','step-query-embed','step-cosine','step-llm','step-answer'];
+
+      function jumpToStep(targetStep) {
+        // Stop any running animation
+        if (currentTimeout) clearTimeout(currentTimeout);
+        isPlaying = false;
+        isPaused = false;
+        playIcon.style.display = '';
+        pauseIcon.style.display = 'none';
+        playLabel.textContent = 'Play';
+        playBtn.classList.remove('playing');
+
+        // Reset all visual state first
+        document.querySelectorAll('.pipeline-section').forEach(s => s.classList.remove('visible'));
+        document.querySelectorAll('.flow-arrow').forEach(a => a.classList.remove('visible'));
+        document.querySelectorAll('.chunk-card').forEach(c => c.classList.remove('visible'));
+        document.getElementById('scissors-line').classList.remove('visible');
+        document.querySelectorAll('.word-row').forEach(w => w.classList.remove('visible'));
+        document.querySelectorAll('.embed-card').forEach(e => e.classList.remove('visible'));
+        document.getElementById('embed-nums-1').innerHTML = '';
+        document.getElementById('embed-nums-2').innerHTML = '';
+        document.querySelectorAll('.vdb-dot').forEach(d => d.classList.remove('visible'));
+        document.querySelectorAll('.vdb-detail-card').forEach(c => c.classList.remove('visible'));
+        document.getElementById('phase-divider').classList.remove('visible');
+        document.getElementById('query-string').innerHTML = '<span class="typing-cursor"></span>';
+        document.getElementById('query-embed-result').style.opacity = '0';
+        document.querySelectorAll('.cosine-result-row').forEach(r => r.classList.remove('visible'));
+        document.getElementById('cosine-bar-1').style.width = '0%';
+        document.getElementById('cosine-bar-2').style.width = '0%';
+        document.getElementById('cosine-score-1').textContent = '0.00';
+        document.getElementById('cosine-score-2').textContent = '0.00';
+        document.getElementById('winner-badge').style.opacity = '0';
+        document.getElementById('brain-icon').classList.remove('thinking');
+        document.getElementById('answer-text').innerHTML = '';
+        document.querySelectorAll('.highlight-word').forEach(w => w.classList.remove('active-highlight'));
+        resetDiagram();
+        resetStepProgress();
+
+        // Now reveal everything up to targetStep
+        revealUpToStep(targetStep);
+
+        // Update diagram + step progress
+        setDiagramStep(targetStep);
+        updateStepProgress(targetStep);
+
+        // Update progress bar text
+        const stepNames = ['Source Document','Text Chunking','Generating Embeddings','Vector DB','User Query','Embedding Query','Cosine Search','LLM Generation','Final Answer'];
+        const pct = Math.round((targetStep / 9) * 100);
+        progressFill.style.width = pct + '%';
+        stepLabel.textContent = 'Step ' + targetStep + ' \u2014 ' + stepNames[targetStep - 1];
+
+        // Scroll to the target section
+        const sectionId = stepSectionIds[targetStep - 1];
+        const target = document.getElementById(sectionId);
+        if (target) {
+          const y = target.getBoundingClientRect().top + window.scrollY - 150;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }
+
+      // ===================================================
+      // CLICK HANDLERS: Diagram nodes + Step progress dots
+      // ===================================================
+      document.querySelectorAll('.fd-node[data-scroll-to]').forEach(node => {
+        node.addEventListener('click', () => {
+          const step = parseInt(node.getAttribute('data-diagram-step'));
+          jumpToStep(step);
+        });
+      });
+
+      document.querySelectorAll('.sp-segment[data-sp-step]').forEach(seg => {
+        seg.addEventListener('click', () => {
+          const step = parseInt(seg.getAttribute('data-sp-step'));
+          jumpToStep(step);
+        });
+      });
+
+      // ===================================================
+      // MAIN ANIMATION SEQUENCE
+      // ===================================================
+      async function runAnimation() {
+        // STEP 1: Show document
+        setDiagramStep(1);
+        updateStepProgress(1);
+        updateProgress(1, 'Step 1 — Source Document');
+        show('step-doc');
+        await delay(800);
+        await highlightDocWords();
+        await delay(600);
+
+        if (!isPlaying) return;
+
+        // Arrow 1→2
+        show('arrow-1-2');
+        await delay(500);
+
+        // STEP 2: Chunking
+        setDiagramStep(2);
+        updateStepProgress(2);
+        updateProgress(3, 'Step 2 — Text Chunking');
+        show('step-chunk');
+        await delay(400);
+        // Show scissors
+        document.getElementById('scissors-line').classList.add('visible');
+        await delay(700);
+        // Show chunks one by one
+        document.getElementById('chunk-1').classList.add('visible');
+        await delay(500);
+        if (!isPlaying) return;
+        document.getElementById('chunk-2').classList.add('visible');
+        await delay(800);
+
+        if (!isPlaying) return;
+
+        // Arrow 2→3
+        show('arrow-2-3');
+        await delay(500);
+
+        // STEP 3: Embeddings
+        setDiagramStep(3);
+        updateStepProgress(3);
+        updateProgress(5, 'Step 3 — Generating Embeddings');
+        show('step-embed');
+        await delay(400);
+
+        // Animate word rows
+        for (let i = 1; i <= 5; i++) {
+          if (!isPlaying) return;
+          document.getElementById('wr-' + i).classList.add('visible');
+          await delay(300);
+        }
+        await delay(400);
+
+        if (!isPlaying) return;
+
+        // Show embed cards and animate numbers
+        document.getElementById('embed-card-1').classList.add('visible');
+        await animateEmbedNums('embed-nums-1', 12);
+        await delay(300);
+        if (!isPlaying) return;
+        document.getElementById('embed-card-2').classList.add('visible');
+        await animateEmbedNums('embed-nums-2', 12);
+        await delay(600);
+
+        if (!isPlaying) return;
+
+        // Arrow 3→4
+        show('arrow-3-4');
+        await delay(500);
+
+        // STEP 4: Vector DB
+        setDiagramStep(4);
+        updateStepProgress(4);
+        updateProgress(7, 'Step 4 — Storing in Vector DB');
+        show('step-vdb');
+        await delay(400);
+        // Animate dots
+        for (let i = 1; i <= 6; i++) {
+          if (!isPlaying) return;
+          document.getElementById('vdb-d' + i).classList.add('visible');
+          await delay(200);
+        }
+        await delay(300);
+        // Show entries
+        document.getElementById('vdb-entry-1').classList.add('visible');
+        await delay(400);
+        if (!isPlaying) return;
+        document.getElementById('vdb-entry-2').classList.add('visible');
+        await delay(800);
+
+        if (!isPlaying) return;
+
+        // Phase divider
+        updateProgress(8, 'Phase 2 — Retrieval');
+        document.getElementById('phase-divider').classList.add('visible');
+        await delay(800);
+
+        if (!isPlaying) return;
+
+        // STEP 5: Query
+        setDiagramStep(5);
+        updateStepProgress(5);
+        updateProgress(9, 'Step 5 — User Query');
+        show('step-query');
+        await delay(400);
+        await typeQuery('query-string', 'What is AUTOSAR?', 80);
+        await delay(600);
+
+        if (!isPlaying) return;
+
+        // Arrow 5→6
+        show('arrow-5-6');
+        await delay(500);
+
+        // STEP 6: Query Embedding
+        setDiagramStep(6);
+        updateStepProgress(6);
+        updateProgress(10, 'Step 6 — Embedding Query');
+        show('step-query-embed');
+        await delay(600);
+        document.getElementById('query-embed-result').style.opacity = '1';
+        await delay(600);
+
+        if (!isPlaying) return;
+
+        // Arrow 6→7
+        show('arrow-6-7');
+        await delay(500);
+
+        // STEP 7: Cosine similarity
+        setDiagramStep(7);
+        updateStepProgress(7);
+        updateProgress(11, 'Step 7 — Cosine Similarity');
+        show('step-cosine');
+        await delay(400);
+        document.getElementById('cosine-row-1').classList.add('visible');
+        await delay(200);
+        document.getElementById('cosine-row-2').classList.add('visible');
+        await delay(400);
+
+        if (!isPlaying) return;
+
+        // Animate bars
+        await Promise.all([
+          animateCosine('cosine-bar-1', 'cosine-score-1', 0.94),
+          animateCosine('cosine-bar-2', 'cosine-score-2', 0.41),
+        ]);
+        await delay(300);
+        document.getElementById('winner-badge').style.opacity = '1';
+        await delay(600);
+
+        if (!isPlaying) return;
+
+        // Arrow 7→8
+        show('arrow-7-8');
+        await delay(500);
+
+        // STEP 8: LLM
+        setDiagramStep(8);
+        updateStepProgress(8);
+        updateProgress(12, 'Step 8 — LLM Processing');
+        show('step-llm');
+        await delay(400);
+        document.getElementById('brain-icon').classList.add('thinking');
+        await delay(1500);
+
+        if (!isPlaying) return;
+
+        // Arrow 8→9
+        show('arrow-8-9');
+        await delay(500);
+
+        // STEP 9: Answer
+        setDiagramStep(9);
+        updateStepProgress(9);
+        updateProgress(13, 'Step 9 — Final Answer');
+        show('step-answer');
+        await delay(400);
+        document.getElementById('brain-icon').classList.remove('thinking');
+
+        const answerStr = 'AUTOSAR (AUTomotive Open System ARchitecture) is a standardized software architecture designed specifically for automotive electronic control units (ECUs). It provides a layered approach to building vehicle software that enables hardware-independent development, allowing software components to be reused across different car models and manufacturers.';
+        await typeText('answer-text', answerStr, 25);
+
+        await delay(500);
+        updateProgress(13, '✅ Complete!');
+
+        // Mark all diagram nodes as completed
+        for (let i = 1; i <= 9; i++) {
+          const n = document.getElementById('fd-node-' + i);
+          if (n) { n.classList.remove('active'); n.classList.add('completed'); }
+        }
+        for (let i = 1; i <= 8; i++) {
+          const a = document.getElementById('fd-arrow-' + i);
+          if (a) a.classList.add('lit');
+        }
+        // Mark all step progress as completed
+        document.querySelectorAll('.sp-segment').forEach(seg => {
+          seg.classList.remove('active');
+          seg.classList.add('completed');
+        });
+
+        // Reset button
+        isPlaying = false;
+        isPaused = false;
+        playIcon.style.display = '';
+        pauseIcon.style.display = 'none';
+        playLabel.textContent = 'Replay';
+        playBtn.classList.remove('playing');
+      }
+
+      // --- Reset all ---
+      function resetAnimation() {
+        if (currentTimeout) clearTimeout(currentTimeout);
+        currentTimeout = null;
+        delayResolve = null;
+        isPlaying = false;
+        isPaused = false;
+        hasStarted = false;
+        progressFill.style.width = '0%';
+        stepLabel.textContent = 'Ready to play';
+        playIcon.style.display = '';
+        pauseIcon.style.display = 'none';
+        playLabel.textContent = 'Play';
+        playBtn.classList.remove('playing');
+
+        // Hide all sections
+        document.querySelectorAll('.pipeline-section').forEach(s => s.classList.remove('visible'));
+        document.querySelectorAll('.flow-arrow').forEach(a => a.classList.remove('visible'));
+
+        // Reset chunks
+        document.querySelectorAll('.chunk-card').forEach(c => c.classList.remove('visible'));
+        document.getElementById('scissors-line').classList.remove('visible');
+
+        // Reset word rows
+        document.querySelectorAll('.word-row').forEach(w => w.classList.remove('visible'));
+
+        // Reset embed cards
+        document.querySelectorAll('.embed-card').forEach(e => e.classList.remove('visible'));
+        document.getElementById('embed-nums-1').innerHTML = '';
+        document.getElementById('embed-nums-2').innerHTML = '';
+
+        // Reset VDB
+        document.querySelectorAll('.vdb-dot').forEach(d => d.classList.remove('visible'));
+        document.querySelectorAll('.vdb-detail-card').forEach(c => c.classList.remove('visible'));
+
+        // Reset phase divider
+        document.getElementById('phase-divider').classList.remove('visible');
+
+        // Reset query
+        document.getElementById('query-string').innerHTML = '<span class="typing-cursor"></span>';
+
+        // Reset query embed
+        document.getElementById('query-embed-result').style.opacity = '0';
+
+        // Reset cosine
+        document.querySelectorAll('.cosine-result-row').forEach(r => r.classList.remove('visible'));
+        document.getElementById('cosine-bar-1').style.width = '0%';
+        document.getElementById('cosine-bar-2').style.width = '0%';
+        document.getElementById('cosine-score-1').textContent = '0.00';
+        document.getElementById('cosine-score-2').textContent = '0.00';
+        document.getElementById('winner-badge').style.opacity = '0';
+
+        // Reset LLM
+        document.getElementById('brain-icon').classList.remove('thinking');
+
+        // Reset answer
+        document.getElementById('answer-text').innerHTML = '';
+
+        // Reset word highlights
+        document.querySelectorAll('.highlight-word').forEach(w => w.classList.remove('active-highlight'));
+
+        // Reset diagram
+        resetDiagram();
+
+        // Reset step progress
+        resetStepProgress();
+      }
+
+      // --- Play/Pause Handler ---
+      playBtn.addEventListener('click', () => {
+        // Currently playing → pause where it is
+        if (isPlaying && !isPaused) {
+          pauseAnimation();
+          return;
+        }
+        // Currently paused → resume from where it stopped
+        if (isPlaying && isPaused) {
+          resumeAnimation();
+          return;
+        }
+
+        // Not playing → start / replay from the beginning
+        resetAnimation();
+        isPlaying = true;
+        isPaused = false;
+        hasStarted = true;
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = '';
+        playLabel.textContent = 'Pause';
+        playBtn.classList.add('playing');
+        runAnimation();
+      });
+
+      // ===================================================
+      // STAGE INFO / CAUTION PANEL TOGGLES
+      // ===================================================
+      document.querySelectorAll('.info-btn[data-info-target]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panel = document.getElementById(btn.getAttribute('data-info-target'));
+          if (!panel) return;
+          const isOpen = panel.classList.toggle('open');
+          btn.classList.toggle('open', isOpen);
+          btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+      });
+
+    })();
+  </script>
+</body>
+</html>
