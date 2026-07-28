@@ -843,7 +843,9 @@
      ---------------------------------------------------------- */
   function openIframe(topic, folder) {
     currentTopic = topic;
-    const src = folder + '/interactive/' + topic.interactive.file;
+    // If the file path starts with '../' or '/', use it directly (e.g. cross-folder interactives)
+    const file = topic.interactive.file;
+    const src = (file.startsWith('../') || file.startsWith('/')) ? file : folder + '/interactive/' + file;
 
     iframeTitle.textContent = topic.title;
     iframeLoading.classList.remove('hidden');
@@ -869,7 +871,9 @@
 
   iframeOpenBtn.addEventListener('click', () => {
     if (currentTopic && currentTopic.interactive && currentSubject) {
-      window.open(currentSubject.folder + '/interactive/' + currentTopic.interactive.file, '_blank');
+      const file = currentTopic.interactive.file;
+      const url = (file.startsWith('../') || file.startsWith('/')) ? file : currentSubject.folder + '/interactive/' + file;
+      window.open(url, '_blank');
     }
   });
 
