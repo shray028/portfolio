@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 9 — Bayesian Learning</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{transition:all .3s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.wbtn{padding:6px 10px;font-size:11px;font-weight:700;border-radius:8px;background:rgba(255,255,255,.05);transition:all .2s;font-family:'JetBrains Mono',monospace}
+.wbtn.on{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-percent text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 9</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Bayesian Learning</p>
+  </div>
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('bayes')" id="nav-bayes" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Bayes Rule</span>
+        <i class="fa-solid fa-stethoscope text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">The medical-test surprise</div>
+    </button>
+    <button onclick="App.load('mlemap')" id="nav-mlemap" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. MLE vs MAP</span>
+        <i class="fa-solid fa-coins text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Flip coins, update beliefs</div>
+    </button>
+    <button onclick="App.load('naive')" id="nav-naive" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-rose-400 transition-colors">3. Naive Bayes</span>
+        <i class="fa-solid fa-envelope text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Build a spam filter</div>
+    </button>
+  </div>
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-52 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 min-h-[170px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[250px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title'), hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls'), explain = document.getElementById('explain'), statsBody = document.getElementById('stats-body');
+  let W, H, mode = null;
+  function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  window.addEventListener('resize', resize);
+
+  /* ============ MODULE 1: BAYES RULE ============ */
+  const by = { prior: 0.01, sens: 0.95, spec: 0.90 };
+  function byDraw(){
+    ctx.clearRect(0,0,W,H);
+    const N = 1000, cols = 40, rows = 25;
+    const cell = Math.min(W*0.6/cols, H*0.5/rows);
+    const ox = W*0.07, oy = H*0.18;
+    const nSick = Math.round(N*by.prior);
+    const TP = nSick*by.sens, FN = nSick*(1-by.sens);
+    const nWell = N-nSick;
+    const FP = nWell*(1-by.spec), TN = nWell*by.spec;
+    // draw the population: sick first
+    for (let i=0;i<N;i++){
+      const x = ox + (i%cols)*cell + cell/2, y = oy + Math.floor(i/cols)*cell + cell/2;
+      let col, r = cell*0.28;
+      if (i < TP) col='#fb7185';                    // sick, test+
+      else if (i < nSick) col='rgba(251,113,133,.30)'; // sick, test− (missed)
+      else if (i < nSick + FP) col='#fbbf24';        // well, test+ (false alarm)
+      else col='rgba(45,212,191,.22)';               // well, test−
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    }
+    const post = TP/(TP+FP+1e-12);
+    // right panel: posterior bar
+    const bx = W*0.72, bw = W*0.16, bBaseY = H*0.66, bMax = H*0.42;
+    ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(bx, bBaseY, bw, -bMax);
+    ctx.fillStyle='#fb7185'; ctx.shadowColor='#fb7185'; ctx.shadowBlur=18;
+    ctx.fillRect(bx, bBaseY, bw, -bMax*post); ctx.shadowBlur=0;
+    ctx.font='bold 26px JetBrains Mono, monospace'; ctx.fillStyle='#f8fafc'; ctx.textAlign='center';
+    ctx.fillText((post*100).toFixed(1)+'%', bx+bw/2, bBaseY-bMax*post-16);
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle='#94a3b8';
+    ctx.fillText('P(sick | test+)', bx+bw/2, bBaseY+24);
+    // legend
+    const leg = [['#fb7185','sick & test+  ('+Math.round(TP)+')'], ['rgba(251,113,133,.35)','sick & test−  ('+Math.round(FN)+')'], ['#fbbf24','well & test+  ('+Math.round(FP)+') ← the trap'], ['rgba(45,212,191,.4)','well & test−  ('+Math.round(TN)+')']];
+    ctx.textAlign='left'; ctx.font='12px JetBrains Mono, monospace';
+    leg.forEach(([c,t],i)=>{ const y=H*0.78+i*22;
+      ctx.fillStyle=c; ctx.beginPath(); ctx.arc(ox+8, y, 6, 0, 7); ctx.fill();
+      ctx.fillStyle='#cbd5e1'; ctx.fillText(t, ox+24, y+4); });
+    stats([['Prior P(sick)', (by.prior*100).toFixed(1)+'%'], ['Sensitivity', (by.sens*100).toFixed(0)+'%'], ['Specificity', (by.spec*100).toFixed(0)+'%'], ['Posterior', (post*100).toFixed(1)+'%'], ['Intuition gap', post<0.5?'test+ ≠ probably sick!':'now it is likely']]);
+  }
+
+  /* ============ MODULE 2: MLE vs MAP ============ */
+  const mm = { heads: 0, tails: 0, priorStrength: 8, priorMean: 0.5 };
+  function betaLike(th){ // pseudo-count prior (Beta-like)
+    const a = mm.priorMean*mm.priorStrength, b = (1-mm.priorMean)*mm.priorStrength;
+    return Math.pow(th, a)*Math.pow(1-th, b);
+  }
+  function mmDraw(){
+    ctx.clearRect(0,0,W,H);
+    const gx=W*0.1, gw=W*0.8, gy=H*0.16, gh=H*0.56;
+    ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.strokeRect(gx,gy,gw,gh);
+    const n = 200;
+    const curves = [];
+    // likelihood ∝ θ^h (1-θ)^t ; prior; posterior ∝ product — each normalized to max 1
+    const like = [], prior = [], post = [];
+    let mL=0, mP=0, mPo=0;
+    for(let i=0;i<=n;i++){ const th=i/n;
+      const L = mm.heads+mm.tails>0 ? Math.exp(mm.heads*Math.log(th+1e-12)+mm.tails*Math.log(1-th+1e-12)) : 1;
+      const P = betaLike(th);
+      like.push(L); prior.push(P); post.push(L*P);
+      mL=Math.max(mL,L); mP=Math.max(mP,P); mPo=Math.max(mPo,L*P);
+    }
+    const draw = (arr, mx, col, wdt) => {
+      ctx.strokeStyle=col; ctx.lineWidth=wdt; ctx.beginPath();
+      arr.forEach((v,i)=>{ const X=gx+i/n*gw, Y=gy+gh-(v/(mx||1))*gh*0.92; i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+      ctx.stroke();
+    };
+    draw(prior, mP, 'rgba(192,132,252,.8)', 2);
+    draw(like, mL, 'rgba(56,189,248,.8)', 2);
+    draw(post, mPo, '#2dd4bf', 3.2);
+    // MLE & MAP markers
+    const mleIdx = like.indexOf(Math.max(...like)), mapIdx = post.indexOf(Math.max(...post));
+    const mark = (idx, col, lab, dy) => {
+      const X=gx+idx/n*gw;
+      ctx.setLineDash([5,5]); ctx.strokeStyle=col;
+      ctx.beginPath(); ctx.moveTo(X, gy); ctx.lineTo(X, gy+gh); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=col; ctx.font='bold 12px JetBrains Mono, monospace'; ctx.textAlign='center';
+      ctx.fillText(lab+' = '+(idx/n).toFixed(3), X, gy-8-dy);
+    };
+    if (mm.heads+mm.tails>0) mark(mleIdx, '#38bdf8', 'MLE', 16);
+    mark(mapIdx, '#2dd4bf', 'MAP', 0);
+    ctx.fillStyle='#64748b'; ctx.font='12px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText('θ = P(heads) →', gx+gw/2, gy+gh+26);
+    // coin history strip
+    ctx.textAlign='left';
+    ctx.fillStyle='#94a3b8'; ctx.fillText('flips: '+(mm.heads+mm.tails)+'  (H='+mm.heads+', T='+mm.tails+')', gx, H*0.85);
+    ctx.fillStyle='#c084fc'; ctx.fillText('— prior (belief before data)', gx, H*0.89);
+    ctx.fillStyle='#38bdf8'; ctx.fillText('— likelihood (what data says)', gx, H*0.925);
+    ctx.fillStyle='#2dd4bf'; ctx.fillText('— posterior ∝ likelihood × prior', gx, H*0.96);
+    stats([['Flips', mm.heads+mm.tails], ['MLE θ̂', mm.heads+mm.tails>0?(mleIdx/n).toFixed(3):'—'], ['MAP θ̂', (mapIdx/n).toFixed(3)], ['Prior strength', mm.priorStrength+' pseudo-flips'], ['As n→∞', 'MAP → MLE']]);
+  }
+
+  /* ============ MODULE 3: NAIVE BAYES ============ */
+  const WORDS = [
+    { w: 'free',     pS: 0.62, pH: 0.05 },
+    { w: 'winner',   pS: 0.45, pH: 0.02 },
+    { w: 'meeting',  pS: 0.04, pH: 0.36 },
+    { w: 'lottery',  pS: 0.38, pH: 0.005 },
+    { w: 'report',   pS: 0.03, pH: 0.41 },
+    { w: 'urgent',   pS: 0.33, pH: 0.10 },
+    { w: 'lunch',    pS: 0.02, pH: 0.24 },
+    { w: 'click',    pS: 0.51, pH: 0.07 },
+  ];
+  const nb = { on: new Set(['free']), priorSpam: 0.4, smooth: true };
+  function nbDraw(){
+    ctx.clearRect(0,0,W,H);
+    const eps = nb.smooth ? 0.01 : 0;
+    let logS = Math.log(nb.priorSpam), logH = Math.log(1-nb.priorSpam);
+    const rows = [];
+    WORDS.forEach(({w,pS,pH})=>{
+      if (nb.on.has(w)){
+        const ls = Math.log(Math.max(eps, pS)), lh = Math.log(Math.max(eps, pH));
+        logS += ls; logH += lh;
+        rows.push({ w, ratio: ls-lh, pS: Math.max(eps,pS), pH: Math.max(eps,pH) });
+      }
+    });
+    const pSpam = 1/(1+Math.exp(logH-logS));
+    // left panel: word contribution bars
+    const bx = W*0.08, bw = W*0.42, by0 = H*0.2, rh = Math.min(48, H*0.55/Math.max(1,rows.length));
+    ctx.font='12px JetBrains Mono, monospace';
+    rows.forEach((r,i)=>{
+      const y = by0 + i*rh + rh/2;
+      const len = Math.max(-1, Math.min(1, r.ratio/5)) * bw*0.4;
+      ctx.fillStyle = len>0 ? 'rgba(251,113,133,.7)' : 'rgba(45,212,191,.7)';
+      ctx.fillRect(bx+bw*0.5, y-8, len, 16);
+      ctx.fillStyle='#e2e8f0'; ctx.textAlign='right';
+      ctx.fillText(r.w, bx+bw*0.5 - (len>0? 8 : -Math.abs(len)-8), y+4);
+      ctx.fillStyle='#64748b'; ctx.textAlign='left';
+      ctx.fillText('log('+r.pS.toFixed(2)+'/'+r.pH.toFixed(2)+')='+r.ratio.toFixed(1), bx+bw*0.5+ (len>0? len+8 : 8), y+4);
+    });
+    ctx.strokeStyle='rgba(255,255,255,.15)';
+    ctx.beginPath(); ctx.moveTo(bx+bw*0.5, by0-16); ctx.lineTo(bx+bw*0.5, by0+rows.length*rh+6); ctx.stroke();
+    ctx.fillStyle='#64748b'; ctx.textAlign='center';
+    ctx.fillText('← evidence for HAM        evidence for SPAM →', bx+bw*0.5, by0-26);
+    if (!rows.length){ ctx.fillStyle='#64748b'; ctx.fillText('toggle words below to compose the email', bx+bw*0.5, H*0.4); }
+    // right: verdict gauge
+    const gx = W*0.62, gw = W*0.3, gy = H*0.30, gh = 46;
+    ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(gx, gy, gw, gh);
+    const grad = ctx.createLinearGradient(gx,0,gx+gw,0);
+    grad.addColorStop(0,'#2dd4bf'); grad.addColorStop(1,'#fb7185');
+    ctx.fillStyle=grad; ctx.fillRect(gx, gy, gw*pSpam, gh);
+    ctx.fillStyle='#f8fafc'; ctx.font='bold 22px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText('P(spam|words) = '+(pSpam*100).toFixed(1)+'%', gx+gw/2, gy-18);
+    ctx.font='bold 16px Inter, sans-serif';
+    ctx.fillText(pSpam>0.5?'🚫 SPAM':'✉ HAM', gx+gw/2, gy+gh+30);
+    ctx.font='11px JetBrains Mono, monospace'; ctx.fillStyle='#64748b';
+    ctx.fillText('P(C|x) ∝ P(C) · Π P(wordⱼ|C)   — "naive" = words assumed independent', gx+gw/2, gy+gh+62);
+    if (!nb.smooth && rows.some(r=>r.pH<=0.001||r.pS<=0.001)){
+      ctx.fillStyle='#fb7185';
+      ctx.fillText('⚠ a zero probability just vetoed everything — enable Laplace smoothing', gx+gw/2, gy+gh+86);
+    }
+    stats([['Words on', rows.length], ['log-odds', (logS-logH).toFixed(2)], ['P(spam)', (pSpam*100).toFixed(1)+'%'], ['Smoothing', nb.smooth?'Laplace ✓':'OFF ⚠'], ['Prior P(spam)', (nb.priorSpam*100).toFixed(0)+'%']]);
+  }
+  function nbControlsHtml(){
+    return '<div class="flex flex-wrap gap-1.5 mb-3">' + WORDS.map(({w}) =>
+      '<button class="wbtn '+(nb.on.has(w)?'on':'')+'" id="wb-'+w+'" onclick="App.act(\'nbWord\',\''+w+'\')">'+w+'</button>').join('') + '</div>' +
+      '<label class="text-[11px] font-mono text-slate-400 uppercase">Prior P(spam): <span id="nb-pr" class="text-teal-300 font-bold">40%</span></label>' +
+      '<input type="range" min="5" max="95" value="40" class="mt-1 mb-2" oninput="App.act(\'nbPrior\', this.value)">' +
+      '<button onclick="App.act(\'nbSmooth\')" id="nb-sm" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Laplace smoothing: ON</button>';
+  }
+
+  function stats(rows){ statsBody.innerHTML = rows.map(([k,v]) => '<div class="flex justify-between gap-6"><span class="text-slate-500">'+k+'</span><span class="text-teal-300 font-bold">'+v+'</span></div>').join(''); }
+
+  const MODULES = {
+    bayes: {
+      title: 'BAYES RULE', desc: 'POSTERIOR ∝ LIKELIHOOD × PRIOR',
+      explain: '<b class="text-slate-200">A 95%-accurate test comes back positive. Are you sick?</b> Probably not! With a 1% prior, true positives (red) are swamped by false alarms (amber) from the huge healthy population. The posterior P(sick | test+) is what matters — Bayes rule re-weights the test result by the base rate. Slide the prior and watch the trap open and close.',
+      init: ()=>{}, draw: byDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Prior P(sick): <span id="by-pr" class="text-teal-300 font-bold">1.0%</span></label>' +
+        '<input type="range" min="1" max="500" value="10" class="mt-1 mb-2" oninput="App.act(\'byPrior\', this.value)">' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Sensitivity P(+|sick): <span id="by-se" class="text-teal-300 font-bold">95%</span></label>' +
+        '<input type="range" min="50" max="99" value="95" class="mt-1 mb-2" oninput="App.act(\'bySens\', this.value)">' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Specificity P(−|well): <span id="by-sp" class="text-teal-300 font-bold">90%</span></label>' +
+        '<input type="range" min="50" max="99" value="90" class="mt-1" oninput="App.act(\'bySpec\', this.value)">'
+    },
+    mlemap: {
+      title: 'MLE vs MAP', desc: 'DATA vs DATA + PRIOR',
+      explain: '<b class="text-slate-200">Estimate a coin\'s bias θ.</b> The blue likelihood peaks at the raw frequency — that peak is the <b>MLE</b>. The purple prior encodes belief ("coins are usually fair"). Multiply them and the teal posterior\'s peak is the <b>MAP</b>. Flip a few times: MAP resists noise. Flip hundreds: data drowns the prior and MAP → MLE.',
+      init: ()=>{}, draw: mmDraw,
+      controls: '<div class="flex gap-2 mb-2">' +
+        '<button onclick="App.act(\'flipH\')" class="btn-primary flex-1 py-2 rounded-lg font-bold text-xs">+1 HEAD</button>' +
+        '<button onclick="App.act(\'flipT\')" class="btn-primary flex-1 py-2 rounded-lg font-bold text-xs">+1 TAIL</button></div>' +
+        '<div class="flex gap-2 mb-3">' +
+        '<button onclick="App.act(\'flip10\')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">flip ×10 (70% coin)</button>' +
+        '<button onclick="App.act(\'flipReset\')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">reset</button></div>' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Prior strength: <span id="mm-ps" class="text-teal-300 font-bold">8</span> pseudo-flips</label>' +
+        '<input type="range" min="0" max="60" value="8" class="mt-1" oninput="App.act(\'mmPs\', this.value)">'
+    },
+    naive: {
+      title: 'NAIVE BAYES', desc: 'P(C)·Π P(xⱼ|C) — SPAM FILTER',
+      explain: '<b class="text-slate-200">Compose an email from word toggles.</b> Each word pushes the verdict with weight log P(w|spam)/P(w|ham) — the bars. Words are treated as independent given the class (that\'s the "naive" part), so evidence simply adds in log-space. Turn smoothing off and add "lottery": one unseen word can veto an entire class with a zero probability.',
+      init: ()=>{}, draw: nbDraw,
+      controls: '' // set dynamically
+    },
+  };
+
+  function act(what, val){
+    if (what==='byPrior'){ by.prior=+val/1000; document.getElementById('by-pr').textContent=(by.prior*100).toFixed(1)+'%'; }
+    if (what==='bySens'){ by.sens=+val/100; document.getElementById('by-se').textContent=val+'%'; }
+    if (what==='bySpec'){ by.spec=+val/100; document.getElementById('by-sp').textContent=val+'%'; }
+    if (what==='flipH') mm.heads++;
+    if (what==='flipT') mm.tails++;
+    if (what==='flip10'){ for(let i=0;i<10;i++) Math.random()<0.7?mm.heads++:mm.tails++; }
+    if (what==='flipReset'){ mm.heads=0; mm.tails=0; }
+    if (what==='mmPs'){ mm.priorStrength=+val; document.getElementById('mm-ps').textContent=val; }
+    if (what==='nbWord'){
+      nb.on.has(val) ? nb.on.delete(val) : nb.on.add(val);
+      document.getElementById('wb-'+val).classList.toggle('on', nb.on.has(val));
+    }
+    if (what==='nbPrior'){ nb.priorSpam=+val/100; document.getElementById('nb-pr').textContent=val+'%'; }
+    if (what==='nbSmooth'){ nb.smooth=!nb.smooth; document.getElementById('nb-sm').textContent='Laplace smoothing: '+(nb.smooth?'ON':'OFF'); }
+  }
+
+  function load(m){
+    mode=m;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.getElementById('nav-'+m).classList.add('active');
+    const M=MODULES[m];
+    hudTitle.textContent=M.title; hudDesc.textContent=M.desc;
+    controls.innerHTML='<div class="fade-in">'+(m==='naive'?nbControlsHtml():M.controls)+'</div>';
+    explain.innerHTML='<div class="fade-in">'+M.explain+'</div>';
+    M.init();
+  }
+  function loop(){ if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
+  resize();
+  return { load, act, start(){ load('bayes'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>

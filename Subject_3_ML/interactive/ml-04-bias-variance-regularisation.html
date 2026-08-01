@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 4 — Bias, Variance & Regularisation</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{transition:all .3s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.seg{display:flex;gap:4px}
+.seg button{flex:1;padding:6px 4px;font-size:10px;font-weight:700;border-radius:6px;background:rgba(255,255,255,.05);transition:all .2s;font-family:'JetBrains Mono',monospace}
+.seg button.on{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-scale-balanced text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 4</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Bias · Variance · Regularisation</p>
+  </div>
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('basis')" id="nav-basis" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Basis Functions</span>
+        <i class="fa-solid fa-bezier-curve text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Linear-in-w, curved in x</div>
+    </button>
+    <button onclick="App.load('bv')" id="nav-bv" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. Bias vs Variance</span>
+        <i class="fa-solid fa-bullseye text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Many worlds, many fits</div>
+    </button>
+    <button onclick="App.load('reg')" id="nav-reg" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-rose-400 transition-colors">3. Ridge Regularisation</span>
+        <i class="fa-solid fa-compress text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">λ tames wild weights</div>
+    </button>
+    <button onclick="App.load('curve')" id="nav-curve" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-purple-400 transition-colors">4. The U-Curve</span>
+        <i class="fa-solid fa-arrows-down-to-line text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Sweet spot of complexity</div>
+    </button>
+  </div>
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-52 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 min-h-[160px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[250px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title'), hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls'), explain = document.getElementById('explain'), statsBody = document.getElementById('stats-body');
+  let W, H, mode = null;
+  function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  window.addEventListener('resize', resize);
+  let seedG = 12345;
+  function rand(){ seedG = (seedG*16807)%2147483647; return seedG/2147483647; }
+  function setSeed(s){ seedG = s; }
+
+  const TRUE_F = x => 0.5 + 0.34*Math.sin(5.2*x) + 0.1*x;
+  function sample(n, noise){ const pts=[]; for(let i=0;i<n;i++){ const x = (i + rand()*0.7)/n; pts.push({x, y: TRUE_F(x) + (rand()-.5)*noise}); } return pts; }
+
+  // Ridge polynomial fit: returns coefficients
+  function polyfit(pts, deg, lam){
+    const m = deg+1;
+    const A = Array.from({length:m}, () => new Array(m+1).fill(0));
+    for (let i=0;i<m;i++){
+      for (let j=0;j<m;j++){
+        A[i][j] = pts.reduce((s,p)=>s+Math.pow(p.x,i+j),0);
+        if (i===j && i>0) A[i][j] += lam;  // don't penalise intercept
+        if (i===j) A[i][j] += 1e-10;
+      }
+      A[i][m] = pts.reduce((s,p)=>s+p.y*Math.pow(p.x,i),0);
+    }
+    for (let c=0;c<m;c++){
+      let piv=c; for(let r=c+1;r<m;r++) if(Math.abs(A[r][c])>Math.abs(A[piv][c])) piv=r;
+      [A[c],A[piv]]=[A[piv],A[c]];
+      for(let r=0;r<m;r++) if(r!==c && Math.abs(A[c][c])>1e-14){
+        const f=A[r][c]/A[c][c];
+        for(let cc=c;cc<=m;cc++) A[r][cc]-=f*A[c][cc];
+      }
+    }
+    return A.map((row,i)=> Math.abs(row[i])>1e-14 ? row[m]/row[i] : 0);
+  }
+  function evalPoly(c, x){ let s=0, xp=1; for(let i=0;i<c.length;i++){ s+=c[i]*xp; xp*=x; } return s; }
+  function rmse(pts, c){ return Math.sqrt(pts.reduce((s,p)=>s+(p.y-evalPoly(c,p.x))**2,0)/pts.length); }
+
+  const PX = x => W*0.12 + x*(W*0.76);
+  const PY = y => H*0.85 - (y+0.25)*(H*0.62);
+
+  function axes(){
+    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
+    ctx.strokeRect(W*0.12, H*0.12, W*0.76, H*0.76);
+  }
+  function drawTrue(alpha){
+    ctx.strokeStyle='rgba(148,163,184,'+alpha+')'; ctx.lineWidth=2; ctx.setLineDash([7,6]); ctx.beginPath();
+    for(let i=0;i<=160;i++){ const x=i/160; const X=PX(x), Y=PY(TRUE_F(x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  function drawCurve(c, color, width, alpha){
+    ctx.strokeStyle=color; ctx.globalAlpha=alpha??1; ctx.lineWidth=width; ctx.beginPath();
+    for(let i=0;i<=160;i++){ const x=i/160; const y=Math.max(-0.6, Math.min(1.8, evalPoly(c,x))); const X=PX(x), Y=PY(y); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.globalAlpha=1;
+  }
+  function drawPts(pts, color){ pts.forEach(p=>{ ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=6; ctx.beginPath(); ctx.arc(PX(p.x), PY(p.y), 5, 0, 7); ctx.fill(); ctx.shadowBlur=0; }); }
+
+  /* ============ MODULE 1: BASIS ============ */
+  const ba = { deg: 1, train: [], showBasis: true };
+  function baInit(){ setSeed(77); ba.train = sample(18, 0.24); }
+  function baDraw(){
+    ctx.clearRect(0,0,W,H); axes(); drawTrue(0.35);
+    const c = polyfit(ba.train, ba.deg, 0);
+    // individual weighted basis functions
+    if (ba.showBasis) {
+      for (let k=1;k<c.length;k++){
+        ctx.strokeStyle='hsla('+(160+k*28)+',70%,60%,.35)'; ctx.lineWidth=1.2; ctx.beginPath();
+        for(let i=0;i<=120;i++){ const x=i/120; const y=c[k]*Math.pow(x,k)+c[0]; const X=PX(x), Y=PY(Math.max(-0.6,Math.min(1.8,y))); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+        ctx.stroke();
+      }
+    }
+    drawCurve(c, '#2dd4bf', 3);
+    drawPts(ba.train, '#f8fafc');
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle='#64748b'; ctx.textAlign='center';
+    ctx.fillText('ŷ = w₀ + w₁x + w₂x² + … + w_d x^d   — still LINEAR in w!', W/2, H*0.94);
+    stats([['Degree d', ba.deg], ['Train RMSE', rmse(ba.train, c).toFixed(3)], ['#params', ba.deg+1], ['Model', ba.deg===1?'straight line':ba.deg<4?'gentle curve':ba.deg<8?'flexible':'wiggle monster']]);
+    legend([['#94a3b8','true function (hidden)'],['#2dd4bf','fitted model'],['#f8fafc','train data']]);
+  }
+
+  /* ============ MODULE 2: BIAS-VARIANCE ============ */
+  const bv = { deg: 1, fits: [], n: 30 };
+  function bvResample(){
+    bv.fits = [];
+    for (let w=0; w<bv.n; w++){ setSeed(1000+w*97); const pts = sample(14, 0.30); bv.fits.push(polyfit(pts, bv.deg, 0)); }
+  }
+  function bvInit(){ bvResample(); }
+  function bvDraw(){
+    ctx.clearRect(0,0,W,H); axes(); drawTrue(0.8);
+    bv.fits.forEach(c => drawCurve(c, bv.deg<3?'#2dd4bf':bv.deg<7?'#fbbf24':'#fb7185', 1, 0.22));
+    // mean curve
+    const meanC = new Array(bv.deg+1).fill(0);
+    bv.fits.forEach(c => c.forEach((v,i)=>meanC[i]+=v/bv.fits.length));
+    drawCurve(meanC, '#f8fafc', 2.6);
+    // measure bias^2 and variance on grid
+    let bias2=0, vari=0; const G=40;
+    for(let i=0;i<G;i++){ const x=(i+.5)/G;
+      const preds = bv.fits.map(c=>evalPoly(c,x));
+      const mp = preds.reduce((s,v)=>s+v,0)/preds.length;
+      bias2 += (mp-TRUE_F(x))**2/G;
+      vari += preds.reduce((s,v)=>s+(v-mp)**2,0)/preds.length/G;
+    }
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle='#64748b'; ctx.textAlign='center';
+    ctx.fillText(bv.n + ' parallel worlds — each trained on its own noisy sample of 14 points', W/2, H*0.94);
+    stats([['Degree', bv.deg], ['Bias²', bias2.toFixed(4)], ['Variance', vari.toFixed(4)], ['Bias²+Var', (bias2+vari).toFixed(4)], ['Regime', bv.deg<3?'HIGH BIAS':bv.deg>7?'HIGH VARIANCE':'BALANCED ✓']]);
+    legend([['#94a3b8','true f(x)'],['#f8fafc','average fit (bias)'],[bv.deg<3?'#2dd4bf':bv.deg<7?'#fbbf24':'#fb7185','individual fits (spread = variance)']]);
+  }
+
+  /* ============ MODULE 3: RIDGE ============ */
+  const rg = { lamExp: -10, deg: 11, train: [], test: [] };
+  function rgInit(){ setSeed(42); rg.train = sample(16, 0.30); rg.test = sample(30, 0.30); }
+  function rgDraw(){
+    ctx.clearRect(0,0,W,H);
+    const lam = Math.pow(10, rg.lamExp/2);
+    const c = polyfit(rg.train, rg.deg, rg.lamExp<=-10 ? 0 : lam);
+    // main plot occupies left 62%
+    const oldPX = PX, oldPY = PY;
+    axes(); drawTrue(0.4);
+    drawCurve(c, '#fb7185', 3);
+    drawPts(rg.train, '#f8fafc');
+    // weight bar chart right side
+    const bx = W*0.90, bw = 0; // overlay bars along bottom
+    const barW = (W*0.5)/(rg.deg+1);
+    const baseY = H*0.80;
+    ctx.font='10px JetBrains Mono, monospace'; ctx.textAlign='center';
+    for (let i=1;i<c.length;i++){
+      const h = Math.max(-H*0.2, Math.min(H*0.2, -c[i]*2.2));
+      const x = W*0.25 + i*barW*0.8;
+      ctx.fillStyle = 'rgba(192,132,252,.55)';
+      ctx.fillRect(x, baseY, barW*0.55, h);
+      ctx.fillStyle = '#64748b'; ctx.fillText('w'+i, x+barW*0.27, baseY+14);
+    }
+    ctx.fillStyle='#94a3b8'; ctx.font='11px JetBrains Mono, monospace';
+    ctx.fillText('weight magnitudes (purple bars) — λ shrinks them', W*0.5, baseY+32);
+    const l2 = Math.sqrt(c.slice(1).reduce((s,v)=>s+v*v,0));
+    stats([['λ', rg.lamExp<=-10?'0 (off)':lam.toExponential(1)], ['Degree', rg.deg], ['‖w‖₂', l2.toFixed(2)], ['Train RMSE', rmse(rg.train,c).toFixed(3)], ['Test RMSE', rmse(rg.test,c).toFixed(3)]]);
+    legend([['#94a3b8','true f(x)'],['#fb7185','degree-11 ridge fit'],['#f8fafc','train data']]);
+  }
+
+  /* ============ MODULE 4: U-CURVE ============ */
+  const uc = { maxDeg: 13, cache: null, marker: 1 };
+  function ucInit(){
+    setSeed(42);
+    const train = sample(16, 0.30), test = sample(40, 0.30);
+    uc.cache = [];
+    for (let d=1; d<=uc.maxDeg; d++){
+      const c = polyfit(train, d, 0);
+      uc.cache.push({ d, tr: rmse(train,c), te: rmse(test,c), c, train });
+    }
+    uc.marker = 1;
+  }
+  function ucDraw(){
+    ctx.clearRect(0,0,W,H);
+    // left: error curves
+    const lx=W*0.08, lw=W*0.5, ly=H*0.15, lh=H*0.66;
+    ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.strokeRect(lx,ly,lw,lh);
+    const maxE = Math.min(1.2, Math.max(...uc.cache.map(e=>e.te)));
+    const ex = d => lx + (d-1)/(uc.maxDeg-1)*lw;
+    const ey = v => ly + lh - Math.min(1, v/maxE)*lh*0.92;
+    [['tr','#2dd4bf','train error'],['te','#fbbf24','test error']].forEach(([k,col])=>{
+      ctx.strokeStyle=col; ctx.lineWidth=2.4; ctx.beginPath();
+      uc.cache.forEach((e,i)=>{ const X=ex(e.d), Y=ey(e[k]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+      ctx.stroke();
+      uc.cache.forEach(e=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(ex(e.d), ey(e[k]), 3.4, 0, 7); ctx.fill(); });
+    });
+    // best marker
+    const best = uc.cache.reduce((a,b)=>a.te<b.te?a:b);
+    ctx.strokeStyle='rgba(52,211,153,.6)'; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(ex(best.d), ly); ctx.lineTo(ex(best.d), ly+lh); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#34d399'; ctx.font='11px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText('sweet spot d='+best.d, ex(best.d), ly-8);
+    // current marker
+    const cur = uc.cache[uc.marker-1];
+    ctx.strokeStyle='#f8fafc'; ctx.beginPath(); ctx.moveTo(ex(cur.d), ly); ctx.lineTo(ex(cur.d), ly+lh); ctx.stroke();
+    ctx.fillStyle='#64748b'; ctx.textAlign='center'; ctx.font='11px JetBrains Mono, monospace';
+    ctx.fillText('model complexity (degree) →', lx+lw/2, ly+lh+24);
+    // right: mini fit plot for current degree
+    const rx=W*0.64, rw=W*0.3, ry=H*0.2, rh=H*0.5;
+    ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.strokeRect(rx,ry,rw,rh);
+    const mpx = x => rx + x*rw, mpy = y => ry + rh - (y+0.25)/1.5*rh;
+    ctx.strokeStyle='rgba(148,163,184,.4)'; ctx.setLineDash([5,5]); ctx.beginPath();
+    for(let i=0;i<=100;i++){ const x=i/100; const X=mpx(x), Y=mpy(TRUE_F(x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle='#c084fc'; ctx.lineWidth=2.4; ctx.beginPath();
+    for(let i=0;i<=100;i++){ const x=i/100; const y=Math.max(-0.25,Math.min(1.25,evalPoly(cur.c,x))); const X=mpx(x), Y=mpy(y); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke();
+    cur.train.forEach(p=>{ ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(mpx(p.x), mpy(Math.max(-0.25,Math.min(1.25,p.y))), 3.6, 0, 7); ctx.fill(); });
+    ctx.fillStyle='#94a3b8'; ctx.textAlign='center'; ctx.fillText('fit at degree '+cur.d, rx+rw/2, ry+rh+20);
+    stats([['Showing d', cur.d], ['Train RMSE', cur.tr.toFixed(3)], ['Test RMSE', cur.te.toFixed(3)], ['Best d (test)', best.d], ['Zone', cur.d<best.d?'UNDERFIT':cur.d===best.d?'OPTIMAL ✓':'OVERFIT ⚠']]);
+    legend([['#2dd4bf','train error'],['#fbbf24','test error'],['#c084fc','current fit']]);
+  }
+
+  function legend(items){
+    ctx.font='12px JetBrains Mono, monospace'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    items.forEach(([c,t],i)=>{ const y=90+i*22;
+      ctx.fillStyle=c; ctx.beginPath(); ctx.arc(W-250, y, 5, 0, 7); ctx.fill();
+      ctx.fillStyle='#94a3b8'; ctx.fillText(t, W-236, y); });
+  }
+  function stats(rows){ statsBody.innerHTML = rows.map(([k,v]) => '<div class="flex justify-between gap-6"><span class="text-slate-500">'+k+'</span><span class="text-teal-300 font-bold">'+v+'</span></div>').join(''); }
+
+  const MODULES = {
+    basis: {
+      title: 'BASIS FUNCTIONS', desc: 'CURVES FROM A LINEAR MODEL',
+      explain: '<b class="text-slate-200">Replace x with features φ(x) = [1, x, x², …]</b> and linear regression fits curves while staying linear in w — the same normal equation works. The faint coloured lines show each weighted basis term; the teal curve is their sum. Crank the degree to see flexibility grow.',
+      init: baInit, draw: baDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Polynomial degree: <span id="ba-lbl" class="text-teal-300 font-bold">1</span></label>' +
+        '<input type="range" min="1" max="12" value="1" class="mt-1 mb-3" oninput="App.act(\'baDeg\', this.value)">' +
+        '<button onclick="App.act(\'baToggle\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Toggle basis curves</button>'
+    },
+    bv: {
+      title: 'BIAS vs VARIANCE', desc: '30 WORLDS, 30 FITS',
+      explain: '<b class="text-slate-200">Imagine re-collecting your dataset 30 times.</b> Each thin curve is the model trained on one sample. Low degree: all fits agree but miss the truth (<b>bias</b>). High degree: each fit chases its own noise, spraying everywhere (<b>variance</b>). The white curve is the average fit. Total error = bias² + variance + noise.',
+      init: bvInit, draw: bvDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Polynomial degree: <span id="bv-lbl" class="text-teal-300 font-bold">1</span></label>' +
+        '<input type="range" min="1" max="11" value="1" class="mt-1 mb-3" oninput="App.act(\'bvDeg\', this.value)">' +
+        '<button onclick="App.act(\'bvNew\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Resample all worlds</button>'
+    },
+    reg: {
+      title: 'RIDGE (L2)', desc: 'J + λ‖w‖² — SHRINK TO SURVIVE',
+      explain: '<b class="text-slate-200">A degree-11 monster on 16 points overfits violently.</b> Ridge adds λΣwⱼ² to the loss, trading a bit of training fit for much smaller, calmer weights (purple bars). Slide λ up: watch wiggles flatten and test RMSE fall — then rise again when λ over-smooths. That optimum is chosen by validation.',
+      init: rgInit, draw: rgDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">log₁₀ λ: <span id="rg-lbl" class="text-teal-300 font-bold">off</span></label>' +
+        '<input type="range" min="-10" max="4" step="0.5" value="-10" class="mt-1 mb-3" oninput="App.act(\'rgLam\', this.value)">' +
+        '<button onclick="App.act(\'rgNew\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Resample data</button>'
+    },
+    curve: {
+      title: 'THE U-CURVE', desc: 'TRAIN ↓ FOREVER · TEST ∪',
+      explain: '<b class="text-slate-200">The most important plot in ML.</b> Training error (teal) always falls with complexity. Test error (amber) falls, bottoms out, then climbs — the U. Left of the minimum: underfitting. Right: overfitting. Model selection = finding the valley using a validation set.',
+      init: ucInit, draw: ucDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Inspect degree: <span id="uc-lbl" class="text-teal-300 font-bold">1</span></label>' +
+        '<input type="range" min="1" max="13" value="1" class="mt-1 mb-3" oninput="App.act(\'ucDeg\', this.value)">' +
+        '<button onclick="App.act(\'ucNew\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">New data draw</button>'
+    },
+  };
+
+  function act(what, val){
+    if (what==='baDeg'){ ba.deg=+val; document.getElementById('ba-lbl').textContent=val; }
+    if (what==='baToggle') ba.showBasis=!ba.showBasis;
+    if (what==='bvDeg'){ bv.deg=+val; document.getElementById('bv-lbl').textContent=val; bvResample(); }
+    if (what==='bvNew') bvResample();
+    if (what==='rgLam'){ rg.lamExp=+val; document.getElementById('rg-lbl').textContent = +val<=-10?'off':(+val/2).toFixed(1); }
+    if (what==='rgNew'){ setSeed(Math.floor(Math.random()*100000)+7); rg.train=sample(16,0.30); rg.test=sample(30,0.30); }
+    if (what==='ucDeg'){ uc.marker=+val; document.getElementById('uc-lbl').textContent=val; }
+    if (what==='ucNew'){ setSeed(Math.floor(Math.random()*100000)+3); ucInit(); }
+  }
+
+  function load(m){
+    mode=m;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.getElementById('nav-'+m).classList.add('active');
+    const M=MODULES[m];
+    hudTitle.textContent=M.title; hudDesc.textContent=M.desc;
+    controls.innerHTML='<div class="fade-in">'+M.controls+'</div>';
+    explain.innerHTML='<div class="fade-in">'+M.explain+'</div>';
+    M.init();
+  }
+  function loop(){ if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
+  resize();
+  return { load, act, start(){ load('basis'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 1 — Learning Paradigms</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent);transition:transform .1s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{position:relative;overflow:hidden;transition:all .3s cubic-bezier(.4,0,.2,1);border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s ease}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 8px 20px rgba(13,148,136,.25)}
+.btn-primary:active{transform:translateY(0)}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-brain text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 1</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Learning Paradigms</p>
+  </div>
+
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('supervised')" id="nav-supervised" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Supervised Learning</span>
+        <i class="fa-solid fa-tags text-slate-600 group-hover:text-teal-400 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Labelled data → decision boundary</div>
+    </button>
+    <button onclick="App.load('unsupervised')" id="nav-unsupervised" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. Unsupervised Learning</span>
+        <i class="fa-solid fa-circle-nodes text-slate-600 group-hover:text-amber-400 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Structure without labels</div>
+    </button>
+    <button onclick="App.load('rl')" id="nav-rl" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-rose-400 transition-colors">3. Reinforcement Learning</span>
+        <i class="fa-solid fa-robot text-slate-600 group-hover:text-rose-400 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Reward-driven trial &amp; error</div>
+    </button>
+    <button onclick="App.load('generalise')" id="nav-generalise" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-purple-400 transition-colors">4. Generalisation</span>
+        <i class="fa-solid fa-arrows-split-up-and-left text-slate-600 group-hover:text-purple-400 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Train vs unseen data</div>
+    </button>
+  </div>
+
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-48 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 backdrop-blur-sm min-h-[150px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text drop-shadow-2xl">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div id="stats-panel" class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[240px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz');
+  const ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title');
+  const hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls');
+  const explain = document.getElementById('explain');
+  const statsBody = document.getElementById('stats-body');
+  let W, H, raf = null, mode = null, frame = 0;
+
+  function resize() {
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  window.addEventListener('resize', () => { resize(); });
+
+  function rnd(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+  /* ============ MODULE: SUPERVISED ============ */
+  const sup = { pts: [], w: [0.1, 0.1, 0], lr: 0.12, running: false, epoch: 0, acc: 0 };
+  function supInit() {
+    const r = rnd(42); sup.pts = [];
+    for (let i = 0; i < 40; i++) sup.pts.push({ x: r() * 0.42 + 0.06, y: r() * 0.7 + 0.15, c: 0 });
+    for (let i = 0; i < 40; i++) sup.pts.push({ x: r() * 0.42 + 0.52, y: r() * 0.7 + 0.15, c: 1 });
+    // Nudge for slight overlap
+    sup.pts.forEach((p, i) => { if (i % 9 === 0) p.x += (p.c ? -0.14 : 0.14); });
+    sup.w = [(Math.random() - .5), (Math.random() - .5), 0]; sup.epoch = 0; sup.running = false;
+  }
+  function supStep() {
+    let correct = 0;
+    sup.pts.forEach(p => {
+      const z = sup.w[0] * p.x + sup.w[1] * p.y + sup.w[2];
+      const pred = 1 / (1 + Math.exp(-8 * z));
+      const err = p.c - pred;
+      sup.w[0] += sup.lr * err * p.x * 0.1;
+      sup.w[1] += sup.lr * err * p.y * 0.1;
+      sup.w[2] += sup.lr * err * 0.1;
+      if ((pred > .5 ? 1 : 0) === p.c) correct++;
+    });
+    sup.acc = correct / sup.pts.length; sup.epoch++;
+  }
+  function supDraw() {
+    ctx.clearRect(0, 0, W, H);
+    grid();
+    // decision regions
+    const img = 60;
+    for (let i = 0; i < img; i++) for (let j = 0; j < img; j++) {
+      const x = i / img, y = j / img;
+      const z = sup.w[0] * x + sup.w[1] * y + sup.w[2];
+      const p = 1 / (1 + Math.exp(-8 * z));
+      ctx.fillStyle = p > .5 ? 'rgba(251,191,36,' + (0.10 * Math.min(1, (p - .5) * 4)) + ')' : 'rgba(45,212,191,' + (0.10 * Math.min(1, (.5 - p) * 4)) + ')';
+      ctx.fillRect(x * W, y * H, W / img + 1, H / img + 1);
+    }
+    // boundary line w0x+w1y+w2=0
+    ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.beginPath();
+    if (Math.abs(sup.w[1]) > 1e-6) {
+      const y0 = -(sup.w[2] + sup.w[0] * 0) / sup.w[1], y1 = -(sup.w[2] + sup.w[0] * 1) / sup.w[1];
+      ctx.moveTo(0, y0 * H); ctx.lineTo(W, y1 * H);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    sup.pts.forEach(p => dot(p.x * W, p.y * H, p.c ? '#fbbf24' : '#2dd4bf', 6));
+    if (sup.running) supStep();
+    stats([['Epoch', sup.epoch], ['Accuracy', (sup.acc * 100).toFixed(1) + '%'], ['w', sup.w.slice(0, 2).map(v => v.toFixed(2)).join(', ')]]);
+  }
+
+  /* ============ MODULE: UNSUPERVISED (k-means mini) ============ */
+  const uns = { pts: [], cent: [], k: 3, running: false, iter: 0, phase: 'assign' };
+  function unsInit() {
+    const r = rnd(7); uns.pts = [];
+    const centers = [[.25, .3], [.7, .25], [.5, .75]];
+    centers.forEach(c => { for (let i = 0; i < 35; i++) uns.pts.push({ x: c[0] + (r() - .5) * .24, y: c[1] + (r() - .5) * .24, a: -1 }); });
+    uns.cent = []; for (let i = 0; i < uns.k; i++) uns.cent.push({ x: r(), y: r() });
+    uns.iter = 0; uns.phase = 'assign'; uns.running = false;
+  }
+  function unsStep() {
+    if (uns.phase === 'assign') {
+      uns.pts.forEach(p => {
+        let best = 0, bd = 1e9;
+        uns.cent.forEach((c, i) => { const d = (p.x - c.x) ** 2 + (p.y - c.y) ** 2; if (d < bd) { bd = d; best = i; } });
+        p.a = best;
+      });
+      uns.phase = 'update';
+    } else {
+      uns.cent.forEach((c, i) => {
+        const mine = uns.pts.filter(p => p.a === i);
+        if (mine.length) { c.x = mine.reduce((s, p) => s + p.x, 0) / mine.length; c.y = mine.reduce((s, p) => s + p.y, 0) / mine.length; }
+      });
+      uns.phase = 'assign'; uns.iter++;
+    }
+  }
+  const KCOLORS = ['#2dd4bf', '#fbbf24', '#fb7185', '#c084fc', '#38bdf8'];
+  function unsDraw() {
+    ctx.clearRect(0, 0, W, H); grid();
+    uns.pts.forEach(p => dot(p.x * W, p.y * H, p.a < 0 ? '#64748b' : KCOLORS[p.a], 5));
+    uns.cent.forEach((c, i) => {
+      ctx.strokeStyle = KCOLORS[i]; ctx.lineWidth = 3;
+      cross(c.x * W, c.y * H, 12);
+      ctx.beginPath(); ctx.arc(c.x * W, c.y * H, 18, 0, 7); ctx.stroke();
+    });
+    if (uns.running && frame % 30 === 0) unsStep();
+    stats([['Iteration', uns.iter], ['Phase', uns.phase], ['k', uns.k], ['Labels?', 'NONE — discovered']]);
+  }
+
+  /* ============ MODULE: RL GRIDWORLD ============ */
+  const rl = { N: 8, Q: null, agent: [0, 7], goal: [7, 0], eps: 0.25, running: false, episodes: 0, wins: 0, walls: null, path: [] };
+  function rlInit() {
+    rl.Q = Array.from({ length: rl.N * rl.N }, () => [0, 0, 0, 0]);
+    rl.walls = new Set(['3,5', '3,4', '3,3', '5,2', '5,1', '1,2', '6,5', '5,5']);
+    rl.agent = [0, 7]; rl.episodes = 0; rl.wins = 0; rl.running = false; rl.path = [[0, 7]];
+  }
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  function rlStep() {
+    for (let s = 0; s < 3; s++) { // multiple steps per frame
+      const [ax, ay] = rl.agent, si = ay * rl.N + ax;
+      let a;
+      if (Math.random() < rl.eps) a = Math.floor(Math.random() * 4);
+      else a = rl.Q[si].indexOf(Math.max(...rl.Q[si]));
+      let nx = ax + DIRS[a][0], ny = ay + DIRS[a][1];
+      let r = -0.04;
+      if (nx < 0 || ny < 0 || nx >= rl.N || ny >= rl.N || rl.walls.has(nx + ',' + ny)) { nx = ax; ny = ay; r = -0.75; }
+      const done = (nx === rl.goal[0] && ny === rl.goal[1]);
+      if (done) r = 10;
+      const ni = ny * rl.N + nx;
+      rl.Q[si][a] += 0.25 * (r + 0.92 * Math.max(...rl.Q[ni]) - rl.Q[si][a]);
+      rl.agent = done ? [0, 7] : [nx, ny];
+      if (done) { rl.episodes++; rl.wins++; rl.eps = Math.max(0.03, rl.eps * 0.985); rl.path = []; }
+      rl.path.push([...rl.agent]); if (rl.path.length > 60) rl.path.shift();
+    }
+  }
+  function rlDraw() {
+    ctx.clearRect(0, 0, W, H);
+    const size = Math.min(W, H) * 0.8, cell = size / rl.N, ox = (W - size) / 2, oy = (H - size) / 2;
+    for (let i = 0; i < rl.N; i++) for (let j = 0; j < rl.N; j++) {
+      const q = Math.max(...rl.Q[j * rl.N + i]);
+      const v = Math.max(0, Math.min(1, q / 8));
+      ctx.fillStyle = rl.walls.has(i + ',' + j) ? '#1e293b' : 'rgba(45,212,191,' + (v * 0.55 + 0.03) + ')';
+      ctx.fillRect(ox + i * cell + 1, oy + j * cell + 1, cell - 2, cell - 2);
+      // best action arrow
+      if (!rl.walls.has(i + ',' + j) && q > 0.05) {
+        const a = rl.Q[j * rl.N + i].indexOf(Math.max(...rl.Q[j * rl.N + i]));
+        arrow(ox + i * cell + cell / 2, oy + j * cell + cell / 2, DIRS[a][0], DIRS[a][1], cell * 0.22, 'rgba(255,255,255,' + (0.25 + v * 0.5) + ')');
+      }
+    }
+    // trail
+    ctx.strokeStyle = 'rgba(251,113,133,.35)'; ctx.lineWidth = 2; ctx.beginPath();
+    rl.path.forEach(([x, y], i) => { const px = ox + x * cell + cell / 2, py = oy + y * cell + cell / 2; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.stroke();
+    // goal & agent
+    ctx.font = (cell * 0.55) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('🏁', ox + rl.goal[0] * cell + cell / 2, oy + rl.goal[1] * cell + cell / 2);
+    ctx.fillText('🤖', ox + rl.agent[0] * cell + cell / 2, oy + rl.agent[1] * cell + cell / 2);
+    if (rl.running) rlStep();
+    stats([['Episodes', rl.episodes], ['ε (explore)', rl.eps.toFixed(3)], ['Signal', 'reward only'], ['Learned', 'Q(s,a) values']]);
+  }
+
+  /* ============ MODULE: GENERALISATION ============ */
+  const gen = { deg: 1, pts: [], test: [], coef: [] };
+  function genInit() {
+    const r = rnd(11); gen.pts = []; gen.test = [];
+    const f = x => 0.5 + 0.32 * Math.sin(x * 5.4);
+    for (let i = 0; i < 16; i++) { const x = i / 15 * 0.9 + 0.05; gen.pts.push({ x, y: f(x) + (r() - .5) * .16 }); }
+    for (let i = 0; i < 16; i++) { const x = (i + .5) / 16 * 0.9 + 0.05; gen.test.push({ x, y: f(x) + (r() - .5) * .16 }); }
+    genFit();
+  }
+  function genFit() {
+    // least squares polynomial fit via normal equations (small deg)
+    const d = gen.deg, n = gen.pts.length;
+    const A = Array.from({ length: d + 1 }, () => new Array(d + 2).fill(0));
+    for (let i = 0; i <= d; i++) {
+      for (let j = 0; j <= d; j++) A[i][j] = gen.pts.reduce((s, p) => s + Math.pow(p.x, i + j), 0) + (i === j ? 1e-9 : 0);
+      A[i][d + 1] = gen.pts.reduce((s, p) => s + p.y * Math.pow(p.x, i), 0);
+    }
+    // gaussian elim
+    for (let c = 0; c <= d; c++) {
+      let piv = c; for (let rI = c + 1; rI <= d; rI++) if (Math.abs(A[rI][c]) > Math.abs(A[piv][c])) piv = rI;
+      [A[c], A[piv]] = [A[piv], A[c]];
+      for (let rI = 0; rI <= d; rI++) if (rI !== c && Math.abs(A[c][c]) > 1e-12) {
+        const f = A[rI][c] / A[c][c];
+        for (let cc = c; cc <= d + 1; cc++) A[rI][cc] -= f * A[c][cc];
+      }
+    }
+    gen.coef = A.map((row, i) => Math.abs(row[i]) > 1e-12 ? row[d + 1] / row[i] : 0);
+  }
+  function genEval(x) { return gen.coef.reduce((s, c, i) => s + c * Math.pow(x, i), 0); }
+  function genDraw() {
+    ctx.clearRect(0, 0, W, H); grid();
+    // curve
+    ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let i = 0; i <= 200; i++) { const x = i / 200, y = genEval(x); const px = x * W, py = (1 - y) * H; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.stroke();
+    gen.pts.forEach(p => dot(p.x * W, (1 - p.y) * H, '#2dd4bf', 6));
+    gen.test.forEach(p => { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; cross(p.x * W, (1 - p.y) * H, 5); });
+    const trainE = Math.sqrt(gen.pts.reduce((s, p) => s + (p.y - genEval(p.x)) ** 2, 0) / gen.pts.length);
+    const testE = Math.sqrt(gen.test.reduce((s, p) => s + (p.y - genEval(p.x)) ** 2, 0) / gen.test.length);
+    stats([['Degree', gen.deg], ['Train RMSE', trainE.toFixed(3)], ['Test RMSE', testE.toFixed(3)], ['Verdict', gen.deg > 9 ? 'OVERFIT ⚠' : gen.deg < 3 ? 'UNDERFIT' : 'GOOD FIT ✓']]);
+    legend([['#2dd4bf', 'train pts'], ['#fbbf24', 'test pts (unseen)'], ['#c084fc', 'model']]);
+  }
+
+  /* ============ SHARED DRAW HELPERS ============ */
+  function grid() {
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    for (let i = 1; i < 12; i++) {
+      ctx.beginPath(); ctx.moveTo(i * W / 12, 0); ctx.lineTo(i * W / 12, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * H / 12); ctx.lineTo(W, i * H / 12); ctx.stroke();
+    }
+  }
+  function dot(x, y, color, r) {
+    ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  }
+  function cross(x, y, s) { ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke(); }
+  function arrow(x, y, dx, dy, len, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(x - dx * len, y - dy * len); ctx.lineTo(x + dx * len, y + dy * len);
+    const a = Math.atan2(dy, dx);
+    ctx.moveTo(x + dx * len, y + dy * len); ctx.lineTo(x + dx * len - 6 * Math.cos(a - .5), y + dy * len - 6 * Math.sin(a - .5));
+    ctx.moveTo(x + dx * len, y + dy * len); ctx.lineTo(x + dx * len - 6 * Math.cos(a + .5), y + dy * len - 6 * Math.sin(a + .5));
+    ctx.stroke();
+  }
+  function legend(items) {
+    ctx.font = '12px JetBrains Mono, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    items.forEach(([c, t], i) => {
+      const y = H - 30 - i * 22;
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(W - 190, y, 5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#94a3b8'; ctx.fillText(t, W - 176, y);
+    });
+  }
+  function stats(rows) {
+    statsBody.innerHTML = rows.map(([k, v]) =>
+      '<div class="flex justify-between gap-6"><span class="text-slate-500">' + k + '</span><span class="text-teal-300 font-bold">' + v + '</span></div>').join('');
+  }
+
+  /* ============ MODULE REGISTRY ============ */
+  const MODULES = {
+    supervised: {
+      title: 'SUPERVISED', desc: 'LABELLED PAIRS (x, y) → f(x)',
+      explain: '<b class="text-slate-200">Supervised learning</b> receives input–label pairs. Here a linear classifier is trained by gradient descent on labelled points (teal = class 0, amber = class 1). The white dashed line is the learned decision boundary — the machine literally <i>learns from answers</i>.',
+      init: supInit, draw: supDraw,
+      controls: '<button onclick="App.act(\'toggleSup\')" id="btn-sup" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-play mr-2"></i>Train</button>' +
+        '<button onclick="App.act(\'resetSup\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset weights</button>'
+    },
+    unsupervised: {
+      title: 'UNSUPERVISED', desc: 'NO LABELS — FIND STRUCTURE',
+      explain: '<b class="text-slate-200">Unsupervised learning</b> gets raw data only. k-means alternates <i>assign</i> (each point → nearest centroid) and <i>update</i> (centroid → cluster mean). Grey points are unlabelled; colours emerge purely from geometry.',
+      init: unsInit, draw: unsDraw,
+      controls: '<button onclick="App.act(\'toggleUns\')" id="btn-uns" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-play mr-2"></i>Run k-means</button>' +
+        '<button onclick="App.act(\'stepUns\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Single step</button>' +
+        '<button onclick="App.act(\'resetUns\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset centroids</button>'
+    },
+    rl: {
+      title: 'REINFORCEMENT', desc: 'ACT → REWARD → IMPROVE POLICY',
+      explain: '<b class="text-slate-200">Reinforcement learning</b>: the 🤖 agent receives no examples — only rewards (+10 at 🏁, −0.04 per step, −0.75 for bumping walls). Q-learning gradually brightens cells with high value and the arrows show the learned policy. Exploration ε decays as it masters the maze.',
+      init: rlInit, draw: rlDraw,
+      controls: '<button onclick="App.act(\'toggleRl\')" id="btn-rl" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-play mr-2"></i>Start learning</button>' +
+        '<button onclick="App.act(\'resetRl\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Wipe memory</button>'
+    },
+    generalise: {
+      title: 'GENERALISATION', desc: 'THE REAL GOAL OF ML',
+      explain: '<b class="text-slate-200">Generalisation</b> is what we truly optimise for: performance on <i>unseen</i> data. Raise the polynomial degree — training error keeps falling but test error (amber ✕, never shown to the model) eventually explodes. Memorising ≠ learning.',
+      init: genInit, draw: genDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Model complexity (degree): <span id="deg-lbl" class="text-teal-300 font-bold">1</span></label>' +
+        '<input type="range" min="1" max="13" step="1" value="1" class="mt-2" oninput="App.act(\'deg\', this.value)">' +
+        '<button onclick="App.act(\'newData\')" class="w-full mt-3 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Resample data</button>'
+    },
+  };
+
+  function act(what, val) {
+    if (what === 'toggleSup') { sup.running = !sup.running; document.getElementById('btn-sup').innerHTML = sup.running ? '<i class="fa-solid fa-pause mr-2"></i>Pause' : '<i class="fa-solid fa-play mr-2"></i>Train'; }
+    if (what === 'resetSup') supInit();
+    if (what === 'toggleUns') { uns.running = !uns.running; document.getElementById('btn-uns').innerHTML = uns.running ? '<i class="fa-solid fa-pause mr-2"></i>Pause' : '<i class="fa-solid fa-play mr-2"></i>Run k-means'; }
+    if (what === 'stepUns') unsStep();
+    if (what === 'resetUns') unsInit();
+    if (what === 'toggleRl') { rl.running = !rl.running; document.getElementById('btn-rl').innerHTML = rl.running ? '<i class="fa-solid fa-pause mr-2"></i>Pause' : '<i class="fa-solid fa-play mr-2"></i>Start learning'; }
+    if (what === 'resetRl') rlInit();
+    if (what === 'deg') { gen.deg = +val; document.getElementById('deg-lbl').textContent = val; genFit(); }
+    if (what === 'newData') genInit();
+  }
+
+  function load(m) {
+    mode = m;
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-' + m).classList.add('active');
+    const M = MODULES[m];
+    hudTitle.textContent = M.title; hudDesc.textContent = M.desc;
+    controls.innerHTML = '<div class="fade-in">' + M.controls + '</div>';
+    explain.innerHTML = '<div class="fade-in">' + M.explain + '</div>';
+    M.init();
+  }
+
+  function loop() {
+    frame++;
+    if (mode) MODULES[mode].draw();
+    raf = requestAnimationFrame(loop);
+  }
+
+  resize();
+  return { load, act, start() { load('supervised'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>

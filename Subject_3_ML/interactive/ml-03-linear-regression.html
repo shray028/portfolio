@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 3 — Linear Regression</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{transition:all .3s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.seg{display:flex;gap:4px}
+.seg button{flex:1;padding:6px 4px;font-size:10px;font-weight:700;border-radius:6px;background:rgba(255,255,255,.05);transition:all .2s;font-family:'JetBrains Mono',monospace}
+.seg button.on{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-chart-line text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 3</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Linear Regression</p>
+  </div>
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('fit')" id="nav-fit" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Fit It By Hand</span>
+        <i class="fa-solid fa-hand-pointer text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Residuals &amp; squared error</div>
+    </button>
+    <button onclick="App.load('surface')" id="nav-surface" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. The Loss Bowl</span>
+        <i class="fa-solid fa-bowl-rice text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">J(w₀,w₁) contours &amp; GD path</div>
+    </button>
+    <button onclick="App.load('variants')" id="nav-variants" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-purple-400 transition-colors">3. Batch vs SGD vs Mini</span>
+        <i class="fa-solid fa-shuffle text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Gradient noise &amp; speed</div>
+    </button>
+  </div>
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-52 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 min-h-[170px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[250px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title'), hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls'), explain = document.getElementById('explain'), statsBody = document.getElementById('stats-body');
+  let W, H, mode = null, frame = 0;
+  function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  window.addEventListener('resize', resize);
+  function rnd(seed){ let s=seed; return ()=> (s=(s*16807)%2147483647)/2147483647; }
+
+  // Shared dataset in "data space": x in [0,10], y = 1.5 + 0.55x + noise
+  let DATA = [];
+  function genData(seed){
+    const r = rnd(seed || 5); DATA = [];
+    for (let i = 0; i < 22; i++) { const x = r()*9 + 0.5; DATA.push({ x, y: 1.5 + 0.55*x + (r()-.5)*2.2 }); }
+  }
+  function ols(){
+    const n = DATA.length, sx = DATA.reduce((s,p)=>s+p.x,0), sy = DATA.reduce((s,p)=>s+p.y,0);
+    const sxx = DATA.reduce((s,p)=>s+p.x*p.x,0), sxy = DATA.reduce((s,p)=>s+p.x*p.y,0);
+    const w1 = (n*sxy - sx*sy)/(n*sxx - sx*sx), w0 = (sy - w1*sx)/n;
+    return [w0, w1];
+  }
+  function mse(w0, w1){ return DATA.reduce((s,p)=>s+(p.y-(w0+w1*p.x))**2,0)/DATA.length; }
+  // data->pixel mapping for scatter view
+  const view = { x0:0, x1:10, y0:-1, y1:9 };
+  function px(x){ return (x-view.x0)/(view.x1-view.x0)*(W*0.72) + W*0.14; }
+  function py(y){ return H*0.86 - (y-view.y0)/(view.y1-view.y0)*(H*0.72); }
+  function invPx(mx){ return (mx - W*0.14)/(W*0.72)*(view.x1-view.x0)+view.x0; }
+  function invPy(my){ return (H*0.86-my)/(H*0.72)*(view.y1-view.y0)+view.y0; }
+
+  /* ============ MODULE 1: FIT BY HAND ============ */
+  const fit = { w0: 4.5, w1: -0.2, animating: false };
+  function fitInit(){ genData(5); fit.w0 = 4.5; fit.w1 = -0.2; fit.animating = false; }
+  function axes(){
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(px(view.x0), py(0)); ctx.lineTo(px(view.x1), py(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px(0), py(view.y0)); ctx.lineTo(px(0), py(view.y1)); ctx.stroke();
+    ctx.font='10px JetBrains Mono, monospace'; ctx.fillStyle='#475569'; ctx.textAlign='center';
+    for(let i=0;i<=10;i+=2){ ctx.fillText(i, px(i), py(0)+16); }
+  }
+  function fitDraw(){
+    ctx.clearRect(0,0,W,H); axes();
+    if (fit.animating) {
+      const [o0, o1] = ols();
+      fit.w0 += (o0-fit.w0)*0.08; fit.w1 += (o1-fit.w1)*0.08;
+      if (Math.abs(o0-fit.w0)+Math.abs(o1-fit.w1) < 0.004) fit.animating = false;
+      syncFitSliders();
+    }
+    // residuals as squares
+    DATA.forEach(p => {
+      const yh = fit.w0 + fit.w1*p.x, r = p.y - yh;
+      const x1 = px(p.x), y1 = py(p.y), y2 = py(yh);
+      const side = Math.abs(y1-y2);
+      ctx.fillStyle = 'rgba(251,113,133,.13)'; ctx.strokeStyle = 'rgba(251,113,133,.5)'; ctx.lineWidth = 1;
+      ctx.fillRect(x1, Math.min(y1,y2), (r>0?1:-1)*side, side);
+      ctx.strokeRect(x1, Math.min(y1,y2), (r>0?1:-1)*side, side);
+      ctx.strokeStyle = '#fb7185'; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x1,y2); ctx.stroke();
+    });
+    // line
+    ctx.strokeStyle = '#2dd4bf'; ctx.lineWidth = 3; ctx.shadowColor = '#2dd4bf'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(px(view.x0), py(fit.w0+fit.w1*view.x0)); ctx.lineTo(px(view.x1), py(fit.w0+fit.w1*view.x1)); ctx.stroke(); ctx.shadowBlur = 0;
+    DATA.forEach(p => { ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(px(p.x), py(p.y), 5, 0, 7); ctx.fill(); });
+    const [o0,o1] = ols();
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle='#64748b'; ctx.textAlign='left';
+    ctx.fillText('click anywhere to add a data point', W*0.14, H*0.95);
+    stats([['ŷ =', fit.w0.toFixed(2)+' + '+fit.w1.toFixed(2)+'·x'], ['MSE (yours)', mse(fit.w0,fit.w1).toFixed(3)], ['MSE (optimal)', mse(o0,o1).toFixed(3)], ['ŵ (OLS)', o0.toFixed(2)+', '+o1.toFixed(2)]]);
+  }
+  function syncFitSliders(){
+    const s0 = document.getElementById('sl-w0'), s1 = document.getElementById('sl-w1');
+    if (s0) { s0.value = fit.w0; document.getElementById('w0-lbl').textContent = fit.w0.toFixed(2); }
+    if (s1) { s1.value = fit.w1; document.getElementById('w1-lbl').textContent = fit.w1.toFixed(2); }
+  }
+  canvas.addEventListener('click', e => {
+    if (mode !== 'fit') return;
+    const rect = canvas.getBoundingClientRect();
+    const x = invPx(e.clientX - rect.left), y = invPy(e.clientY - rect.top);
+    if (x >= view.x0 && x <= view.x1 && y >= view.y0 && y <= view.y1) DATA.push({ x, y });
+  });
+
+  /* ============ MODULE 2: LOSS SURFACE ============ */
+  const surf = { w: [4.5, -0.2], lr: 0.02, path: [], running: false, range: { w0: [-2, 8], w1: [-1.2, 1.8] } };
+  function surfInit(){ genData(5); surf.w = [6.5, -0.9]; surf.path = [[...surf.w]]; surf.running = false; }
+  function surfGrad(w0, w1){
+    let g0 = 0, g1 = 0;
+    DATA.forEach(p => { const e = (w0 + w1*p.x) - p.y; g0 += e; g1 += e*p.x; });
+    return [2*g0/DATA.length, 2*g1/DATA.length];
+  }
+  function sPx(w0){ const [a,b] = surf.range.w0; return (w0-a)/(b-a)*(W*0.7)+W*0.15; }
+  function sPy(w1){ const [a,b] = surf.range.w1; return H*0.88 - (w1-a)/(b-a)*(H*0.74); }
+  function surfDraw(){
+    ctx.clearRect(0,0,W,H);
+    // contour heatmap
+    const res = 90;
+    const [o0, o1] = ols(); const minL = mse(o0, o1);
+    for (let i = 0; i < res; i++) for (let j = 0; j < res; j++) {
+      const w0 = surf.range.w0[0] + i/res*(surf.range.w0[1]-surf.range.w0[0]);
+      const w1 = surf.range.w1[0] + j/res*(surf.range.w1[1]-surf.range.w1[0]);
+      const L = Math.log(mse(w0,w1) - minL + 1);
+      const t = Math.min(1, L/3.4);
+      ctx.fillStyle = 'rgba(' + Math.round(20+180*t) + ',' + Math.round(60+40*(1-t)) + ',' + Math.round(160*(1-t)+60) + ',' + (0.16+0.3*t) + ')';
+      ctx.fillRect(sPx(surf.range.w0[0]) + i/res*(W*0.7), sPy(surf.range.w1[1]) + j/res*(H*0.74), W*0.7/res+1, H*0.74/res+1);
+    }
+    // contour rings (iso-levels)
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    [0.15,0.5,1.2,2.5,4.5,7.5].forEach(lvl => {
+      ctx.beginPath();
+      for (let a = 0; a <= 128; a++) {
+        // parametric approx: sample radially from optimum
+        const ang = a/128*6.283;
+        let lo = 0, hi = 8;
+        for (let it = 0; it < 24; it++) {
+          const mid = (lo+hi)/2;
+          const w0 = o0 + Math.cos(ang)*mid, w1 = o1 + Math.sin(ang)*mid*0.3;
+          (mse(w0,w1) - minL < lvl) ? lo = mid : hi = mid;
+        }
+        const w0 = o0 + Math.cos(ang)*lo, w1 = o1 + Math.sin(ang)*lo*0.3;
+        const X = sPx(w0), Y = sPy(w1);
+        a ? ctx.lineTo(X,Y) : ctx.moveTo(X,Y);
+      }
+      ctx.closePath(); ctx.stroke();
+    });
+    // optimum star
+    ctx.fillStyle = '#fbbf24'; ctx.font = '18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('★', sPx(o0), sPy(o1));
+    ctx.font = '11px JetBrains Mono, monospace'; ctx.fillStyle='#fbbf24';
+    ctx.fillText('normal equation: ŵ=(XᵀX)⁻¹Xᵀy', sPx(o0), sPy(o1)+22);
+    // GD path
+    if (surf.running) {
+      for (let s = 0; s < 2; s++) {
+        const g = surfGrad(surf.w[0], surf.w[1]);
+        surf.w[0] -= surf.lr*g[0]; surf.w[1] -= surf.lr*g[1];
+        surf.path.push([...surf.w]);
+      }
+      if (surf.path.length > 4000) surf.running = false;
+    }
+    ctx.strokeStyle = '#2dd4bf'; ctx.lineWidth = 2; ctx.shadowColor='#2dd4bf'; ctx.shadowBlur=6; ctx.beginPath();
+    surf.path.forEach(([a,b],i) => { const X=sPx(a), Y=sPy(b); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+    ctx.stroke(); ctx.shadowBlur=0;
+    const [cw0, cw1] = surf.w;
+    ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.arc(sPx(cw0), sPy(cw1), 7, 0, 7); ctx.fill();
+    // axes labels
+    ctx.fillStyle='#64748b'; ctx.font='12px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText('w₀ (intercept) →', W/2, H*0.96);
+    ctx.save(); ctx.translate(W*0.08, H/2); ctx.rotate(-Math.PI/2); ctx.fillText('w₁ (slope) →', 0, 0); ctx.restore();
+    stats([['w₀, w₁', cw0.toFixed(3)+', '+cw1.toFixed(3)], ['J(w)', mse(cw0,cw1).toFixed(4)], ['J(ŵ) min', minL.toFixed(4)], ['Steps', surf.path.length-1], ['η', surf.lr]]);
+  }
+  canvas.addEventListener('mousedown', e => {
+    if (mode !== 'surface') return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const [a0,b0] = surf.range.w0, [a1,b1] = surf.range.w1;
+    const w0 = a0 + (mx - W*0.15)/(W*0.7)*(b0-a0), w1 = a1 + (H*0.88-my)/(H*0.74)*(b1-a1);
+    if (w0>a0 && w0<b0 && w1>a1 && w1<b1) { surf.w = [w0,w1]; surf.path = [[w0,w1]]; }
+  });
+
+  /* ============ MODULE 3: GD VARIANTS ============ */
+  const va = { kind: 'batch', lr: 0.02, w: [6.5,-0.9], path: [], loss: [], running: false, epoch: 0 };
+  function vaInit(){ genData(5); va.w = [6.5,-0.9]; va.path=[[...va.w]]; va.loss=[mse(...va.w)]; va.running=false; va.epoch=0; }
+  function vaStep(){
+    const n = DATA.length;
+    let idxs;
+    if (va.kind==='batch') idxs = [...Array(n).keys()];
+    else if (va.kind==='sgd') idxs = [Math.floor(Math.random()*n)];
+    else idxs = Array.from({length:6},()=>Math.floor(Math.random()*n));
+    let g0=0, g1=0;
+    idxs.forEach(i => { const p = DATA[i]; const e = (va.w[0]+va.w[1]*p.x)-p.y; g0+=e; g1+=e*p.x; });
+    g0 = 2*g0/idxs.length; g1 = 2*g1/idxs.length;
+    va.w[0] -= va.lr*g0; va.w[1] -= va.lr*g1;
+    va.path.push([...va.w]); va.loss.push(mse(...va.w)); va.epoch++;
+    if (va.path.length > 2500) va.running = false;
+  }
+  function vaDraw(){
+    ctx.clearRect(0,0,W,H);
+    if (va.running) for (let s=0;s<3;s++) vaStep();
+    const [o0,o1]=ols(), minL=mse(o0,o1);
+    // left: contour path (reuse surface mapping but shifted)
+    const lw = W*0.44, lx = W*0.06, ly = H*0.14, lh = H*0.7;
+    const r0 = surf.range.w0, r1 = surf.range.w1;
+    const mapX = w0 => lx + (w0-r0[0])/(r0[1]-r0[0])*lw;
+    const mapY = w1 => ly + lh - (w1-r1[0])/(r1[1]-r1[0])*lh;
+    const res = 60;
+    for (let i=0;i<res;i++) for (let j=0;j<res;j++){
+      const w0 = r0[0]+i/res*(r0[1]-r0[0]), w1 = r1[0]+j/res*(r1[1]-r1[0]);
+      const t = Math.min(1, Math.log(mse(w0,w1)-minL+1)/3.4);
+      ctx.fillStyle = 'rgba('+Math.round(20+180*t)+','+Math.round(60+40*(1-t))+','+Math.round(160*(1-t)+60)+','+(0.15+0.28*t)+')';
+      ctx.fillRect(lx+i/res*lw, ly+j/res*lh, lw/res+1, lh/res+1);
+    }
+    ctx.fillStyle='#fbbf24'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('★', mapX(o0), mapY(o1));
+    ctx.strokeStyle = va.kind==='batch' ? '#2dd4bf' : va.kind==='sgd' ? '#fb7185' : '#c084fc';
+    ctx.lineWidth = 1.6; ctx.beginPath();
+    va.path.forEach(([a,b],i)=>{ const X=mapX(a), Y=mapY(b); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+    ctx.stroke();
+    ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(mapX(va.w[0]), mapY(va.w[1]), 6, 0, 7); ctx.fill();
+    ctx.fillStyle='#64748b'; ctx.font='11px JetBrains Mono, monospace';
+    ctx.fillText('parameter space (w₀, w₁)', lx+lw/2, ly+lh+22);
+    // right: loss curve
+    const rx = W*0.56, rw = W*0.38, ry = H*0.14, rh = H*0.7;
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.strokeRect(rx, ry, rw, rh);
+    const maxL = Math.max(...va.loss.slice(0, 10), minL + 1e-9) + 1;
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.6; ctx.beginPath();
+    const show = va.loss.slice(-800);
+    show.forEach((L,i)=>{
+      const X = rx + i/Math.max(1, show.length-1)*rw;
+      const Y = ry + rh - Math.min(1, Math.log(L-minL+1)/Math.log(maxL-minL+1))*rh*0.95;
+      i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([6,5]); ctx.strokeStyle='rgba(52,211,153,.6)';
+    ctx.beginPath(); ctx.moveTo(rx, ry+rh*0.97); ctx.lineTo(rx+rw, ry+rh*0.97); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#34d399'; ctx.textAlign='left'; ctx.fillText('J(ŵ) optimum', rx+6, ry+rh*0.97-8);
+    ctx.fillStyle='#64748b'; ctx.textAlign='center'; ctx.fillText('training loss J(w) over updates (log-warped)', rx+rw/2, ry+rh+22);
+    stats([['Variant', va.kind.toUpperCase()], ['Updates', va.epoch], ['J(w)', mse(...va.w).toFixed(4)], ['Grad from', va.kind==='batch'?'all 22 pts':va.kind==='sgd'?'1 random pt':'6 random pts'], ['Noise', va.kind==='batch'?'none':va.kind==='sgd'?'high':'medium']]);
+  }
+
+  function stats(rows){ statsBody.innerHTML = rows.map(([k,v]) => '<div class="flex justify-between gap-6"><span class="text-slate-500">'+k+'</span><span class="text-teal-300 font-bold">'+v+'</span></div>').join(''); }
+
+  const MODULES = {
+    fit: {
+      title: 'FIT BY HAND', desc: 'MINIMISE THE PINK SQUARES',
+      explain: '<b class="text-slate-200">Least squares, literally.</b> Each pink square\'s area is one squared residual (yᵢ − ŷᵢ)². Drag the sliders to shrink total pink area, then press <i>Solve</i> to watch the line glide to the OLS optimum ŵ = (XᵀX)⁻¹Xᵀy. Click the plot to add outliers and see how strongly squared error reacts.',
+      init: fitInit, draw: fitDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Intercept w₀: <span id="w0-lbl" class="text-teal-300 font-bold">4.50</span></label>' +
+        '<input type="range" id="sl-w0" min="-2" max="8" step="0.05" value="4.5" class="mt-1 mb-3" oninput="App.act(\'w0\', this.value)">' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Slope w₁: <span id="w1-lbl" class="text-teal-300 font-bold">-0.20</span></label>' +
+        '<input type="range" id="sl-w1" min="-1.2" max="1.8" step="0.02" value="-0.2" class="mt-1 mb-3" oninput="App.act(\'w1\', this.value)">' +
+        '<button onclick="App.act(\'solve\')" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Solve (normal equation)</button>' +
+        '<button onclick="App.act(\'refit\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset data</button>'
+    },
+    surface: {
+      title: 'THE LOSS BOWL', desc: 'J(w₀,w₁) IS CONVEX — ONE MINIMUM',
+      explain: '<b class="text-slate-200">Every (w₀,w₁) pair is a candidate line; its colour is the loss.</b> MSE for linear regression is a convex bowl: gradient descent from <i>any</i> start rolls to the ★ — exactly where the normal equation lands analytically. Click anywhere on the map to restart GD from there.',
+      init: surfInit, draw: surfDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Learning rate η: <span id="lr-lbl" class="text-teal-300 font-bold">0.020</span></label>' +
+        '<input type="range" min="1" max="62" value="20" class="mt-1 mb-3" oninput="App.act(\'lr\', this.value)">' +
+        '<button onclick="App.act(\'runSurf\')" id="btn-surf" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-play mr-2"></i>Run gradient descent</button>' +
+        '<button onclick="App.act(\'resetSurf\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset</button>'
+    },
+    variants: {
+      title: 'BATCH · SGD · MINI-BATCH', desc: 'SAME BOWL, DIFFERENT JOURNEYS',
+      explain: '<b class="text-slate-200">Batch GD</b> computes the exact gradient from all points — smooth but costly per step. <b class="text-slate-200">SGD</b> uses one random point — noisy zig-zag, cheap steps. <b class="text-slate-200">Mini-batch</b> is the practical compromise. Watch both the path in parameter space and the loss curve.',
+      init: vaInit, draw: vaDraw,
+      controls: '<div class="seg mb-3">' +
+        '<button id="k-batch" class="on" onclick="App.act(\'kind\',\'batch\')">BATCH</button>' +
+        '<button id="k-sgd" onclick="App.act(\'kind\',\'sgd\')">SGD</button>' +
+        '<button id="k-mini" onclick="App.act(\'kind\',\'mini\')">MINI-6</button></div>' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Learning rate η: <span id="lr2-lbl" class="text-teal-300 font-bold">0.020</span></label>' +
+        '<input type="range" min="1" max="62" value="20" class="mt-1 mb-3" oninput="App.act(\'lr2\', this.value)">' +
+        '<button onclick="App.act(\'runVa\')" id="btn-va" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-play mr-2"></i>Run</button>' +
+        '<button onclick="App.act(\'resetVa\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset</button>'
+    },
+  };
+
+  function act(what, val){
+    if (what==='w0'){ fit.w0=+val; document.getElementById('w0-lbl').textContent=(+val).toFixed(2); fit.animating=false; }
+    if (what==='w1'){ fit.w1=+val; document.getElementById('w1-lbl').textContent=(+val).toFixed(2); fit.animating=false; }
+    if (what==='solve') fit.animating=true;
+    if (what==='refit') fitInit();
+    if (what==='lr'){ surf.lr=(+val/1000); document.getElementById('lr-lbl').textContent=surf.lr.toFixed(3); }
+    if (what==='runSurf'){ surf.running=!surf.running; document.getElementById('btn-surf').innerHTML = surf.running?'<i class="fa-solid fa-pause mr-2"></i>Pause':'<i class="fa-solid fa-play mr-2"></i>Run gradient descent'; }
+    if (what==='resetSurf') surfInit();
+    if (what==='kind'){ va.kind=val; ['batch','sgd','mini'].forEach(k=>document.getElementById('k-'+k).classList.toggle('on', k===val)); vaInit(); }
+    if (what==='lr2'){ va.lr=(+val/1000); document.getElementById('lr2-lbl').textContent=va.lr.toFixed(3); }
+    if (what==='runVa'){ va.running=!va.running; document.getElementById('btn-va').innerHTML = va.running?'<i class="fa-solid fa-pause mr-2"></i>Pause':'<i class="fa-solid fa-play mr-2"></i>Run'; }
+    if (what==='resetVa') vaInit();
+  }
+
+  function load(m){
+    mode=m;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.getElementById('nav-'+m).classList.add('active');
+    const M=MODULES[m];
+    hudTitle.textContent=M.title; hudDesc.textContent=M.desc;
+    controls.innerHTML='<div class="fade-in">'+M.controls+'</div>';
+    explain.innerHTML='<div class="fade-in">'+M.explain+'</div>';
+    M.init();
+  }
+  function loop(){ frame++; if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
+  resize();
+  return { load, act, start(){ load('fit'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>

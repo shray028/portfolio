@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 10 — Ensemble Methods</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{transition:all .3s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-users text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 10</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Ensemble Methods</p>
+  </div>
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('wisdom')" id="nav-wisdom" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Wisdom of Crowds</span>
+        <i class="fa-solid fa-people-group text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Why voting works</div>
+    </button>
+    <button onclick="App.load('bagging')" id="nav-bagging" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. Bagging &amp; Forests</span>
+        <i class="fa-solid fa-tree text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Bootstrap → average → calm</div>
+    </button>
+    <button onclick="App.load('boost')" id="nav-boost" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-rose-400 transition-colors">3. AdaBoost</span>
+        <i class="fa-solid fa-arrow-trend-up text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Weight the mistakes</div>
+    </button>
+    <button onclick="App.load('gboost')" id="nav-gboost" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-purple-400 transition-colors">4. Gradient Boosting</span>
+        <i class="fa-solid fa-stairs text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Fit the residuals, repeat</div>
+    </button>
+  </div>
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-52 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 min-h-[160px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[250px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title'), hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls'), explain = document.getElementById('explain'), statsBody = document.getElementById('stats-body');
+  let W, H, mode = null;
+  function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  window.addEventListener('resize', resize);
+  function rnd(seed){ let s=seed; return ()=> (s=(s*16807)%2147483647)/2147483647; }
+  function binom(n,k){ let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return r; }
+
+  /* ============ MODULE 1: WISDOM ============ */
+  const wi = { p: 0.65, M: 11 };
+  function wiDraw(){
+    ctx.clearRect(0,0,W,H);
+    // ensemble accuracy = P(majority correct) for independent voters
+    const maj = m => { let s=0; for(let k=Math.floor(m/2)+1;k<=m;k++) s += binom(m,k)*Math.pow(wi.p,k)*Math.pow(1-wi.p,m-k); return s; };
+    const gx=W*0.1, gw=W*0.8, gy=H*0.16, gh=H*0.56;
+    ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.strokeRect(gx,gy,gw,gh);
+    // curve over ensemble size
+    ctx.strokeStyle='#2dd4bf'; ctx.lineWidth=3; ctx.beginPath();
+    const maxM = 61;
+    for(let m=1;m<=maxM;m+=2){ const X=gx+(m-1)/(maxM-1)*gw, Y=gy+gh-(maj(m))*gh*0.92;
+      m===1?ctx.moveTo(X,Y):ctx.lineTo(X,Y); }
+    ctx.stroke();
+    // single model line
+    ctx.setLineDash([6,5]); ctx.strokeStyle='rgba(251,191,36,.7)';
+    const Y1 = gy+gh-wi.p*gh*0.92;
+    ctx.beginPath(); ctx.moveTo(gx,Y1); ctx.lineTo(gx+gw,Y1); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#fbbf24'; ctx.font='12px JetBrains Mono, monospace'; ctx.textAlign='left';
+    ctx.fillText('single model: '+(wi.p*100).toFixed(0)+'%', gx+8, Y1-8);
+    // marker at chosen M
+    const X=gx+(wi.M-1)/(maxM-1)*gw, Ym=gy+gh-maj(wi.M)*gh*0.92;
+    ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(X,Ym,8,0,7); ctx.fill();
+    ctx.fillStyle='#2dd4bf'; ctx.textAlign='center'; ctx.font='bold 13px JetBrains Mono, monospace';
+    ctx.fillText((maj(wi.M)*100).toFixed(1)+'% with '+wi.M+' voters', X, Ym-16);
+    ctx.fillStyle='#64748b'; ctx.font='12px JetBrains Mono, monospace';
+    ctx.fillText('ensemble size M →', gx+gw/2, gy+gh+26);
+    ctx.fillText('assumes INDEPENDENT errors — the catch that motivates bagging & feature randomness', gx+gw/2, gy+gh+50);
+    stats([['Voter accuracy p', (wi.p*100).toFixed(0)+'%'], ['Ensemble M', wi.M], ['Majority accuracy', (maj(wi.M)*100).toFixed(2)+'%'], ['Boost', '+'+((maj(wi.M)-wi.p)*100).toFixed(1)+' pts'], ['If p<0.5', 'voting makes it WORSE']]);
+  }
+
+  /* ============ SHARED REGRESSION DATA ============ */
+  const TRUEF = x => 0.5 + 0.3*Math.sin(x*6.0);
+  let RDATA = [];
+  function makeR(seed){ const r=rnd(seed||13); RDATA=[]; for(let i=0;i<40;i++){ const x=i/40+r()*0.01; RDATA.push({x, y: TRUEF(x)+(r()-.5)*0.24}); } }
+
+  // depth-2 regression tree (stump-ish) fit on weighted/sub data
+  function fitTree(pts, depth){
+    function best(ptsIn){
+      let bs=null;
+      for(let i=1;i<24;i++){ const t=i/24;
+        const L=ptsIn.filter(p=>p.x<=t), R=ptsIn.filter(p=>p.x>t);
+        if (L.length<2||R.length<2) continue;
+        const mL=L.reduce((s,p)=>s+p.y,0)/L.length, mR=R.reduce((s,p)=>s+p.y,0)/R.length;
+        const err=L.reduce((s,p)=>s+(p.y-mL)**2,0)+R.reduce((s,p)=>s+(p.y-mR)**2,0);
+        if (!bs||err<bs.err) bs={err,t,mL,mR,L,R};
+      }
+      return bs;
+    }
+    function grow(ptsIn, d){
+      const mean = ptsIn.reduce((s,p)=>s+p.y,0)/Math.max(1,ptsIn.length);
+      if (d<=0 || ptsIn.length<4) return { leaf:true, v:mean };
+      const b = best(ptsIn);
+      if (!b) return { leaf:true, v:mean };
+      return { leaf:false, t:b.t, L:grow(b.L,d-1), R:grow(b.R,d-1) };
+    }
+    return grow(pts, depth);
+  }
+  function evalTree(n, x){ while(!n.leaf) n = x<=n.t?n.L:n.R; return n.v; }
+
+  /* ============ MODULE 2: BAGGING ============ */
+  const bg = { M: 1, trees: [], seed: 13 };
+  function bgBuild(){
+    bg.trees=[];
+    const r = rnd(500+bg.seed);
+    for(let m=0;m<bg.M;m++){
+      const boot=[]; for(let i=0;i<RDATA.length;i++) boot.push(RDATA[Math.floor(r()*RDATA.length)]);
+      bg.trees.push(fitTree(boot, 3));
+    }
+  }
+  function bgInit(){ makeR(13); bgBuild(); }
+  function bgDraw(){
+    ctx.clearRect(0,0,W,H);
+    const PX=x=>W*0.08+x*(W*0.84), PY=y=>H*0.82-y*(H*0.62);
+    // true fn
+    ctx.strokeStyle='rgba(148,163,184,.4)'; ctx.setLineDash([6,6]); ctx.lineWidth=2; ctx.beginPath();
+    for(let i=0;i<=140;i++){ const x=i/140; const X=PX(x), Y=PY(TRUEF(x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    // individual trees faint
+    bg.trees.forEach(t=>{
+      ctx.strokeStyle='rgba(251,191,36,.16)'; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let i=0;i<=140;i++){ const x=i/140; const X=PX(x), Y=PY(evalTree(t,x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+      ctx.stroke();
+    });
+    // average
+    ctx.strokeStyle='#2dd4bf'; ctx.lineWidth=3; ctx.shadowColor='#2dd4bf'; ctx.shadowBlur=8; ctx.beginPath();
+    for(let i=0;i<=140;i++){ const x=i/140;
+      const y = bg.trees.reduce((s,t)=>s+evalTree(t,x),0)/bg.trees.length;
+      const X=PX(x), Y=PY(y); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.shadowBlur=0;
+    RDATA.forEach(p=>{ ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(PX(p.x),PY(p.y),3.6,0,7); ctx.fill(); });
+    // test mse of ensemble
+    let mseE=0; for(let i=0;i<100;i++){ const x=(i+.5)/100;
+      const y = bg.trees.reduce((s,t)=>s+evalTree(t,x),0)/bg.trees.length;
+      mseE += (y-TRUEF(x))**2/100; }
+    stats([['Trees M', bg.M], ['Bootstrap', '~63.2% unique rows each'], ['MSE vs truth', mseE.toFixed(4)], ['Effect', bg.M===1?'one jagged tree':'averaging smooths variance'], ['Random Forest', '= bagging + random features']]);
+  }
+
+  /* ============ MODULE 3: ADABOOST ============ */
+  const ab = { pts: [], weights: [], stumps: [], round: 0 };
+  function abInit(){
+    const r = rnd(41); ab.pts=[];
+    for(let i=0;i<26;i++) ab.pts.push({ x: 0.3+(r()-.5)*0.45, y: 0.34+(r()-.5)*0.5, c: -1 });
+    for(let i=0;i<26;i++) ab.pts.push({ x: 0.7+(r()-.5)*0.45, y: 0.68+(r()-.5)*0.5, c: 1 });
+    for(let i=0;i<6;i++) ab.pts.push({ x: r(), y: r(), c: r()>.5?1:-1 });
+    ab.pts.forEach(p=>{ p.x=Math.min(.97,Math.max(.03,p.x)); p.y=Math.min(.97,Math.max(.03,p.y)); });
+    ab.weights = new Array(ab.pts.length).fill(1/ab.pts.length);
+    ab.stumps=[]; ab.round=0;
+  }
+  function abBestStump(){
+    let best=null;
+    ['x','y'].forEach(ax=>{
+      for(let i=1;i<30;i++){ const t=i/30;
+        [1,-1].forEach(sgn=>{
+          let err=0;
+          ab.pts.forEach((p,j)=>{ const pred = (p[ax]<=t?sgn:-sgn); if (pred!==p.c) err+=ab.weights[j]; });
+          if (!best||err<best.err) best={ err, ax, t, sgn };
+        });
+      }
+    });
+    return best;
+  }
+  function abRound(){
+    const s = abBestStump();
+    const err = Math.max(1e-9, Math.min(0.499, s.err));
+    const alpha = 0.5*Math.log((1-err)/err);
+    // update weights
+    ab.pts.forEach((p,j)=>{
+      const pred = (p[s.ax]<=s.t?s.sgn:-s.sgn);
+      ab.weights[j] *= Math.exp(-alpha*p.c*pred);
+    });
+    const Z = ab.weights.reduce((a,b)=>a+b,0);
+    ab.weights = ab.weights.map(w=>w/Z);
+    ab.stumps.push({ ...s, alpha });
+    ab.round++;
+  }
+  function abF(x,y){ return ab.stumps.reduce((s,st)=> s + st.alpha*((st.ax==='x'?x:y)<=st.t?st.sgn:-st.sgn), 0); }
+  function abDraw(){
+    ctx.clearRect(0,0,W,H);
+    // combined boundary heat
+    if (ab.stumps.length){
+      const res=70;
+      for(let i=0;i<res;i++) for(let j=0;j<res;j++){
+        const f = abF((i+.5)/res,(j+.5)/res);
+        const t = Math.max(-1, Math.min(1, f/2));
+        ctx.fillStyle = t>0 ? 'rgba(251,191,36,'+(0.15*t)+')' : 'rgba(56,189,248,'+(0.15*-t)+')';
+        ctx.fillRect(i/res*W, j/res*H, W/res+1, H/res+1);
+      }
+    }
+    // last stump line
+    if (ab.stumps.length){
+      const st = ab.stumps[ab.stumps.length-1];
+      ctx.strokeStyle='rgba(248,250,252,.5)'; ctx.lineWidth=1.6; ctx.setLineDash([8,6]); ctx.beginPath();
+      if (st.ax==='x'){ ctx.moveTo(st.t*W,0); ctx.lineTo(st.t*W,H); } else { ctx.moveTo(0,st.t*H); ctx.lineTo(W,st.t*H); }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    // points sized by weight
+    const wMax = Math.max(...ab.weights);
+    let correct = 0;
+    ab.pts.forEach((p,j)=>{
+      if (ab.stumps.length && Math.sign(abF(p.x,p.y))===p.c) correct++;
+      const col = p.c>0?'#fbbf24':'#38bdf8';
+      const r = 4 + (ab.weights[j]/wMax)*12;
+      ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=r>10?14:5;
+      ctx.beginPath(); ctx.arc(p.x*W, p.y*H, r, 0, 7); ctx.fill(); ctx.shadowBlur=0;
+    });
+    ctx.font='12px JetBrains Mono, monospace'; ctx.fillStyle='#64748b'; ctx.textAlign='left';
+    ctx.fillText('point size = current weight Dₜ(i) — mistakes swell, easy points shrink', 20, H-18);
+    const acc = ab.stumps.length? (correct/ab.pts.length*100).toFixed(1)+'%' : '—';
+    const lastA = ab.stumps.length? ab.stumps[ab.stumps.length-1].alpha.toFixed(3) : '—';
+    stats([['Round t', ab.round], ['Ensemble acc', acc], ['Last stump α', lastA], ['Weak learner', 'axis-aligned stump'], ['Final F(x)', 'sign(Σ αₜ·hₜ(x))']]);
+  }
+
+  /* ============ MODULE 4: GRADIENT BOOSTING ============ */
+  const gb = { trees: [], lr: 0.5, F0: 0, rounds: 0 };
+  function gbInit(){ makeR(29); gb.trees=[]; gb.F0 = RDATA.reduce((s,p)=>s+p.y,0)/RDATA.length; gb.rounds=0; }
+  function gbPred(x){ return gb.F0 + gb.trees.reduce((s,t)=>s+gb.lr*evalTree(t,x),0); }
+  function gbRound(){
+    const resid = RDATA.map(p=>({ x: p.x, y: p.y - gbPred(p.x) }));
+    gb.trees.push(fitTree(resid, 2));
+    gb.rounds++;
+  }
+  function gbDraw(){
+    ctx.clearRect(0,0,W,H);
+    const PX=x=>W*0.08+x*(W*0.55), PY=y=>H*0.74-y*(H*0.56);
+    // main: data + current F
+    ctx.strokeStyle='rgba(148,163,184,.4)'; ctx.setLineDash([6,6]); ctx.lineWidth=2; ctx.beginPath();
+    for(let i=0;i<=140;i++){ const x=i/140; const X=PX(x), Y=PY(TRUEF(x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle='#c084fc'; ctx.lineWidth=3; ctx.shadowColor='#c084fc'; ctx.shadowBlur=8; ctx.beginPath();
+    for(let i=0;i<=140;i++){ const x=i/140; const X=PX(x), Y=PY(gbPred(x)); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
+    ctx.stroke(); ctx.shadowBlur=0;
+    RDATA.forEach(p=>{ ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(PX(p.x),PY(p.y),3.6,0,7); ctx.fill(); });
+    ctx.fillStyle='#64748b'; ctx.font='11px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText('current ensemble F(x) = F₀ + η·Σ treeₘ(x)', PX(0.5), H*0.85);
+    // right: residual plot
+    const RX=x=>W*0.70+x*(W*0.26), RY=y=>H*0.45-y*(H*0.45);
+    ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.strokeRect(W*0.70, H*0.12, W*0.26, H*0.6);
+    ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.beginPath(); ctx.moveTo(RX(0), RY(0)); ctx.lineTo(RX(1), RY(0)); ctx.stroke();
+    let sse=0;
+    RDATA.forEach(p=>{
+      const r = p.y - gbPred(p.x); sse += r*r;
+      ctx.fillStyle = Math.abs(r)>0.12?'#fb7185':'rgba(251,113,133,.45)';
+      ctx.beginPath(); ctx.arc(RX(p.x), RY(r*1.4), 3.4, 0, 7); ctx.fill();
+    });
+    ctx.fillStyle='#64748b'; ctx.textAlign='center';
+    ctx.fillText('residuals y − F(x)', W*0.83, H*0.76);
+    ctx.fillText('the NEXT tree\'s training targets', W*0.83, H*0.795);
+    stats([['Trees', gb.rounds], ['Shrinkage η', gb.lr], ['SSE', sse.toFixed(3)], ['Next step', 'fit tree to residuals'], ['XGBoost adds', 'reg. + sampling + 2nd order']]);
+  }
+
+  function stats(rows){ statsBody.innerHTML = rows.map(([k,v]) => '<div class="flex justify-between gap-6"><span class="text-slate-500">'+k+'</span><span class="text-teal-300 font-bold">'+v+'</span></div>').join(''); }
+
+  const MODULES = {
+    wisdom: {
+      title: 'WISDOM OF CROWDS', desc: 'MANY OK MODELS > ONE OK MODEL',
+      explain: '<b class="text-slate-200">If each voter is right 65% of the time — independently — a majority of 61 is right ~99% of the time.</b> That binomial magic is the whole point of ensembles. But real models trained on the same data make <i>correlated</i> mistakes, so ensembles engineer diversity: bootstrap samples, random features, different algorithms.',
+      init: ()=>{}, draw: wiDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Single-model accuracy p: <span id="wi-p" class="text-teal-300 font-bold">65%</span></label>' +
+        '<input type="range" min="35" max="90" value="65" class="mt-1 mb-3" oninput="App.act(\'wiP\', this.value)">' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Ensemble size M: <span id="wi-m" class="text-teal-300 font-bold">11</span></label>' +
+        '<input type="range" min="1" max="61" step="2" value="11" class="mt-1" oninput="App.act(\'wiM\', this.value)">'
+    },
+    bagging: {
+      title: 'BAGGING', desc: 'BOOTSTRAP + AGGREGATE',
+      explain: '<b class="text-slate-200">Each faint amber curve is a depth-3 tree trained on a bootstrap resample</b> (drawing n rows with replacement leaves ~36.8% out-of-bag). Individually they\'re jagged, high-variance learners. Their teal average barely moves when data wiggles — variance divided, bias untouched. A Random Forest decorrelates trees further by also randomising features per split.',
+      init: bgInit, draw: bgDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Number of trees M: <span id="bg-m" class="text-teal-300 font-bold">1</span></label>' +
+        '<input type="range" min="1" max="60" value="1" class="mt-1 mb-3" oninput="App.act(\'bgM\', this.value)">' +
+        '<button onclick="App.act(\'bgNew\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">New bootstrap draw</button>'
+    },
+    boost: {
+      title: 'ADABOOST', desc: 'OBSESS OVER YOUR MISTAKES',
+      explain: '<b class="text-slate-200">Boosting is sequential.</b> Each round: fit the best weighted stump, compute its say α = ½ln((1−ε)/ε), then <b>inflate the weights of misclassified points</b> (they grow visibly). The next stump is forced to focus on them. The final classifier is a weighted vote of all stumps — a strong learner from weak parts.',
+      init: abInit, draw: abDraw,
+      controls: '<button onclick="App.act(\'abStep\')" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-forward-step mr-2"></i>Boost one round</button>' +
+        '<button onclick="App.act(\'abTen\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">+10 rounds</button>' +
+        '<button onclick="App.act(\'abReset\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset</button>'
+    },
+    gboost: {
+      title: 'GRADIENT BOOSTING', desc: 'EACH TREE FIXES THE LAST',
+      explain: '<b class="text-slate-200">Start with a flat guess (the mean). Compute residuals — for squared loss they ARE the negative gradient.</b> Fit a small tree to the residuals, add it scaled by η, repeat. Watch the purple ensemble staircase bend toward the data while residuals collapse toward zero. Shrinkage η trades speed for robustness; XGBoost turbo-charges this recipe.',
+      init: gbInit, draw: gbDraw,
+      controls: '<button onclick="App.act(\'gbStep\')" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-forward-step mr-2"></i>Add one tree</button>' +
+        '<button onclick="App.act(\'gbTen\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">+10 trees</button>' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase mt-3 block">Shrinkage η: <span id="gb-lr" class="text-teal-300 font-bold">0.5</span></label>' +
+        '<input type="range" min="5" max="100" value="50" class="mt-1 mb-2" oninput="App.act(\'gbLr\', this.value)">' +
+        '<button onclick="App.act(\'gbReset\')" class="w-full py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">Reset</button>'
+    },
+  };
+
+  function act(what, val){
+    if (what==='wiP'){ wi.p=+val/100; document.getElementById('wi-p').textContent=val+'%'; }
+    if (what==='wiM'){ wi.M=+val; document.getElementById('wi-m').textContent=val; }
+    if (what==='bgM'){ bg.M=+val; document.getElementById('bg-m').textContent=val; bgBuild(); }
+    if (what==='bgNew'){ bg.seed=Math.floor(Math.random()*100000); bgBuild(); }
+    if (what==='abStep') abRound();
+    if (what==='abTen') for(let i=0;i<10;i++) abRound();
+    if (what==='abReset') abInit();
+    if (what==='gbStep') gbRound();
+    if (what==='gbTen') for(let i=0;i<10;i++) gbRound();
+    if (what==='gbLr'){ gb.lr=+val/100; document.getElementById('gb-lr').textContent=gb.lr.toFixed(2); }
+    if (what==='gbReset') gbInit();
+  }
+
+  function load(m){
+    mode=m;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.getElementById('nav-'+m).classList.add('active');
+    const M=MODULES[m];
+    hudTitle.textContent=M.title; hudDesc.textContent=M.desc;
+    controls.innerHTML='<div class="fade-in">'+M.controls+'</div>';
+    explain.innerHTML='<div class="fade-in">'+M.explain+'</div>';
+    M.init();
+  }
+  function loop(){ if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
+  resize();
+  return { load, act, start(){ load('wisdom'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>

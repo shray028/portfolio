@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Lab 8 — Support Vector Machines</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{--bg-dark:#020617;--panel:rgba(15,23,42,.7);--border:rgba(255,255,255,.08);--accent:#2dd4bf}
+body{font-family:'Inter',sans-serif;background:var(--bg-dark);color:#e2e8f0;overflow:hidden}
+.font-mono{font-family:'JetBrains Mono',monospace}
+.glass{background:var(--panel);backdrop-filter:blur(24px);border:1px solid var(--border);box-shadow:0 8px 32px 0 rgba(0,0,0,.5)}
+input[type=range]{-webkit-appearance:none;background:transparent;width:100%;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;background:var(--accent);border-radius:50%;margin-top:-5px;box-shadow:0 0 15px var(--accent)}
+input[type=range]::-webkit-slider-runnable-track{width:100%;height:4px;background:#334155;border-radius:2px}
+.nav-item{transition:all .3s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.nav-item.active{background:linear-gradient(90deg,rgba(45,212,191,.1),transparent);border-left:2px solid var(--accent);color:#fff}
+.glow-text{text-shadow:0 0 30px rgba(45,212,191,.3)}
+.btn-primary{background:linear-gradient(135deg,#0d9488,#0891b2);transition:all .3s}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.fade-in{animation:fadeIn .5s ease-out forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body class="flex h-screen w-screen selection:bg-teal-500 selection:text-black">
+
+<nav class="w-80 glass flex flex-col z-20 border-r border-white/5 flex-shrink-0">
+  <div class="p-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+    <h1 class="text-xl font-black tracking-tight flex items-center gap-2 text-white">
+      <i class="fa-solid fa-shield-halved text-teal-400"></i>
+      ML <span class="text-teal-400">Lab 8</span>
+    </h1>
+    <p class="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest pl-7">Support Vector Machines</p>
+  </div>
+  <div class="flex-1 overflow-y-auto py-4 space-y-1">
+    <button onclick="App.load('margin')" id="nav-margin" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-teal-400 transition-colors">1. Maximum Margin</span>
+        <i class="fa-solid fa-arrows-left-right-to-line text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Steer the street yourself</div>
+    </button>
+    <button onclick="App.load('soft')" id="nav-soft" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-amber-400 transition-colors">2. Soft Margin &amp; C</span>
+        <i class="fa-solid fa-hand-holding-heart text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">Slack ξ — forgiveness costs C</div>
+    </button>
+    <button onclick="App.load('kernel')" id="nav-kernel" class="nav-item w-full text-left px-6 py-4 group">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-sm group-hover:text-rose-400 transition-colors">3. The Kernel Trick</span>
+        <i class="fa-solid fa-wand-sparkles text-slate-600 text-xs"></i>
+      </div>
+      <div class="text-[11px] text-slate-500 mt-1">RBF bends the boundary</div>
+    </button>
+  </div>
+  <div id="explain" class="p-5 border-t border-white/5 text-[12px] leading-relaxed text-slate-400 max-h-52 overflow-y-auto"></div>
+  <div id="controls" class="p-6 bg-black/40 border-t border-white/5 min-h-[170px]"></div>
+</nav>
+
+<main class="flex-1 relative bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-black to-black">
+  <canvas id="viz" class="w-full h-full block"></canvas>
+  <div class="absolute top-8 left-8 pointer-events-none z-10">
+    <h2 id="hud-title" class="text-4xl font-black text-white tracking-tighter glow-text">INIT</h2>
+    <div class="flex items-center gap-2 mt-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 w-fit">
+      <div class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></div>
+      <span id="hud-desc" class="text-xs font-mono text-teal-200 tracking-wider">LOADING</span>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-8 glass p-5 rounded-lg min-w-[250px] z-10 border-l-4 border-teal-500">
+    <div class="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+      <i class="fa-solid fa-wave-square text-teal-400 text-xs"></i>
+      <span class="text-xs font-bold text-slate-200 uppercase tracking-widest">Live Metrics</span>
+    </div>
+    <div id="stats-body" class="space-y-2 font-mono text-xs text-slate-300"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+const App = (() => {
+  const canvas = document.getElementById('viz'), ctx = canvas.getContext('2d');
+  const hudTitle = document.getElementById('hud-title'), hudDesc = document.getElementById('hud-desc');
+  const controls = document.getElementById('controls'), explain = document.getElementById('explain'), statsBody = document.getElementById('stats-body');
+  let W, H, mode = null;
+  function resize(){ W=canvas.clientWidth; H=canvas.clientHeight; canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  window.addEventListener('resize', resize);
+  function rnd(seed){ let s=seed; return ()=> (s=(s*16807)%2147483647)/2147483647; }
+  function dot(x,y,c,r,glow){ ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=glow||6; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); ctx.shadowBlur=0; }
+
+  /* ============ MODULE 1: HARD MARGIN ============ */
+  const ma = { theta: 0.4, off: 0.0, pts: [], animTo: null };
+  function maInit(){
+    const r = rnd(51); ma.pts = [];
+    for(let i=0;i<16;i++) ma.pts.push({ x: 0.28+(r()-.5)*0.3, y: 0.30+(r()-.5)*0.34, c: -1 });
+    for(let i=0;i<16;i++) ma.pts.push({ x: 0.72+(r()-.5)*0.3, y: 0.72+(r()-.5)*0.34, c: 1 });
+    ma.theta = 0.2; ma.off = 0.1; ma.animTo = null;
+  }
+  // signed distance to line: n·(p - c0) where n=(cosθ,sinθ), c0 = center + off*n
+  function maSigned(p, theta, off){
+    const nx=Math.cos(theta), ny=Math.sin(theta);
+    return nx*(p.x-0.5) + ny*(p.y-0.5) - off;
+  }
+  function maMargin(theta, off){
+    let mNeg=1e9, mPos=1e9, valid=true;
+    ma.pts.forEach(p=>{
+      const d = maSigned(p, theta, off) * p.c;
+      if (d < 0) valid = false;
+      if (p.c<0) mNeg=Math.min(mNeg, Math.abs(maSigned(p,theta,off)));
+      else mPos=Math.min(mPos, Math.abs(maSigned(p,theta,off)));
+    });
+    return valid ? Math.min(mNeg,mPos) : -1;
+  }
+  function maBest(){
+    let best={m:-1,theta:0,off:0};
+    for(let t=0;t<180;t++){ const th=t/180*Math.PI;
+      for(let o=-40;o<=40;o++){ const of=o/100;
+        const m=maMargin(th,of);
+        if (m>best.m) best={m,theta:th,off:of};
+      } }
+    return best;
+  }
+  function drawLine(theta, off, color, width, dash){
+    const nx=Math.cos(theta), ny=Math.sin(theta);
+    const cx=0.5+off*nx, cy=0.5+off*ny;
+    const dx=-ny, dy=nx;
+    ctx.strokeStyle=color; ctx.lineWidth=width; if(dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo((cx-dx*2)*W, (cy-dy*2)*H); ctx.lineTo((cx+dx*2)*W, (cy+dy*2)*H);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  function maDraw(){
+    ctx.clearRect(0,0,W,H);
+    if (ma.animTo){
+      ma.theta += (ma.animTo.theta-ma.theta)*0.07; ma.off += (ma.animTo.off-ma.off)*0.07;
+      if (Math.abs(ma.animTo.theta-ma.theta)<0.002 && Math.abs(ma.animTo.off-ma.off)<0.002) ma.animTo=null;
+      syncMa();
+    }
+    const m = maMargin(ma.theta, ma.off);
+    // street shading
+    if (m > 0){
+      const nx=Math.cos(ma.theta), ny=Math.sin(ma.theta);
+      ctx.fillStyle='rgba(45,212,191,.06)';
+      ctx.save(); ctx.beginPath();
+      const cx=0.5+ma.off*nx, cy=0.5+ma.off*ny, dx=-ny, dy=nx;
+      ctx.moveTo((cx-dx*2-nx*m)*W,(cy-dy*2-ny*m)*H);
+      ctx.lineTo((cx+dx*2-nx*m)*W,(cy+dy*2-ny*m)*H);
+      ctx.lineTo((cx+dx*2+nx*m)*W,(cy+dy*2+ny*m)*H);
+      ctx.lineTo((cx-dx*2+nx*m)*W,(cy-dy*2+ny*m)*H);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+      drawLine(ma.theta, ma.off-m, 'rgba(56,189,248,.7)', 1.6, [7,6]);
+      drawLine(ma.theta, ma.off+m, 'rgba(251,191,36,.7)', 1.6, [7,6]);
+    }
+    drawLine(ma.theta, ma.off, m>0?'#f8fafc':'#fb7185', 2.6);
+    // points; highlight the SVs (closest)
+    ma.pts.forEach(p=>{
+      const d = Math.abs(maSigned(p, ma.theta, ma.off));
+      const isSV = m>0 && d < m + 0.012;
+      const col = p.c>0?'#fbbf24':'#38bdf8';
+      if (isSV){ ctx.strokeStyle='#f8fafc'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,11,0,7); ctx.stroke(); }
+      dot(p.x*W, p.y*H, col, 6, isSV?14:6);
+    });
+    const best = maBest();
+    stats([['Your margin', m>0?m.toFixed(4):'INVALID — misclassified!'], ['Best margin', best.m.toFixed(4)], ['Efficiency', m>0?(m/best.m*100).toFixed(1)+'%':'—'], ['Support vectors', m>0?'ringed in white':'—']]);
+  }
+  function syncMa(){
+    const t=document.getElementById('ma-th'), o=document.getElementById('ma-of');
+    if (t){ t.value=Math.round(ma.theta/Math.PI*180); document.getElementById('ma-th-l').textContent=Math.round(ma.theta/Math.PI*180)+'°'; }
+    if (o){ o.value=Math.round(ma.off*100); document.getElementById('ma-of-l').textContent=ma.off.toFixed(2); }
+  }
+
+  /* ============ MODULE 2: SOFT MARGIN ============ */
+  const so = { C: 1, pts: [], w: [0,0], b: 0, running: false, iter: 0 };
+  function soInit(){
+    const r = rnd(77); so.pts = [];
+    for(let i=0;i<24;i++) so.pts.push({ x: 0.34+(r()-.5)*0.42, y: 0.36+(r()-.5)*0.44, c: -1 });
+    for(let i=0;i<24;i++) so.pts.push({ x: 0.66+(r()-.5)*0.42, y: 0.66+(r()-.5)*0.44, c: 1 });
+    so.w=[0.5,0.5]; so.b=-0.5; so.iter=0; so.running=true;
+    const btn=document.getElementById('btn-so'); if(btn) btn.innerHTML='<i class="fa-solid fa-pause mr-2"></i>Pause';
+  }
+  function soStep(){
+    // subgradient descent on: 0.5||w||² + C·Σ max(0, 1 − y(w·x+b)), x centered
+    const lr = 0.004, n = so.pts.length;
+    let gw0=so.w[0], gw1=so.w[1], gb=0;
+    so.pts.forEach(p=>{
+      const xc=p.x-0.5, yc=p.y-0.5;
+      const f = so.w[0]*xc + so.w[1]*yc + so.b;
+      if (p.c*f < 1){ gw0 -= so.C*p.c*xc; gw1 -= so.C*p.c*yc; gb -= so.C*p.c; }
+    });
+    so.w[0]-=lr*gw0; so.w[1]-=lr*gw1; so.b-=lr*gb; so.iter++;
+  }
+  function soDraw(){
+    ctx.clearRect(0,0,W,H);
+    if (so.running) for(let s=0;s<24;s++) soStep();
+    const nw = Math.hypot(so.w[0], so.w[1]);
+    // decision function heat
+    const res=64;
+    for(let i=0;i<res;i++) for(let j=0;j<res;j++){
+      const f = so.w[0]*((i+.5)/res-0.5) + so.w[1]*((j+.5)/res-0.5) + so.b;
+      const t = Math.max(-1, Math.min(1, f));
+      ctx.fillStyle = t>0 ? 'rgba(251,191,36,'+(0.10*t)+')' : 'rgba(56,189,248,'+(0.10*-t)+')';
+      ctx.fillRect(i/res*W, j/res*H, W/res+1, H/res+1);
+    }
+    // lines f=0, ±1
+    if (nw > 1e-6){
+      const theta = Math.atan2(so.w[1], so.w[0]);
+      const off = -so.b/nw;
+      drawLine(theta, off, '#f8fafc', 2.6);
+      drawLine(theta, off - 1/nw, 'rgba(56,189,248,.7)', 1.5, [7,6]);
+      drawLine(theta, off + 1/nw, 'rgba(251,191,36,.7)', 1.5, [7,6]);
+    }
+    let nSV=0, nViol=0, sumSlack=0;
+    so.pts.forEach(p=>{
+      const f = so.w[0]*(p.x-0.5) + so.w[1]*(p.y-0.5) + so.b;
+      const marg = p.c*f;
+      const slack = Math.max(0, 1-marg);
+      sumSlack += slack;
+      const isSV = marg < 1.02;
+      if (isSV) nSV++;
+      if (marg < 0) nViol++;
+      const col = p.c>0?'#fbbf24':'#38bdf8';
+      if (slack > 1){ ctx.strokeStyle='#fb7185'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,11,0,7); ctx.stroke(); }
+      else if (isSV){ ctx.strokeStyle='rgba(248,250,252,.8)'; ctx.lineWidth=1.8; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,10,0,7); ctx.stroke(); }
+      dot(p.x*W, p.y*H, col, 6, isSV?12:5);
+    });
+    stats([['C', so.C], ['Street width 2/‖w‖', nw>1e-6?(2/nw).toFixed(3):'—'], ['Σ slack ξ', sumSlack.toFixed(2)], ['On/in margin', nSV], ['Misclassified', nViol]]);
+  }
+
+  /* ============ MODULE 3: KERNEL ============ */
+  const ke = { gamma: 30, pts: [], alpha: [], running: false, iter: 0, kind: 'rings' };
+  function keInit(){
+    const r = rnd(91); ke.pts = [];
+    if (ke.kind === 'rings'){
+      for(let i=0;i<30;i++){ const a=r()*6.283, rad=0.10+r()*0.09; ke.pts.push({ x:0.5+Math.cos(a)*rad, y:0.5+Math.sin(a)*rad, c:1 }); }
+      for(let i=0;i<40;i++){ const a=r()*6.283, rad=0.30+r()*0.10; ke.pts.push({ x:0.5+Math.cos(a)*rad, y:0.5+Math.sin(a)*rad, c:-1 }); }
+    } else {
+      for(let i=0;i<35;i++){ const x=r(); ke.pts.push({ x, y: 0.5+0.22*Math.sin(x*9)+(r()-.5)*0.10 - 0.10, c:-1 }); }
+      for(let i=0;i<35;i++){ const x=r(); ke.pts.push({ x, y: 0.5+0.22*Math.sin(x*9)+(r()-.5)*0.10 + 0.10, c:1 }); }
+    }
+    ke.alpha = new Array(ke.pts.length).fill(0);
+    ke.iter = 0; ke.running = true;
+    const btn=document.getElementById('btn-ke'); if(btn) btn.innerHTML='<i class="fa-solid fa-pause mr-2"></i>Pause';
+  }
+  function K(p, q){ return Math.exp(-ke.gamma*((p.x-q.x)**2 + (p.y-q.y)**2)) + 1; } // +1 absorbs bias
+  function keF(x, y){
+    const q={x,y};
+    let f=0;
+    for(let i=0;i<ke.pts.length;i++) if (ke.alpha[i]!==0) f += ke.alpha[i]*ke.pts[i].c*K(ke.pts[i], q);
+    return f;
+  }
+  function keStep(){
+    // simple kernel dual coordinate ascent (perceptron-flavoured, capped alpha)
+    for (let s=0;s<8;s++){
+      const i = Math.floor(Math.random()*ke.pts.length);
+      const p = ke.pts[i];
+      const f = keF(p.x, p.y);
+      if (p.c*f < 1) ke.alpha[i] = Math.min(2, ke.alpha[i] + 0.15);
+      else ke.alpha[i] = Math.max(0, ke.alpha[i] - 0.01);
+    }
+    ke.iter++;
+  }
+  function keDraw(){
+    ctx.clearRect(0,0,W,H);
+    if (ke.running) keStep();
+    const res=76;
+    for(let i=0;i<res;i++) for(let j=0;j<res;j++){
+      const f = keF((i+.5)/res, (j+.5)/res);
+      const t = Math.max(-1, Math.min(1, f/2));
+      ctx.fillStyle = t>0 ? 'rgba(251,191,36,'+(0.16*t)+')' : 'rgba(56,189,248,'+(0.16*-t)+')';
+      ctx.fillRect(i/res*W, j/res*H, W/res+1, H/res+1);
+    }
+    // f=0 contour via marching-square-lite: draw where sign changes
+    ctx.fillStyle='rgba(248,250,252,.9)';
+    for(let i=0;i<res-1;i++) for(let j=0;j<res-1;j++){
+      const f00 = keF((i+.5)/res,(j+.5)/res), f10 = keF((i+1.5)/res,(j+.5)/res), f01 = keF((i+.5)/res,(j+1.5)/res);
+      if (f00*f10<0 || f00*f01<0) ctx.fillRect((i+.5)/res*W-1, (j+.5)/res*H-1, 2.4, 2.4);
+    }
+    let correct=0, nSV=0;
+    ke.pts.forEach((p,i)=>{
+      const col=p.c>0?'#fbbf24':'#38bdf8';
+      if (ke.alpha[i]>0.01){ nSV++; ctx.strokeStyle='rgba(248,250,252,.7)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(p.x*W,p.y*H,10,0,7); ctx.stroke(); }
+      if (Math.sign(keF(p.x,p.y))===p.c) correct++;
+      dot(p.x*W, p.y*H, col, 5.5, ke.alpha[i]>0.01?12:5);
+    });
+    stats([['γ (RBF width)', ke.gamma], ['Iterations', ke.iter], ['Accuracy', (correct/ke.pts.length*100).toFixed(1)+'%'], ['Active SVs (α>0)', nSV+' / '+ke.pts.length], ['Boundary', ke.gamma>80?'tight islands (overfit risk)':ke.gamma<10?'broad & smooth':'flexible ✓']]);
+  }
+
+  function stats(rows){ statsBody.innerHTML = rows.map(([k,v]) => '<div class="flex justify-between gap-6"><span class="text-slate-500">'+k+'</span><span class="text-teal-300 font-bold">'+v+'</span></div>').join(''); }
+
+  const MODULES = {
+    margin: {
+      title: 'MAXIMUM MARGIN', desc: 'WIDEST STREET WINS',
+      explain: '<b class="text-slate-200">Steer the hyperplane yourself.</b> Rotate and shift the white line; the shaded "street" is your margin — the distance to the nearest points. SVM chooses the line with the <i>widest possible street</i>. Press Maximise and notice: only the white-ringed <b>support vectors</b> touch the street. Every other point could vanish and nothing would change.',
+      init: maInit, draw: maDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Angle θ: <span id="ma-th-l" class="text-teal-300 font-bold">36°</span></label>' +
+        '<input type="range" id="ma-th" min="0" max="180" value="36" class="mt-1 mb-3" oninput="App.act(\'maTh\', this.value)">' +
+        '<label class="text-[11px] font-mono text-slate-400 uppercase">Offset: <span id="ma-of-l" class="text-teal-300 font-bold">0.10</span></label>' +
+        '<input type="range" id="ma-of" min="-40" max="40" value="10" class="mt-1 mb-3" oninput="App.act(\'maOf\', this.value)">' +
+        '<button onclick="App.act(\'maBest\')" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-maximize mr-2"></i>Maximise margin</button>' +
+        '<button onclick="App.act(\'maNew\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">New data</button>'
+    },
+    soft: {
+      title: 'SOFT MARGIN', desc: '½‖w‖² + C·Σξ — TRADE-OFF',
+      explain: '<b class="text-slate-200">Real data overlaps — perfection is impossible.</b> Slack ξᵢ lets points violate the margin at cost C. <b>Low C</b>: cheap forgiveness → wide street, more violations tolerated. <b>High C</b>: violations are expensive → narrow street hugging the data. Red rings mark misclassified points (ξ &gt; 1); white rings mark margin-touching support vectors.',
+      init: soInit, draw: soDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">Penalty C: <span id="so-lbl" class="text-teal-300 font-bold">1.0</span></label>' +
+        '<input type="range" min="-10" max="20" value="0" class="mt-1 mb-3" oninput="App.act(\'soC\', this.value)">' +
+        '<button onclick="App.act(\'soRun\')" id="btn-so" class="btn-primary w-full py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-pause mr-2"></i>Pause</button>' +
+        '<button onclick="App.act(\'soNew\')" class="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-white/5 hover:bg-white/10 transition">New data</button>'
+    },
+    kernel: {
+      title: 'KERNEL TRICK', desc: 'K(x,z) = exp(−γ‖x−z‖²)',
+      explain: '<b class="text-slate-200">No line separates rings — but we never need one.</b> The RBF kernel computes inner products in an infinite-dimensional feature space without ever going there. The decision function is a weighted sum of Gaussian bumps centred on support vectors. Slide γ: small = wide bumps (smooth), large = spiky bumps that can overfit.',
+      init: keInit, draw: keDraw,
+      controls: '<label class="text-[11px] font-mono text-slate-400 uppercase">γ: <span id="ke-lbl" class="text-teal-300 font-bold">30</span></label>' +
+        '<input type="range" min="4" max="150" value="30" class="mt-1 mb-3" oninput="App.act(\'keG\', this.value)">' +
+        '<div class="flex gap-2">' +
+        '<button onclick="App.act(\'keKind\',\'rings\')" id="kk-rings" class="flex-1 py-2 rounded-lg text-[10px] font-bold transition font-mono" style="background:rgba(45,212,191,.15)">RINGS</button>' +
+        '<button onclick="App.act(\'keKind\',\'wave\')" id="kk-wave" class="flex-1 py-2 rounded-lg text-[10px] font-bold bg-white/5 hover:bg-white/10 transition font-mono">WAVE</button></div>' +
+        '<button onclick="App.act(\'keRun\')" id="btn-ke" class="btn-primary w-full mt-2 py-2.5 rounded-lg font-bold text-sm"><i class="fa-solid fa-pause mr-2"></i>Pause</button>'
+    },
+  };
+
+  function act(what, val){
+    if (what==='maTh'){ ma.theta=+val/180*Math.PI; document.getElementById('ma-th-l').textContent=val+'°'; ma.animTo=null; }
+    if (what==='maOf'){ ma.off=+val/100; document.getElementById('ma-of-l').textContent=ma.off.toFixed(2); ma.animTo=null; }
+    if (what==='maBest'){ ma.animTo=maBest(); }
+    if (what==='maNew') maInit();
+    if (what==='soC'){ so.C=Math.pow(10, +val/10); document.getElementById('so-lbl').textContent=so.C<0.2?so.C.toFixed(2):so.C.toFixed(1); }
+    if (what==='soRun'){ so.running=!so.running; document.getElementById('btn-so').innerHTML = so.running?'<i class="fa-solid fa-pause mr-2"></i>Pause':'<i class="fa-solid fa-play mr-2"></i>Train'; }
+    if (what==='soNew') soInit();
+    if (what==='keG'){ ke.gamma=+val; document.getElementById('ke-lbl').textContent=val; }
+    if (what==='keKind'){ ke.kind=val;
+      document.getElementById('kk-rings').style.background = val==='rings'?'rgba(45,212,191,.15)':'rgba(255,255,255,.05)';
+      document.getElementById('kk-wave').style.background = val==='wave'?'rgba(45,212,191,.15)':'rgba(255,255,255,.05)';
+      keInit(); }
+    if (what==='keRun'){ ke.running=!ke.running; document.getElementById('btn-ke').innerHTML = ke.running?'<i class="fa-solid fa-pause mr-2"></i>Pause':'<i class="fa-solid fa-play mr-2"></i>Train'; }
+  }
+
+  function load(m){
+    mode=m;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.getElementById('nav-'+m).classList.add('active');
+    const M=MODULES[m];
+    hudTitle.textContent=M.title; hudDesc.textContent=M.desc;
+    controls.innerHTML='<div class="fade-in">'+M.controls+'</div>';
+    explain.innerHTML='<div class="fade-in">'+M.explain+'</div>';
+    M.init();
+  }
+  function loop(){ if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
+  resize();
+  return { load, act, start(){ load('margin'); loop(); } };
+})();
+App.start();
+</script>
+</body>
+</html>
