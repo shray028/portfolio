@@ -509,7 +509,7 @@
           formulas: [
             '\\(\\text{similarity}(\\mathbf{q}, \\mathbf{d}) = \\frac{\\mathbf{q}^T\\mathbf{d}}{\\|\\mathbf{q}\\|\\,\\|\\mathbf{d}\\|}\\)',
           ],
-          interactive: { file: '../Rag_illustration/index.html', label: 'RAG Pipeline Interactive' },
+          interactive: { file: 'Rag_illustration/index.html', label: 'RAG Pipeline Interactive' },
           tags: ['RAG', 'LLM', 'Embeddings', 'Vector DB'],
         },
       ],
@@ -843,9 +843,9 @@
      ---------------------------------------------------------- */
   function openIframe(topic, folder) {
     currentTopic = topic;
-    // If the file path starts with '../' or '/', use it directly (e.g. cross-folder interactives)
+    // If the file path contains a slash (e.g. 'Rag_illustration/index.html'), use it directly
     const file = topic.interactive.file;
-    const src = (file.startsWith('../') || file.startsWith('/')) ? file : folder + '/interactive/' + file;
+    const src = file.includes('/') ? file : folder + '/interactive/' + file;
 
     iframeTitle.textContent = topic.title;
     iframeLoading.classList.remove('hidden');
@@ -872,7 +872,7 @@
   iframeOpenBtn.addEventListener('click', () => {
     if (currentTopic && currentTopic.interactive && currentSubject) {
       const file = currentTopic.interactive.file;
-      const url = (file.startsWith('../') || file.startsWith('/')) ? file : currentSubject.folder + '/interactive/' + file;
+      const url = file.includes('/') ? file : currentSubject.folder + '/interactive/' + file;
       window.open(url, '_blank');
     }
   });
