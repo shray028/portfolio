@@ -1048,6 +1048,74 @@ input {
   transition: transform 0.4s var(--ease);
 }
 
+/* Native visual cards for report-backed projects without uploaded screenshots. */
+.project-art {
+  position: relative;
+  min-height: 290px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 28px;
+  color: #eff7ff;
+  background: linear-gradient(140deg, rgba(8, 15, 33, 0.16), rgba(5, 8, 16, 0.94)), radial-gradient(circle at 76% 24%, rgba(112, 181, 250, 0.55), transparent 34%), #101929;
+}
+
+.project-art::before,
+.project-art::after,
+.project-art-mark {
+  position: absolute;
+  content: '';
+  pointer-events: none;
+}
+
+.project-art::before {
+  inset: 0;
+  opacity: 0.18;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.project-art::after {
+  width: 155px;
+  height: 155px;
+  right: 42px;
+  top: 40px;
+  border: 2px solid rgba(202, 231, 255, 0.68);
+  border-radius: 50%;
+  box-shadow: 0 0 0 26px rgba(151, 211, 255, 0.08), 0 0 0 54px rgba(151, 211, 255, 0.05);
+}
+
+.project-art-kicker,
+.project-art strong { position: relative; z-index: 1; }
+
+.project-art-kicker { color: #a8dbff; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; }
+
+.project-art strong { max-width: 260px; font: 700 clamp(22px, 3vw, 32px)/1.08 var(--font-display); letter-spacing: -0.04em; }
+
+.project-art-mark {
+  z-index: 1;
+  right: 83px;
+  top: 81px;
+  width: 74px;
+  height: 74px;
+  border: 2px solid rgba(232, 248, 255, 0.9);
+  transform: rotate(45deg);
+}
+
+.project-art--bandit { background: linear-gradient(140deg, rgba(24, 11, 42, 0.12), rgba(7, 8, 16, 0.94)), radial-gradient(circle at 78% 28%, rgba(223, 124, 255, 0.48), transparent 34%), #1b1229; }
+.project-art--bandit::after { border-radius: 12px; transform: rotate(45deg); }
+.project-art--bandit .project-art-mark { border-radius: 50%; transform: none; }
+
+.project-art--lunar { background: linear-gradient(140deg, rgba(9, 17, 43, 0.08), rgba(5, 8, 16, 0.96)), radial-gradient(circle at 74% 22%, rgba(222, 227, 245, 0.75), transparent 21%), #09122c; }
+.project-art--lunar::after { width: 220px; height: 38px; top: auto; bottom: 52px; border-radius: 50%; border-width: 0 0 2px; box-shadow: none; }
+.project-art--lunar .project-art-mark { top: 105px; width: 0; height: 0; border: 30px solid transparent; border-top: 0; border-bottom: 58px solid rgba(219, 242, 255, 0.85); transform: none; }
+
+.project-art--summarization { background: linear-gradient(140deg, rgba(14, 41, 34, 0.08), rgba(5, 12, 14, 0.95)), radial-gradient(circle at 76% 25%, rgba(86, 224, 175, 0.44), transparent 33%), #0b221d; }
+.project-art--summarization::after { width: 158px; height: 112px; border-radius: 12px; box-shadow: 0 0 0 12px rgba(187, 255, 224, 0.07); }
+.project-art--summarization .project-art-mark { top: 78px; right: 70px; width: 100px; height: 2px; border: 0; background: rgba(230, 255, 243, 0.85); box-shadow: 0 18px 0 rgba(230, 255, 243, 0.65), 0 36px 0 rgba(230, 255, 243, 0.42); transform: none; }
+
 .project-tile-image:hover img {
   transform: scale(1.03);
 }
@@ -1285,6 +1353,16 @@ input {
   width: 100%;
   border-radius: 14px;
   border: 1px solid var(--line);
+}
+
+.detail-image .project-art {
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.iframe-open-btn[hidden] {
+  display: none;
 }
 
 /* Pipeline Steps */

@@ -521,14 +521,14 @@
      ---------------------------------------------------------- */
   const SUBJECTS = [
     {
-      id: 'mfml',
-      title: 'Mathematical Foundations for ML',
-      code: 'MFML — AIMLC ZC416',
-      description: 'Linear algebra, calculus, optimisation, PCA, and SVMs — with interactive visuals and key formulas.',
-      emoji: '📐',
-      accent: 'lavender',
-      folder: 'Subject_1_MFML',
-      conceptGroups: MFML_CONCEPTS,
+      id: 'seml',
+      title: 'Software Engineering for ML',
+      code: 'SEML — AIMLC ZG566',
+      description: 'Production GenAI systems, RAG pipelines, embeddings, vector databases, and LLM integration — with step-by-step interactive illustrations.',
+      emoji: '⚡',
+      accent: 'orange',
+      folder: 'Rag_illustration',
+      conceptGroups: SEML_CONCEPTS,
     },
     {
       id: 'ml',
@@ -541,14 +541,14 @@
       conceptGroups: ML_CONCEPTS,
     },
     {
-      id: 'seml',
-      title: 'Software Engineering for ML',
-      code: 'SEML — AIMLC ZG566',
-      description: 'Production GenAI systems, RAG pipelines, embeddings, vector databases, and LLM integration — with step-by-step interactive illustrations.',
-      emoji: '⚡',
-      accent: 'orange',
-      folder: 'Rag_illustration',
-      conceptGroups: SEML_CONCEPTS,
+      id: 'mfml',
+      title: 'Mathematical Foundations for ML',
+      code: 'MFML — AIMLC ZC416',
+      description: 'Linear algebra, calculus, optimisation, PCA, and SVMs — with interactive visuals and key formulas.',
+      emoji: '📐',
+      accent: 'lavender',
+      folder: 'Subject_1_MFML',
+      conceptGroups: MFML_CONCEPTS,
     },
   ];
 
@@ -1378,6 +1378,54 @@
         },
       ],
     },
+    {
+      id: 'drone-rescue-dp', category: 'ai',
+      title: 'Autonomous Drone Rescue with Dynamic Programming',
+      summary: 'Designed a grid-based autonomous rescue planner that uses dynamic programming to find an efficient route to an emergency target. The project models rescue navigation as sequential decision-making with explicit states, transitions, and a safe movement policy.',
+      art: 'drone', artKicker: 'DYNAMIC PROGRAMMING', artTitle: 'Rescue route optimiser',
+      tags: ['Python', 'Dynamic Programming', 'Path Planning', 'AI'],
+      results: [{ value: '5×5', label: 'Grid Environment' }, { value: 'DP', label: 'Planning Method' }, { value: 'AI', label: 'Rescue Agent' }],
+      steps: [
+        { title: 'Rescue Environment Modelling', description: 'Represented the emergency response scenario as a discrete grid world with valid state transitions, a rescue objective, and movement constraints.', learnings: ['A clear state representation turns real-world routing into a problem that can be solved systematically.', 'Separating environment rules from route evaluation keeps the planning logic interpretable and testable.'] },
+        { title: 'Dynamic Programming Policy', description: 'Applied dynamic programming to evaluate possible routes and select actions that improve the path toward the rescue target.', learnings: ['Dynamic programming reuses state values across decisions in a structured environment.', 'A route should be judged by its future consequences, not only the next move.'] },
+      ],
+    },
+    {
+      id: 'multi-armed-bandit', category: 'ai',
+      title: 'Multi-Armed Bandit Exploration Lab',
+      summary: 'Built and evaluated a multi-armed bandit experiment to study the exploration-exploitation trade-off in reinforcement learning. The lab simulates repeated action selection under uncertainty and tracks how an agent improves its reward choices over time.',
+      art: 'bandit', artKicker: 'REINFORCEMENT LEARNING', artTitle: 'Explore, exploit, learn',
+      tags: ['Python', 'Reinforcement Learning', 'Multi-Armed Bandits', 'Experimentation'],
+      results: [{ value: 'MAB', label: 'Learning Setting' }, { value: 'RL', label: 'Agent Framework' }, { value: '∞', label: 'Decision Rounds' }],
+      steps: [
+        { title: 'Bandit Environment', description: 'Set up an uncertain-reward environment in which the agent learns the value of each action through repeated interaction.', learnings: ['Bandits isolate the core RL challenge of acting with incomplete information.', 'Reward distributions matter more than individual outcomes when evaluating an action.'] },
+        { title: 'Exploration & Reward Analysis', description: 'Studied the balance between gathering information about uncertain actions and selecting the option currently expected to provide the highest reward.', learnings: ['Pure exploitation can lock an agent into early, incorrect beliefs.', 'Cumulative reward reveals long-run strategy quality more clearly than isolated outcomes.'] },
+      ],
+    },
+    {
+      id: 'robust-lunarlander-rl', category: 'ai',
+      title: 'Robust LunarLander RL under Action Failures',
+      summary: 'Modified LunarLander-v3 to introduce stochastic engine failures, then trained and compared DQN and Double DQN agents on both the original and failure-prone environments. The project tests whether deep RL policies remain effective when selected actions are not always executed as intended.',
+      art: 'lunar', artKicker: 'ROBUST DEEP RL', artTitle: 'DQN vs. Double DQN',
+      tags: ['Python', 'DQN', 'Double DQN', 'Gymnasium', 'Robustness'],
+      results: [{ value: '2', label: 'Environments' }, { value: 'DQN', label: 'Baseline Agent' }, { value: 'DDQN', label: 'Comparison Agent' }],
+      steps: [
+        { title: 'Failure-Aware Environment', description: 'Extended LunarLander-v3 with a stochastic action-failure mechanism to create a controlled robustness test alongside the original environment.', learnings: ['Idealised simulations can hide brittle policy behaviour.', 'Introducing a realistic failure mode gives a direct way to assess reliability.'] },
+        { title: 'DQN and Double DQN Comparison', description: 'Trained both agents under the same task framing and evaluated their learned landing policies across standard and perturbed environments.', learnings: ['DQN learns action values with a neural network in high-dimensional state spaces.', 'Double DQN reduces overestimation bias by decoupling action selection from target evaluation.'] },
+      ],
+    },
+    {
+      id: 'transformer-news-summarization', category: 'ai',
+      title: 'Transformer News Summarization System',
+      summary: 'Built an AI-based text summarization workflow for the DailyMail news dataset using pretrained Transformer encoder-decoder models. The project compares T5, BART, and PEGASUS to generate concise abstractive summaries from full-length news articles.',
+      art: 'summarization', artKicker: 'NATURAL LANGUAGE PROCESSING', artTitle: 'Long article → clear summary',
+      tags: ['Python', 'Transformers', 'T5', 'BART', 'PEGASUS', 'NLP'],
+      results: [{ value: '3', label: 'Transformer Models' }, { value: 'DailyMail', label: 'News Dataset' }, { value: 'Seq2Seq', label: 'Architecture' }],
+      steps: [
+        { title: 'Dataset Preparation', description: 'Prepared DailyMail news examples for supervised abstractive summarization, pairing article content with human-written summaries.', learnings: ['Summarization quality relies on preserving the relationship between source context and target summary.', 'News data tests whether salient facts are retained while redundancy is removed.'] },
+        { title: 'Transformer Comparison', description: 'Used pretrained T5, BART, and PEGASUS encoder-decoder models to generate and compare news summaries.', learnings: ['Encoder-decoder Transformers map one sequence into another while attending to relevant source context.', 'Direct qualitative review remains essential for catching omissions and unsupported wording.'] },
+      ],
+    },
   ];
 
   /* ----------------------------------------------------------
@@ -1390,6 +1438,16 @@
   const projectDetailGithub = document.getElementById('project-detail-github');
   const projectDetailScroll = document.getElementById('project-detail-scroll');
 
+  function projectMediaHtml(project, detail) {
+    if (project.image) {
+      const alt = detail ? project.title + ' Pipeline Overview' : project.title;
+      return '<img src="' + project.image + '" alt="' + alt + '" loading="lazy">';
+    }
+
+    return '<div class="project-art project-art--' + project.art + '"><span class="project-art-kicker">'
+      + project.artKicker + '</span><strong>' + project.artTitle + '</strong><span class="project-art-mark" aria-hidden="true"></span></div>';
+  }
+
   function renderProjectTiles() {
     projectTilesContainer.innerHTML = '';
 
@@ -1397,6 +1455,7 @@
     const projectOrder = [
       'autosar-rag-chatbot', 'nlp-resume-classification', 'breast-cancer', 'bike-sharing',
       'stock-price-forecasting', 'cnn-image-classification', 'linear-vs-mlp',
+      'drone-rescue-dp', 'multi-armed-bandit', 'robust-lunarlander-rl', 'transformer-news-summarization',
     ];
     const orderedProjects = projectOrder
       .map((id) => PROJECTS.find((p) => p.id === id))
@@ -1433,7 +1492,7 @@
 
       tile.innerHTML = `
         <div class="project-tile-image" data-project-idx="${index}">
-          <img src="${project.image}" alt="${project.title}" loading="lazy">
+          ${projectMediaHtml(project, false)}
           <span class="image-click-hint">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
             View Project
@@ -1455,6 +1514,8 @@
           </div>
         </div>
       `;
+
+      if (!project.github) tile.querySelector('.project-cta.secondary').remove();
 
       projectTilesContainer.appendChild(tile);
 
@@ -1494,7 +1555,8 @@
   function openProjectDetail(project, skipHash) {
     currentProject = project;
     projectDetailTitle.textContent = project.title;
-    projectDetailGithub.href = project.github;
+    projectDetailGithub.href = project.github || '#';
+    projectDetailGithub.hidden = !project.github;
     if (!skipHash) setHash('projects/' + project.id);
 
     // Build detail content
@@ -1511,7 +1573,7 @@
 
     // Detail Image
     html += '<div class="detail-image">';
-    html += '<img src="' + project.image + '" alt="' + project.title + ' Pipeline Overview">';
+    html += projectMediaHtml(project, true);
     html += '</div>';
 
     // Results Banner
