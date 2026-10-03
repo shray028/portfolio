@@ -339,7 +339,7 @@ const App = (() => {
   }
   function loop(){ if (mode) MODULES[mode].draw(); requestAnimationFrame(loop); }
   resize();
-  return { load, act, start(){ load('sigmoid'); loop(); } };
+  return { load, act, start(){ const h=location.hash.slice(1); load(MODULES[h] ? h : 'sigmoid'); window.addEventListener('hashchange', ()=>{ const k=location.hash.slice(1); if (MODULES[k] && k!==mode) load(k); }); loop(); } };
 })();
 App.start();
 </script>
