@@ -1833,6 +1833,14 @@ body.in-subject .contact {
   margin-top: 20px;
 }
 
+.detail-hero .detail-source-note {
+  max-width: 720px;
+  margin: 18px auto 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .detail-image {
   margin: 34px 0 0;
   aspect-ratio: 16 / 9;
