@@ -1204,53 +1204,69 @@
     {
       id: 'drone-rescue-dp', category: 'ai',
       title: 'Autonomous Drone Rescue with Dynamic Programming',
-      summary: 'Designed a grid-based autonomous rescue planner that uses dynamic programming to find an efficient route to an emergency target. The project models rescue navigation as sequential decision-making with explicit states, transitions, and a safe movement policy.',
+      summary: 'Developed a value-iteration rescue planner for a 5×5 grid with two targets, a charging station, wind, danger zones, blocked cells, and finite battery. The study models the full rescue mission as a Markov decision process, then visualizes the policy, trajectory, and state-value heatmaps. A compact runnable planner is available in the linked repository.',
+      image: 'Projects/Autonomous-Drone-Rescue/overview.png',
+      imageAlt: 'Illustrated 5 by 5 drone rescue grid with two targets, a charging station, blocked and danger cells, battery status, a Bellman update, and a planned trajectory.',
       github: 'https://github.com/shray028/autonomous-drone-rescue',
-      art: 'drone', artKicker: 'DYNAMIC PROGRAMMING', artTitle: 'Rescue route optimiser',
-      tags: ['Python', 'Dynamic Programming', 'Path Planning', 'AI'],
-      results: [{ value: '5×5', label: 'Grid Environment' }, { value: 'DP', label: 'Planning Method' }, { value: 'AI', label: 'Rescue Agent' }],
+      sourceNote: 'The full rescue study was completed collaboratively. The linked repository is a smaller runnable demonstration of its value-iteration planner.',
+      tags: ['Python', 'Value Iteration', 'MDP', 'Path Planning', 'Matplotlib'],
+      results: [{ value: '2,944', label: 'Modelled States' }, { value: '11', label: 'Value Iteration Sweeps' }, { value: '2', label: 'Rescue Targets' }],
       steps: [
-        { title: 'Rescue Environment Modelling', description: 'Represented the emergency response scenario as a discrete grid world with valid state transitions, a rescue objective, and movement constraints.', learnings: ['A clear state representation turns real-world routing into a problem that can be solved systematically.', 'Separating environment rules from route evaluation keeps the planning logic interpretable and testable.'] },
-        { title: 'Dynamic Programming Policy', description: 'Applied dynamic programming to evaluate possible routes and select actions that improve the path toward the rescue target.', learnings: ['Dynamic programming reuses state values across decisions in a structured environment.', 'A route should be judged by its future consequences, not only the next move.'] },
+        { title: 'Mission and State Design', description: 'Defined a 5×5 rescue environment with two targets, three danger zones, two blocked cells, one charger, 20% wind probability, and a 15-unit battery. A state tracks position, remaining battery, rescued targets, and whether the charger reward was claimed.', learnings: ['Battery and rescue-status flags make the policy mission-aware rather than merely finding the shortest geometric path.', 'Tracking charger use prevents the planner from farming its reward repeatedly.'] },
+        { title: 'Transition and Reward Model', description: 'Modelled up, down, left, right, and hover actions, including wind-affected movement and penalties for unsafe or costly states. Rescue, charging, movement, danger, and battery depletion each contribute to the return.', learnings: ['Explicit transition probabilities make uncertain movement part of the plan instead of a surprise at execution time.', 'Reward design determines whether the agent prioritizes rescue, safety, or battery conservation.'] },
+        { title: 'Value Iteration and Policy Extraction', description: 'Swept the state space using the Bellman optimality update with discount factor 0.95 and convergence threshold 0.001. The reported run covered 2,944 states and converged in 11 sweeps before extracting a rescue policy.', learnings: ['Dynamic programming reuses future state values across many possible routes.', 'Inspecting both the value function and the chosen actions helps catch reward-design mistakes.'] },
+        { title: 'Visual Analysis and Scale Limits', description: 'Produced policy arrows, a simulated trajectory, convergence curves, and heatmaps for different battery and rescue states. Analysed why adding targets, chargers, and battery levels rapidly expands the state space.', learnings: ['The same physical cell can have a different optimal action at low battery or after a rescue.', 'Tabular value iteration is useful for a small known world; larger or partially observed missions need function approximation or other planning methods.'] },
       ],
     },
     {
       id: 'multi-armed-bandit', category: 'ai',
       title: 'Multi-Armed Bandit Exploration Lab',
-      summary: 'Built and evaluated a multi-armed bandit experiment to study the exploration-exploitation trade-off in reinforcement learning. The lab simulates repeated action selection under uncertainty and tracks how an agent improves its reward choices over time.',
+      summary: 'Built reproducible simulations of the exploration–exploitation trade-off. A six-option synthetic allocation study compares early commitment, ε-greedy, and UCB1 over 1,000 decisions; a companion Gaussian-bandit implementation compares ε-greedy, UCB, and Thompson sampling across repeated runs.',
+      image: 'Projects/Multi-Armed-Bandit/overview.png',
+      imageAlt: 'Conceptual bandit diagram with six uncertain reward arms, an explore or exploit decision loop, and cumulative reward curves for epsilon-greedy, UCB, and Thompson sampling.',
       github: 'https://github.com/shray028/applied-ai-systems/tree/main/multi_armed_bandits',
-      art: 'bandit', artKicker: 'REINFORCEMENT LEARNING', artTitle: 'Explore, exploit, learn',
+      sourceNote: 'The synthetic allocation study was completed collaboratively. The linked repository contains a companion Gaussian-bandit experiment with Thompson sampling.',
       tags: ['Python', 'Reinforcement Learning', 'ε-Greedy', 'UCB', 'Thompson Sampling'],
-      results: [{ value: '3', label: 'Strategies Compared' }, { value: '1,000', label: 'Steps per Run' }, { value: 'Gaussian', label: 'Reward Model' }],
+      results: [{ value: '1,000', label: 'Simulated Decisions' }, { value: '3', label: 'Policies Compared' }, { value: '503.5', label: 'ε-Greedy Utility in Study' }],
       steps: [
-        { title: 'Bandit Environment', description: 'Set up an uncertain-reward environment in which the agent learns the value of each action through repeated interaction.', learnings: ['Bandits isolate the core RL challenge of acting with incomplete information.', 'Reward distributions matter more than individual outcomes when evaluating an action.'] },
-        { title: 'Exploration & Reward Analysis', description: 'Studied the balance between gathering information about uncertain actions and selecting the option currently expected to provide the highest reward.', learnings: ['Pure exploitation can lock an agent into early, incorrect beliefs.', 'Cumulative reward reveals long-run strategy quality more clearly than isolated outcomes.'] },
+        { title: 'Synthetic Decision Environment', description: 'Created six options with hidden success probabilities and a repeatable stream of 1,000 simulated cases. The study scores each outcome with a severity-adjusted utility, so policies can be compared on the same sequence.', learnings: ['A controlled simulation exposes the cost of decisions made with incomplete information.', 'Fixed seeds and the same case stream make policy comparisons easier to interpret.'] },
+        { title: 'Exploration Policies', description: 'Compared an early-commitment baseline, ε-greedy with 10% exploration, and UCB1. The companion code extends the investigation to ten Gaussian arms and adds Thompson sampling.', learnings: ['Committing after a small trial can lock onto a suboptimal option.', 'UCB uses an uncertainty bonus, while Thompson sampling draws from a posterior to choose what to try next.'] },
+        { title: 'Reward and Convergence Analysis', description: 'Tracked cumulative utility, the preferred option in 200-decision windows, a rolling best-option selection rate, and reward stability. In the submitted synthetic run, ε-greedy reached 503.5 utility, ahead of early commitment at 466.6 and UCB1 at 450.0.', learnings: ['The highest single-run reward is an observation about this simulation, not a universal ranking of algorithms.', 'Selection history explains why a policy earned its reward more clearly than the final total alone.'] },
+        { title: 'Reusable Experiment Harness', description: 'The linked Python module runs hundreds of seeded Gaussian-bandit trials, updates action-value estimates incrementally, and plots mean cumulative reward for ε-greedy, UCB, and Thompson sampling.', learnings: ['Repeated runs help smooth out lucky or unlucky reward draws.', 'Incremental value updates avoid storing every previous observation.'] },
       ],
     },
     {
       id: 'robust-lunarlander-rl', category: 'ai',
       title: 'Robust LunarLander RL under Action Failures',
-      summary: 'Modified LunarLander-v3 to introduce stochastic engine failures, then trained and compared DQN and Double DQN agents on both the original and failure-prone environments. The project tests whether deep RL policies remain effective when selected actions are not always executed as intended.',
+      summary: 'Studied how DQN and Double DQN behave when LunarLander-v3 thruster commands can fail. A modified environment introduces 15% no-thrust misfires, a fuel cost, and a safe-landing bonus; four training setups compare reward, landing rate, Q-values, and thruster use.',
+      image: 'Projects/Robust-LunarLander/overview.png',
+      imageAlt: 'Illustrated LunarLander descending toward a pad, a thruster command becoming no thrust, and side-by-side DQN and Double DQN network diagrams.',
       github: 'https://github.com/shray028/applied-ai-systems/tree/main/robust_lunarlander',
-      art: 'lunar', artKicker: 'ROBUST DEEP RL', artTitle: 'DQN vs. Double DQN',
+      sourceNote: 'The four-run robustness study was completed collaboratively. The linked repository is a compact training demo of action failures and DQN variants.',
       tags: ['Python', 'DQN', 'Double DQN', 'Gymnasium', 'Robustness'],
-      results: [{ value: '2', label: 'Environments' }, { value: 'DQN', label: 'Baseline Agent' }, { value: 'DDQN', label: 'Comparison Agent' }],
+      results: [{ value: '15%', label: 'Thruster Misfire Rate' }, { value: '4', label: 'Training Setups' }, { value: '0.68', label: 'DDQN Landing Rate Under Failure' }],
       steps: [
-        { title: 'Failure-Aware Environment', description: 'Extended LunarLander-v3 with a stochastic action-failure mechanism to create a controlled robustness test alongside the original environment.', learnings: ['Idealised simulations can hide brittle policy behaviour.', 'Introducing a realistic failure mode gives a direct way to assess reliability.'] },
-        { title: 'DQN and Double DQN Comparison', description: 'Trained both agents under the same task framing and evaluated their learned landing policies across standard and perturbed environments.', learnings: ['DQN learns action values with a neural network in high-dimensional state spaces.', 'Double DQN reduces overestimation bias by decoupling action selection from target evaluation.'] },
+        { title: 'Failure-Aware Environment', description: 'Wrapped LunarLander-v3 so 15% of selected thruster actions become no thrust. The full study also charges a 0.3 fuel penalty for an attempted thruster action and grants a 50-point bonus only when explicit safe-landing conditions hold.', learnings: ['The action selected by an agent can differ from the action the environment executes.', 'Reward shaping and failure injection must be documented together to interpret the results.'] },
+        { title: 'DQN and Double DQN Training', description: 'Trained DQN and Double DQN against both original and modified environments using replay memory, a target network, ε-greedy exploration, and neural action-value estimates.', learnings: ['DQN uses a target network to stabilize temporal-difference updates.', 'Double DQN separates next-action selection from target-value evaluation to reduce max-operator bias.'] },
+        { title: 'Robustness Evaluation', description: 'Compared rolling reward, safe-landing rate, predicted Q-values, and attempted versus executed thruster activations. In the reported single-seed run, Double DQN reached about 0.68 landing rate under failure versus about 0.58 for DQN.', learnings: ['Landing rate gives a more task-specific signal than reward alone.', 'Under misfires, attempted and executed thruster counts reveal whether the failure wrapper is behaving as designed.'] },
+        { title: 'Interpretation and Limitations', description: 'The modified setup changed misfires, fuel cost, and landing bonus together; a single run cannot isolate each effect. The study identifies multi-seed evaluation and one-factor ablations as the next steps.', learnings: ['Lower predicted Q-values do not by themselves prove less estimation bias without true values.', 'Ablations and repeated seeds are needed before claiming a robust algorithmic advantage.'] },
       ],
     },
     {
       id: 'transformer-news-summarization', category: 'ai',
       title: 'Transformer News Summarization System',
-      summary: 'Built an AI-based text summarization workflow for the DailyMail news dataset using pretrained Transformer encoder-decoder models. The project compares T5, BART, and PEGASUS to generate concise abstractive summaries from full-length news articles.',
+      summary: 'Built an abstractive news-summarization evaluation pipeline using pretrained T5, BART, and PEGASUS encoder–decoder models. On the same 1,000 held-out DailyMail articles, the system compares generated summaries with ROUGE, BLEU, and qualitative review; BART-large-CNN led the reported ROUGE-L comparison.',
+      image: 'Projects/Transformer-News-Summarization/overview.png',
+      imageAlt: 'Long news article passing through tokenization and Transformer encoder-decoder blocks into a short summary, with T5, BART, and PEGASUS comparison cards.',
       github: 'https://github.com/shray028/transformer-news-summarization',
-      art: 'summarization', artKicker: 'NATURAL LANGUAGE PROCESSING', artTitle: 'Long article → clear summary',
+      sourceNote: 'The three-model evaluation was completed collaboratively. The linked repository is a lightweight inference CLI; the larger study used the DailyMail test set and additional evaluation code.',
       tags: ['Python', 'Transformers', 'T5', 'BART', 'PEGASUS', 'NLP'],
-      results: [{ value: '3', label: 'Transformer Models' }, { value: 'DailyMail', label: 'News Dataset' }, { value: 'Seq2Seq', label: 'Architecture' }],
+      results: [{ value: '1,000', label: 'Held-Out Articles' }, { value: '3', label: 'Pretrained Models' }, { value: '30.556', label: 'BART ROUGE-L F1' }],
       steps: [
-        { title: 'Dataset Preparation', description: 'Prepared DailyMail news examples for supervised abstractive summarization, pairing article content with human-written summaries.', learnings: ['Summarization quality relies on preserving the relationship between source context and target summary.', 'News data tests whether salient facts are retained while redundancy is removed.'] },
-        { title: 'Transformer Comparison', description: 'Used pretrained T5, BART, and PEGASUS encoder-decoder models to generate and compare news summaries.', learnings: ['Encoder-decoder Transformers map one sequence into another while attending to relevant source context.', 'Direct qualitative review remains essential for catching omissions and unsupported wording.'] },
+        { title: 'Dataset and Text Preparation', description: 'Loaded a fixed sample of 1,000 held-out DailyMail test articles and their human-written highlights. Cleaned text, tokenized inputs for each checkpoint, and kept the same sample across all model comparisons.', learnings: ['A shared test set is essential for a fair comparison.', 'Long articles need truncation or chunking; this study truncated inputs to fit model context limits.'] },
+        { title: 'Resource-Aware Inference', description: 'Generated summaries sequentially with pretrained T5-small, BART-large-CNN, and PEGASUS-CNN/DailyMail. Loaded one model at a time, used deterministic beam search, and kept PEGASUS in FP32 after FP16 produced empty summaries in the study runtime.', learnings: ['Model precision settings can affect output validity, not only speed.', 'Sequential loading makes a multi-model experiment possible on limited memory.'] },
+        { title: 'Quantitative and Qualitative Evaluation', description: 'Measured ROUGE-1, ROUGE-2, ROUGE-L, BLEU, and conditional reference perplexity, then inspected sample summaries for omissions and unsupported wording. BART scored 30.556 ROUGE-L F1 and 20.640 ROUGE-2 F1 on the reported set.', learnings: ['ROUGE and BLEU measure overlap with a reference, not factual accuracy.', 'Perplexity is supplementary here because the models use different tokenizers.'] },
+        { title: 'Reading-Length Analysis and Limits', description: 'Compared article and summary lengths as a reading-time proxy: the reported averages were 682.5 and 51.9 words, respectively. Documented model-context truncation and the need for human review before relying on generated summaries.', learnings: ['A shorter summary saves estimated reading time but can omit important details.', 'The reported 92.4% reduction is a length estimate, not a measured user-study outcome.'] },
       ],
     },
   ];
@@ -1789,7 +1805,7 @@
 
   function projectMediaHtml(project, detail) {
     if (project.image) {
-      const alt = project.title + (detail ? ' — pipeline overview' : '');
+      const alt = project.imageAlt || project.title + (detail ? ' — pipeline overview' : '');
       return '<img src="' + project.image + '" alt="' + alt + '" loading="lazy" decoding="async">';
     }
     return '<div class="project-art project-art--' + project.art + '"><span class="project-art-kicker">' +
@@ -1868,6 +1884,7 @@
       html += '<h1>' + project.title + '</h1>';
       html += '<p>' + project.summary + '</p>';
       html += '<div class="project-tags">' + project.tags.map((t) => '<span class="ptag">' + t + '</span>').join('') + '</div>';
+      if (project.sourceNote) html += '<p class="detail-source-note">' + project.sourceNote + '</p>';
       html += '</header>';
 
       html += '<div class="detail-image">' + projectMediaHtml(project, true) + '</div>';
