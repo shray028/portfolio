@@ -1,6 +1,6 @@
 /* ============================================================
    Portfolio — App Logic
-   Subject navigation, concept groups, iframe + theory overlays
+   Data (subjects, topics, projects), rendering, overlays and hash routing
    ============================================================ */
 
 (function () {
@@ -254,7 +254,7 @@
             '\\(\\hat y = \\mathbf{w}^T\\mathbf{x}\\)',
             '\\(J(\\mathbf{w}) = \\frac{1}{2n}\\sum_{i=1}^{n}(y_i - \\mathbf{w}^T\\mathbf{x}_i)^2\\)',
           ],
-          interactive: { file: 'ml-03-linear-regression.html', label: 'Linear Regression Lab' },
+          interactive: { file: 'ml-03-linear-regression.html#fit', label: 'Fit It By Hand' },
           tags: ['Interactive', 'Least Squares'],
         },
         {
@@ -265,7 +265,10 @@
             '\\(\\mathbf{w}_{t+1} = \\mathbf{w}_t - \\eta\\nabla J(\\mathbf{w}_t)\\)',
             '\\(\\nabla J = -\\frac{1}{n}X^T(\\mathbf{y} - X\\mathbf{w})\\)',
           ],
-          interactive: { file: 'ml-03-linear-regression.html', label: 'Loss Bowl & GD Variants' },
+          interactive: { file: 'ml-03-linear-regression.html#surface', label: 'The Loss Bowl' },
+          extras: [
+            { file: 'ml-03-linear-regression.html#variants', label: 'Batch vs SGD vs Mini-batch' },
+          ],
           tags: ['Interactive', 'Gradient Descent'],
         },
         {
@@ -276,7 +279,12 @@
             '\\(J_{\\text{ridge}} = J + \\lambda\\sum_{j} w_j^2\\)',
             '\\(J_{\\text{lasso}} = J + \\lambda\\sum_{j} |w_j|\\)',
           ],
-          interactive: { file: 'ml-04-bias-variance-regularisation.html', label: 'Bias–Variance Lab' },
+          interactive: { file: 'ml-04-bias-variance-regularisation.html#bv', label: 'Bias vs Variance' },
+          extras: [
+            { file: 'ml-04-bias-variance-regularisation.html#basis', label: 'Basis Functions' },
+            { file: 'ml-04-bias-variance-regularisation.html#reg', label: 'Ridge Regularisation' },
+            { file: 'ml-04-bias-variance-regularisation.html#curve', label: 'The U-Curve' },
+          ],
           tags: ['Interactive', 'Regularisation'],
         },
       ],
@@ -302,7 +310,11 @@
             '\\(\\sigma(z) = \\frac{1}{1+e^{-z}}\\)',
             '\\(J = -\\frac{1}{n}\\sum[y_i\\log p_i + (1-y_i)\\log(1-p_i)]\\)',
           ],
-          interactive: { file: 'ml-05-logistic-softmax.html', label: 'Logistic Regression Lab' },
+          interactive: { file: 'ml-05-logistic-softmax.html#sigmoid', label: 'The Sigmoid' },
+          extras: [
+            { file: 'ml-05-logistic-softmax.html#loss', label: 'Cross-Entropy Loss' },
+            { file: 'ml-05-logistic-softmax.html#boundary', label: 'Train a Classifier' },
+          ],
           tags: ['Interactive', 'Sigmoid'],
         },
         {
@@ -311,7 +323,7 @@
           formulas: [
             '\\(P(y=k \\mid \\mathbf{x}) = \\frac{e^{z_k}}{\\sum_{j=1}^{K} e^{z_j}}\\)',
           ],
-          interactive: { file: 'ml-05-logistic-softmax.html', label: 'Softmax Playground' },
+          interactive: { file: 'ml-05-logistic-softmax.html#softmax', label: 'Softmax Playground' },
           tags: ['Interactive', 'Softmax'],
         },
       ],
@@ -328,14 +340,17 @@
             '\\(H(S) = -\\sum_{k} p_k \\log_2 p_k\\)',
             '\\(IG(S,A) = H(S) - \\sum_v \\frac{|S_v|}{|S|} H(S_v)\\)',
           ],
-          interactive: { file: 'ml-06-decision-trees.html', label: 'Entropy & Information Gain' },
+          interactive: { file: 'ml-06-decision-trees.html#entropy', label: 'Entropy' },
+          extras: [
+            { file: 'ml-06-decision-trees.html#gain', label: 'Information Gain' },
+          ],
           tags: ['Interactive', 'Entropy'],
         },
         {
           title: 'Construction, Overfitting & Pruning',
           notes: 'For continuous features, test thresholds x\u2c7c \u2264 t. Trees can memorise training data. Pre-pruning stops growth early (max depth, min samples). Post-pruning removes branches that don\'t improve validation. A tree split is not proof of causation\u2014only a rule that improved the training objective.',
           formulas: [],
-          interactive: { file: 'ml-06-decision-trees.html', label: 'Grow the Tree' },
+          interactive: { file: 'ml-06-decision-trees.html#grow', label: 'Grow the Tree' },
           tags: ['Interactive', 'Pruning'],
         },
       ],
@@ -351,7 +366,10 @@
           formulas: [
             '\\(d(\\mathbf{x}, \\mathbf{x}\\prime) = \\sqrt{\\sum_{j}(x_j - x_j\\prime)^2}\\)',
           ],
-          interactive: { file: 'ml-07-knn-lwr.html', label: 'k-NN Lab' },
+          interactive: { file: 'ml-07-knn-lwr.html#vote', label: 'The k-NN Vote' },
+          extras: [
+            { file: 'ml-07-knn-lwr.html#regions', label: 'Decision Regions' },
+          ],
           tags: ['Interactive', 'k-NN'],
         },
         {
@@ -360,7 +378,7 @@
           formulas: [
             '\\(w_i(\\mathbf{x}) = \\exp\\left(-\\frac{\\|\\mathbf{x}-\\mathbf{x}_i\\|^2}{2\\tau^2}\\right)\\)',
           ],
-          interactive: { file: 'ml-07-knn-lwr.html', label: 'LWR Explorer' },
+          interactive: { file: 'ml-07-knn-lwr.html#lwr', label: 'Locally Weighted Regression' },
           tags: ['Interactive', 'Kernels'],
         },
       ],
@@ -377,7 +395,7 @@
             '\\(\\min_{\\mathbf{w},b} \\frac{1}{2}\\|\\mathbf{w}\\|^2\\)',
             '\\(y_i(\\mathbf{w}^T\\mathbf{x}_i + b) \\geq 1\\)',
           ],
-          interactive: { file: 'ml-08-svm.html', label: 'Maximum Margin Lab' },
+          interactive: { file: 'ml-08-svm.html#margin', label: 'Maximum Margin' },
           tags: ['Interactive', 'Margin'],
         },
         {
@@ -387,7 +405,10 @@
             '\\(\\min \\frac{1}{2}\\|\\mathbf{w}\\|^2 + C\\sum_i \\xi_i\\)',
             '\\(K(\\mathbf{x},\\mathbf{z}) = \\exp(-\\gamma\\|\\mathbf{x}-\\mathbf{z}\\|^2)\\)',
           ],
-          interactive: { file: 'ml-08-svm.html', label: 'Soft Margin & Kernels' },
+          interactive: { file: 'ml-08-svm.html#soft', label: 'Soft Margin & C' },
+          extras: [
+            { file: 'ml-08-svm.html#kernel', label: 'The Kernel Trick' },
+          ],
           tags: ['Interactive', 'Kernel Trick'],
         },
       ],
@@ -405,7 +426,10 @@
             '\\(\\hat\\theta_{\\text{MLE}} = \\arg\\max_\\theta P(D \\mid \\theta)\\)',
             '\\(\\hat\\theta_{\\text{MAP}} = \\arg\\max_\\theta P(D \\mid \\theta)P(\\theta)\\)',
           ],
-          interactive: { file: 'ml-09-bayesian-learning.html', label: 'Bayes Rule & MLE/MAP' },
+          interactive: { file: 'ml-09-bayesian-learning.html#bayes', label: 'Bayes Rule' },
+          extras: [
+            { file: 'ml-09-bayesian-learning.html#mlemap', label: 'MLE vs MAP' },
+          ],
           tags: ['Interactive', 'Bayes'],
         },
         {
@@ -414,7 +438,7 @@
           formulas: [
             '\\(P(C \\mid \\mathbf{x}) \\propto P(C)\\prod_{j=1}^{d} P(x_j \\mid C)\\)',
           ],
-          interactive: { file: 'ml-09-bayesian-learning.html', label: 'Naive Bayes Spam Filter' },
+          interactive: { file: 'ml-09-bayesian-learning.html#naive', label: 'Naive Bayes Spam Filter' },
           tags: ['Interactive', 'Naive Bayes'],
         },
       ],
@@ -428,14 +452,20 @@
           title: 'Bagging & Random Forests',
           notes: 'Bagging trains each base model on a bootstrap sample and averages predictions. It mainly reduces variance. ~36.8% of examples are out-of-bag per sample and can estimate performance. Random forests add random feature selection at each split, reducing tree correlation and improving the average.',
           formulas: [],
-          interactive: { file: 'ml-10-ensembles.html', label: 'Bagging & Forests Lab' },
+          interactive: { file: 'ml-10-ensembles.html#bagging', label: 'Bagging & Forests' },
+          extras: [
+            { file: 'ml-10-ensembles.html#wisdom', label: 'Wisdom of Crowds' },
+          ],
           tags: ['Interactive', 'Bagging'],
         },
         {
           title: 'Boosting, AdaBoost & Gradient Boosting',
           notes: 'Boosting builds weak learners sequentially, each focusing on errors left by predecessors. AdaBoost reweights misclassified examples. Gradient boosting fits the next learner to current residuals/negative gradient. XGBoost adds shrinkage, tree-complexity regularisation, and row/column sampling for efficiency.',
           formulas: [],
-          interactive: { file: 'ml-10-ensembles.html', label: 'Boosting Lab' },
+          interactive: { file: 'ml-10-ensembles.html#boost', label: 'AdaBoost' },
+          extras: [
+            { file: 'ml-10-ensembles.html#gboost', label: 'Gradient Boosting' },
+          ],
           tags: ['Interactive', 'Boosting'],
         },
       ],
@@ -451,7 +481,10 @@
           formulas: [
             '\\(\\min \\sum_{k=1}^{K}\\sum_{\\mathbf{x}_i \\in C_k} \\|\\mathbf{x}_i - \\boldsymbol{\\mu}_k\\|^2\\)',
           ],
-          interactive: { file: 'ml-11-clustering.html', label: 'k-Means Stepper' },
+          interactive: { file: 'ml-11-clustering.html#kmeans', label: 'k-Means Stepper' },
+          extras: [
+            { file: 'ml-11-clustering.html#elbow', label: 'Choosing k' },
+          ],
           tags: ['Interactive', 'Clustering'],
         },
         {
@@ -461,7 +494,7 @@
             '\\(p(\\mathbf{x}) = \\sum_{k=1}^{K} \\pi_k\\,\\mathcal{N}(\\mathbf{x} \\mid \\boldsymbol{\\mu}_k, \\Sigma_k)\\)',
             '\\(\\boldsymbol{\\mu}_k = \\frac{\\sum_i \\gamma_{ik}\\mathbf{x}_i}{\\sum_i \\gamma_{ik}}\\)',
           ],
-          interactive: { file: 'ml-11-clustering.html', label: 'GMM & EM Lab' },
+          interactive: { file: 'ml-11-clustering.html#gmm', label: 'GMM & EM' },
           tags: ['Interactive', 'EM'],
         },
       ],
@@ -479,7 +512,12 @@
             '\\(\\text{recall} = \\frac{TP}{TP+FN}\\)',
             '\\(F_1 = 2\\frac{\\text{prec} \\cdot \\text{rec}}{\\text{prec} + \\text{rec}}\\)',
           ],
-          interactive: { file: 'ml-12-evaluation.html', label: 'Metrics, ROC & CV Lab' },
+          interactive: { file: 'ml-12-evaluation.html#confusion', label: 'Threshold & Confusion' },
+          extras: [
+            { file: 'ml-12-evaluation.html#roc', label: 'ROC & AUC' },
+            { file: 'ml-12-evaluation.html#pr', label: 'Precision–Recall' },
+            { file: 'ml-12-evaluation.html#cv', label: 'Cross-Validation' },
+          ],
           tags: ['Interactive', 'Metrics'],
         },
         {
@@ -551,392 +589,6 @@
       conceptGroups: MFML_CONCEPTS,
     },
   ];
-
-  /* ----------------------------------------------------------
-     DOM REFERENCES
-     ---------------------------------------------------------- */
-  const navLinks = document.querySelectorAll('.topbar nav a[data-section]');
-  const subjectsSection = document.getElementById('subjects-section');
-  const projectsSection = document.getElementById('projects-section');
-
-  const subjectsList = document.getElementById('subjects-list');
-  const topicsView = document.getElementById('topics-view');
-  const backToSubjectsBtn = document.getElementById('back-to-subjects');
-  const topicsEyebrow = document.getElementById('topics-eyebrow');
-  const topicsTitle = document.getElementById('topics-title');
-  const conceptContainer = document.getElementById('concept-groups-container');
-
-  const iframeOverlay = document.getElementById('iframe-overlay');
-  const iframeEl = document.getElementById('interactive-frame');
-  const iframeTitle = document.getElementById('iframe-title');
-  const iframeLoading = document.getElementById('iframe-loading');
-  const iframeBackBtn = document.getElementById('iframe-back');
-  const iframeOpenBtn = document.getElementById('iframe-open-new');
-
-  const theoryOverlay = document.getElementById('theory-overlay');
-  const theoryBackBtn = document.getElementById('theory-back');
-  const theoryTitle = document.getElementById('theory-overlay-title');
-  const theoryContent = document.getElementById('theory-content');
-
-  /* ----------------------------------------------------------
-     STATE
-     ---------------------------------------------------------- */
-  let currentSubject = null;
-  let currentTopic = null;
-
-  const projectsHeroSubtitle = 'I build production GenAI systems and visualize the concepts behind them.';
-    const projectsHeroHighlights = [
-      'End-to-end ML systems - from data cleaning, feature engineering to deployed apps',
-      'GenAI in practice - RAG pipelines, embeddings, and LLM integration on real documents',
-      'Strong conceptual foundations - I build 3D visualizations to understand concepts in depth'
-    ];
-
-  /* ----------------------------------------------------------
-     TAB SWITCHING
-     ---------------------------------------------------------- */
-  function switchSection(sectionId) {
-    const heroSubtitle = document.getElementById('hero-subtitle');
-    const heroHighlights = document.getElementById('hero-highlights');
-
-    navLinks.forEach((link) => {
-      link.classList.toggle('active', link.dataset.section === sectionId);
-    });
-    const statsStrip = document.getElementById('stats-strip');
-    if (sectionId === 'subjects') {
-      subjectsSection.classList.add('active');
-      projectsSection.classList.remove('active');
-      document.getElementById('hero-title').textContent = 'Concepts learnt so far';
-      heroSubtitle.textContent = 'Learning with interactive 3D visualisers and important concepts';
-      heroHighlights.classList.add('hidden');
-      statsStrip.classList.remove('hidden');
-    } else {
-      projectsSection.classList.add('active');
-      subjectsSection.classList.remove('active');
-      document.getElementById('hero-title').textContent = 'AI/ML Engineer';
-      heroSubtitle.textContent = projectsHeroSubtitle;
-      heroHighlights.innerHTML = projectsHeroHighlights.map((highlight) => `<li>${highlight}</li>`).join('');
-      heroHighlights.classList.remove('hidden');
-      statsStrip.classList.add('hidden');
-    }
-  }
-
-  navLinks.forEach((link) => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigate(link.dataset.section);
-    });
-  });
-
-  /* ----------------------------------------------------------
-     RENDER SUBJECT CARDS
-     ---------------------------------------------------------- */
-  function countSubjectStats(subject) {
-    let totalTopics = 0;
-    let withInteractive = 0;
-    let totalPages = 0;
-    subject.conceptGroups.forEach((g) => {
-      g.topics.forEach((t) => {
-        totalTopics++;
-        if (t.interactive) { withInteractive++; totalPages++; }
-        if (t.extras) totalPages += t.extras.length;
-      });
-    });
-    return { totalTopics, withInteractive, totalPages };
-  }
-
-  function renderSubjectsList() {
-    subjectsList.innerHTML = '';
-
-    const header = document.createElement('div');
-    header.className = 'subjects-list-header fade-in-up';
-    header.innerHTML = '<span class="section-eyebrow">YOUR SUBJECTS</span><h2>Choose a Subject</h2>';
-    subjectsList.appendChild(header);
-
-    const grid = document.createElement('div');
-    grid.className = 'subject-cards-grid';
-
-    SUBJECTS.forEach((subject) => {
-      const stats = countSubjectStats(subject);
-      const card = document.createElement('div');
-      card.className = 'subject-card accent-' + subject.accent + ' fade-in-up';
-      card.setAttribute('tabindex', '0');
-      card.setAttribute('role', 'button');
-      card.innerHTML = `
-        <div class="sc-left">
-          <span class="sc-emoji">${subject.emoji}</span>
-          <div class="sc-info">
-            <h3>${subject.title}</h3>
-            <span class="sc-code">${subject.code}</span>
-            <p>${subject.description}</p>
-          </div>
-        </div>
-        <div class="sc-right">
-          <div class="sc-stats">
-            <span class="sc-stat"><strong>${stats.totalTopics}</strong> topics</span>
-            <span class="sc-stat"><strong>${stats.totalPages}</strong> interactive</span>
-            <span class="sc-stat"><strong>${subject.conceptGroups.length}</strong> groups</span>
-          </div>
-          <span class="sc-arrow">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </span>
-        </div>
-      `;
-      card.addEventListener('click', () => openSubject(subject));
-      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSubject(subject); } });
-      grid.appendChild(card);
-    });
-
-    subjectsList.appendChild(grid);
-
-    requestAnimationFrame(() => {
-      subjectsList.querySelectorAll('.fade-in-up').forEach((el, i) => {
-        setTimeout(() => el.classList.add('visible'), i * 80);
-      });
-    });
-  }
-
-  /* ----------------------------------------------------------
-     SUBJECT DRILL-DOWN
-     ---------------------------------------------------------- */
-  function openSubject(subject, skipHash) {
-    currentSubject = subject;
-    subjectsList.classList.add('hidden');
-    topicsView.classList.remove('hidden');
-
-    topicsEyebrow.textContent = subject.code;
-    topicsTitle.textContent = subject.title;
-
-    renderConceptGroups(subject);
-    updateProgress(subject);
-    if (!skipHash) setHash('subjects/' + subject.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function closeSubject(skipHash) {
-    topicsView.classList.add('hidden');
-    subjectsList.classList.remove('hidden');
-    conceptContainer.innerHTML = '';
-    currentSubject = null;
-    if (!skipHash) setHash('subjects');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  backToSubjectsBtn.addEventListener('click', () => closeSubject());
-
-  function updateProgress(subject) {
-    const stats = countSubjectStats(subject);
-    const pct = stats.totalTopics > 0 ? Math.round((stats.withInteractive / stats.totalTopics) * 100) : 0;
-    document.getElementById('progress-label').innerHTML =
-      '<strong>' + stats.withInteractive + '</strong> of ' + stats.totalTopics + ' topics have interactives';
-    document.getElementById('progress-fill').style.width = pct + '%';
-  }
-
-  /* ----------------------------------------------------------
-     RENDER CONCEPT GROUPS & TOPIC CARDS
-     ---------------------------------------------------------- */
-  function createTopicCard(topic, subjectAccent, subjectFolder) {
-    const card = document.createElement('div');
-    const hasInteractive = !!topic.interactive;
-    card.className = 'topic-card fade-in-up accent-' + subjectAccent + (hasInteractive ? '' : ' theory-only');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('role', 'button');
-
-    const tagsHtml = topic.tags
-      .map((tag) => {
-        const cls = tag === 'Theory' ? 'tag theory-tag' : 'tag';
-        return '<span class="' + cls + '">' + tag + '</span>';
-      })
-      .join('');
-
-    const statusTag = hasInteractive
-      ? '<span class="tag available">\u2726 Interactive</span>'
-      : '<span class="tag theory-tag">\u25c8 Theory</span>';
-
-    const extrasCount = topic.extras ? topic.extras.length : 0;
-    const extrasHtml = extrasCount
-      ? '<span class="card-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>' + extrasCount + ' bonus</span>'
-      : '';
-
-    const formulasHtml = topic.formulas.length
-      ? '<div class="topic-formulas">' + topic.formulas.map((f) => '<span class="formula">' + f + '</span>').join('') + '</div>'
-      : '';
-
-    const actionHtml = hasInteractive
-      ? '<span class="card-action">Launch <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>'
-      : '<span class="card-action">View Notes <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>';
-
-    card.innerHTML =
-      '<div class="card-accent-bar"></div>' +
-      '<div class="card-body">' +
-      '<div class="tag-row">' + statusTag + tagsHtml + '</div>' +
-      '<h3>' + topic.title + '</h3>' +
-      '<p class="topic-notes">' + topic.notes + '</p>' +
-      formulasHtml +
-      '<div class="card-footer">' + extrasHtml + actionHtml + '</div>' +
-      '</div>';
-
-    function activateCard() {
-      if (hasInteractive) {
-        openIframe(topic, subjectFolder);
-      } else {
-        openTheory(topic, subjectAccent);
-      }
-    }
-    card.addEventListener('click', activateCard);
-    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateCard(); } });
-
-    return card;
-  }
-
-  function renderConceptGroups(subject) {
-    conceptContainer.innerHTML = '';
-    const accent = subject.accent;
-
-    subject.conceptGroups.forEach((group) => {
-      const header = document.createElement('div');
-      header.className = 'concept-group-header accent-' + accent + ' fade-in-up';
-      header.innerHTML =
-        '<div class="cg-icon">' + group.icon + '</div>' +
-        '<div class="cg-info">' +
-        '<h3>' + group.title + '</h3>' +
-        '<span class="cg-count">' + group.topics.length + ' topic' + (group.topics.length > 1 ? 's' : '') + '</span>' +
-        '</div>';
-      conceptContainer.appendChild(header);
-
-      const grid = document.createElement('div');
-      grid.className = 'topic-grid';
-      group.topics.forEach((topic) => {
-        grid.appendChild(createTopicCard(topic, accent, subject.folder));
-      });
-      conceptContainer.appendChild(grid);
-    });
-
-    requestAnimationFrame(() => {
-      conceptContainer.querySelectorAll('.fade-in-up').forEach((el, i) => {
-        setTimeout(() => el.classList.add('visible'), i * 50);
-      });
-    });
-
-    typesetMathJax(conceptContainer);
-  }
-
-  /* ----------------------------------------------------------
-     MATHJAX HELPER
-     ---------------------------------------------------------- */
-  function typesetMathJax(container) {
-    if (window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetPromise([container]).catch(() => { });
-    } else {
-      const mjScript = document.getElementById('MathJax-script');
-      if (mjScript) {
-        mjScript.addEventListener('load', () => {
-          if (window.MathJax && window.MathJax.typesetPromise) {
-            window.MathJax.typesetPromise([container]).catch(() => { });
-          }
-        });
-      }
-    }
-  }
-
-  /* ----------------------------------------------------------
-     IFRAME OVERLAY (interactive topics)
-     ---------------------------------------------------------- */
-  function openIframe(topic, folder) {
-    currentTopic = topic;
-    // If the file path contains a slash (e.g. 'Rag_illustration/index.html'), use it directly
-    const file = topic.interactive.file;
-    const src = file.includes('/') ? file : folder + '/interactive/' + file;
-
-    iframeTitle.textContent = topic.title;
-    iframeLoading.classList.remove('hidden');
-    iframeEl.src = src;
-    iframeOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-
-    iframeEl.onload = () => {
-      iframeLoading.classList.add('hidden');
-    };
-  }
-
-  function closeIframe() {
-    iframeOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-    setTimeout(() => {
-      iframeEl.src = 'about:blank';
-      currentTopic = null;
-    }, 300);
-  }
-
-  iframeBackBtn.addEventListener('click', closeIframe);
-
-  iframeOpenBtn.addEventListener('click', () => {
-    if (currentTopic && currentTopic.interactive && currentSubject) {
-      const file = currentTopic.interactive.file;
-      const url = file.includes('/') ? file : currentSubject.folder + '/interactive/' + file;
-      window.open(url, '_blank');
-    }
-  });
-
-  /* ----------------------------------------------------------
-     THEORY OVERLAY (theory-only topics)
-     ---------------------------------------------------------- */
-  function openTheory(topic, accent) {
-    theoryTitle.textContent = topic.title;
-
-    let html = '<div class="theory-card accent-' + accent + '">';
-    html += '<div class="card-accent-bar"></div>';
-    html += '<div class="theory-body">';
-    html += '<h2>' + topic.title + '</h2>';
-    html += '<div class="theory-notes">' + topic.notes + '</div>';
-
-    if (topic.formulas.length) {
-      html += '<div class="theory-formulas-section">';
-      html += '<h4>Key Formulas</h4>';
-      html += '<div class="topic-formulas">';
-      topic.formulas.forEach((f) => { html += '<span class="formula">' + f + '</span>'; });
-      html += '</div></div>';
-    }
-
-    html += '<div class="theory-notice">';
-    html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
-    html += '<span>Interactive visual for this topic is planned for a future update.</span>';
-    html += '</div>';
-
-    html += '</div></div>';
-
-    theoryContent.innerHTML = html;
-    theoryOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-
-    typesetMathJax(theoryContent);
-  }
-
-  function closeTheory() {
-    theoryOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-  }
-
-  theoryBackBtn.addEventListener('click', closeTheory);
-
-
-  /* ----------------------------------------------------------
-     UPDATE HERO STATS
-     ---------------------------------------------------------- */
-  function updateStats() {
-    let totalTopics = 0;
-    let totalPages = 0;
-
-    SUBJECTS.forEach((subject) => {
-      const stats = countSubjectStats(subject);
-      totalTopics += stats.totalTopics;
-      totalPages += stats.totalPages;
-    });
-
-    document.getElementById('stat-topics').textContent = totalTopics;
-    document.getElementById('stat-interactive').textContent = totalPages;
-    document.getElementById('stat-subjects').textContent = SUBJECTS.length;
-    document.getElementById('stat-projects').textContent = PROJECTS.length;
-  }
 
   /* ----------------------------------------------------------
      PROJECTS DATA
@@ -1395,10 +1047,10 @@
       id: 'multi-armed-bandit', category: 'ai',
       title: 'Multi-Armed Bandit Exploration Lab',
       summary: 'Built and evaluated a multi-armed bandit experiment to study the exploration-exploitation trade-off in reinforcement learning. The lab simulates repeated action selection under uncertainty and tracks how an agent improves its reward choices over time.',
-      github: 'https://github.com/shray028/deep-reinforcement-learning',
+      github: 'https://github.com/shray028/applied-ai-systems/tree/main/multi_armed_bandits',
       art: 'bandit', artKicker: 'REINFORCEMENT LEARNING', artTitle: 'Explore, exploit, learn',
-      tags: ['Python', 'Reinforcement Learning', 'Multi-Armed Bandits', 'Experimentation'],
-      results: [{ value: 'MAB', label: 'Learning Setting' }, { value: 'RL', label: 'Agent Framework' }, { value: '∞', label: 'Decision Rounds' }],
+      tags: ['Python', 'Reinforcement Learning', 'ε-Greedy', 'UCB', 'Thompson Sampling'],
+      results: [{ value: '3', label: 'Strategies Compared' }, { value: '1,000', label: 'Steps per Run' }, { value: 'Gaussian', label: 'Reward Model' }],
       steps: [
         { title: 'Bandit Environment', description: 'Set up an uncertain-reward environment in which the agent learns the value of each action through repeated interaction.', learnings: ['Bandits isolate the core RL challenge of acting with incomplete information.', 'Reward distributions matter more than individual outcomes when evaluating an action.'] },
         { title: 'Exploration & Reward Analysis', description: 'Studied the balance between gathering information about uncertain actions and selecting the option currently expected to provide the highest reward.', learnings: ['Pure exploitation can lock an agent into early, incorrect beliefs.', 'Cumulative reward reveals long-run strategy quality more clearly than isolated outcomes.'] },
@@ -1408,7 +1060,7 @@
       id: 'robust-lunarlander-rl', category: 'ai',
       title: 'Robust LunarLander RL under Action Failures',
       summary: 'Modified LunarLander-v3 to introduce stochastic engine failures, then trained and compared DQN and Double DQN agents on both the original and failure-prone environments. The project tests whether deep RL policies remain effective when selected actions are not always executed as intended.',
-      github: 'https://github.com/shray028/deep-reinforcement-learning',
+      github: 'https://github.com/shray028/applied-ai-systems/tree/main/robust_lunarlander',
       art: 'lunar', artKicker: 'ROBUST DEEP RL', artTitle: 'DQN vs. Double DQN',
       tags: ['Python', 'DQN', 'Double DQN', 'Gymnasium', 'Robustness'],
       results: [{ value: '2', label: 'Environments' }, { value: 'DQN', label: 'Baseline Agent' }, { value: 'DDQN', label: 'Comparison Agent' }],
@@ -1433,296 +1085,745 @@
   ];
 
   /* ----------------------------------------------------------
-     RENDER PROJECT TILES (zig-zag)
+     HELPERS
      ---------------------------------------------------------- */
-  const projectTilesContainer = document.getElementById('project-tiles');
-  const projectDetailOverlay = document.getElementById('project-detail-overlay');
-  const projectDetailBack = document.getElementById('project-detail-back');
-  const projectDetailTitle = document.getElementById('project-detail-title');
-  const projectDetailGithub = document.getElementById('project-detail-github');
-  const projectDetailScroll = document.getElementById('project-detail-scroll');
+  const $ = (id) => document.getElementById(id);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const ICONS = {
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+    play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    github: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>',
+  };
+
+  const CATEGORIES = {
+    ml: { label: 'ML Engineering', eyebrow: 'End-to-end ML project' },
+    ai: { label: 'AI / Deep Learning', eyebrow: 'AI / deep learning project' },
+  };
+
+  function slugify(text) {
+    return text.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // Render `inline code` spans used in project write-ups.
+  function richText(text) {
+    return text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  function plural(n, word) {
+    return n === 1 ? word : word + 's';
+  }
+
+  function labsOf(topic) {
+    return topic.interactive ? [topic.interactive].concat(topic.extras || []) : [];
+  }
+
+  // Paths containing a slash (e.g. 'Rag_illustration/index.html') are used as-is.
+  function labUrl(subject, lab) {
+    return lab.file.includes('/') ? lab.file : subject.folder + '/interactive/' + lab.file;
+  }
+
+  function stripHash(url) {
+    return url.split('#')[0];
+  }
+
+  SUBJECTS.forEach((subject) => {
+    subject.conceptGroups.forEach((group) => {
+      group.topics.forEach((topic) => { topic.slug = slugify(topic.title); });
+    });
+  });
+
+  function countSubjectStats(subject) {
+    let totalTopics = 0;
+    let withInteractive = 0;
+    const pages = new Set();
+    subject.conceptGroups.forEach((g) => {
+      g.topics.forEach((t) => {
+        totalTopics++;
+        if (t.interactive) withInteractive++;
+        labsOf(t).forEach((lab) => pages.add(labUrl(subject, lab)));
+      });
+    });
+    return { totalTopics, withInteractive, labs: pages.size, files: new Set([...pages].map(stripHash)).size };
+  }
+
+  function typesetMathJax(container) {
+    const run = () => {
+      if (window.MathJax && window.MathJax.typesetPromise) window.MathJax.typesetPromise([container]).catch(() => { });
+    };
+    if (window.MathJax && window.MathJax.typesetPromise) run();
+    else {
+      const mjScript = $('MathJax-script');
+      if (mjScript) mjScript.addEventListener('load', () => setTimeout(run, 0), { once: true });
+    }
+  }
+
+  // Reveal-on-scroll for dynamically rendered content.
+  const revealObserver = ('IntersectionObserver' in window && !reduceMotion)
+    ? new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' })
+    : null;
+
+  function reveal(root) {
+    root.querySelectorAll('.reveal:not(.visible)').forEach((el) => {
+      if (revealObserver) revealObserver.observe(el);
+      else el.classList.add('visible');
+    });
+  }
+
+  /* ----------------------------------------------------------
+     THEME
+     ---------------------------------------------------------- */
+  const themeToggle = $('theme-toggle');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+
+  function currentTheme() {
+    const set = document.documentElement.getAttribute('data-theme');
+    if (set) return set;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+
+  function syncThemeMeta() {
+    themeMeta.setAttribute('content', currentTheme() === 'light' ? '#f6f7fb' : '#07080d');
+  }
+
+  themeToggle.addEventListener('click', () => {
+    const next = currentTheme() === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('sv-theme', next); } catch (e) { }
+    syncThemeMeta();
+  });
+  syncThemeMeta();
+
+  /* ----------------------------------------------------------
+     DOM REFERENCES
+     ---------------------------------------------------------- */
+  const navLinks = document.querySelectorAll('.main-nav a[data-section]');
+  const subjectsSection = $('subjects-section');
+  const projectsSection = $('projects-section');
+
+  const subjectsList = $('subjects-list');
+  const subjectGrid = $('subject-cards-grid');
+  const topicsView = $('topics-view');
+  const topicsHeader = $('topics-header');
+  const conceptContainer = $('concept-groups-container');
+  const groupNav = $('group-nav');
+  const topicSearch = $('topic-search');
+  const topicsEmpty = $('topics-empty');
+
+  const iframeOverlay = $('iframe-overlay');
+  const iframeEl = $('interactive-frame');
+  const iframeTitle = $('iframe-title');
+  const iframeLoading = $('iframe-loading');
+  const labTabs = $('lab-tabs');
+
+  const theoryOverlay = $('theory-overlay');
+  const theoryTitle = $('theory-overlay-title');
+  const theoryContent = $('theory-content');
+
+  const projectTilesContainer = $('project-tiles');
+  const projectDetailOverlay = $('project-detail-overlay');
+  const projectDetailTitle = $('project-detail-title');
+  const projectDetailGithub = $('project-detail-github');
+  const projectDetailScroll = $('project-detail-scroll');
+
+  /* ----------------------------------------------------------
+     STATE
+     ---------------------------------------------------------- */
+  let currentSection = null;
+  let currentSubject = null;
+  let currentLabUrl = null;
+  let currentProjectId = null;
+  let topicFilter = 'all';
+  let projectFilter = 'all';
+  let iframeResetTimer = null;
+
+  /* ----------------------------------------------------------
+     OVERLAYS (shared open/close, scroll lock, focus return)
+     ---------------------------------------------------------- */
+  const overlays = [iframeOverlay, theoryOverlay, projectDetailOverlay];
+  let lastFocus = null;
+
+  function openOverlay(el) {
+    if (!el.classList.contains('open')) {
+      if (!overlays.some((o) => o.classList.contains('open'))) lastFocus = document.activeElement;
+      overlays.forEach((o) => { if (o !== el) closeOverlay(o, true); });
+      el.hidden = false;
+      // Force a reflow so the opening transition runs.
+      void el.offsetWidth;
+      el.classList.add('open');
+      document.body.classList.add('overlay-open');
+      const back = el.querySelector('.overlay-toolbar button');
+      if (back) back.focus({ preventScroll: true });
+    }
+  }
+
+  function closeOverlay(el, keepLock) {
+    if (!el.classList.contains('open')) return;
+    el.classList.remove('open');
+    const done = () => { if (!el.classList.contains('open')) el.hidden = true; };
+    if (reduceMotion) done(); else setTimeout(done, 260);
+    if (!keepLock && !overlays.some((o) => o.classList.contains('open'))) {
+      document.body.classList.remove('overlay-open');
+      if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+      lastFocus = null;
+    }
+    if (el === iframeOverlay) {
+      clearTimeout(iframeResetTimer);
+      iframeResetTimer = setTimeout(() => {
+        if (!iframeOverlay.classList.contains('open')) { iframeEl.src = 'about:blank'; currentLabUrl = null; }
+      }, 300);
+    }
+  }
+
+  function closeAllOverlays() {
+    overlays.forEach((o) => closeOverlay(o));
+  }
+
+  // Trap focus inside an open dialog.
+  document.addEventListener('keydown', (e) => {
+    const open = overlays.find((o) => o.classList.contains('open'));
+    if (!open) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeCurrentOverlay();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusables = [...open.querySelectorAll('a[href], button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])')]
+      .filter((n) => n.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  // Back buttons / Escape go "up" one level in the route.
+  function closeCurrentOverlay() {
+    const parts = parseHash();
+    if (parts[0] === 'subjects' && parts[1]) go('subjects/' + parts[1]);
+    else if (parts[0] === 'projects') go('projects');
+    else closeAllOverlays();
+  }
+
+  $('iframe-back').addEventListener('click', closeCurrentOverlay);
+  $('theory-back').addEventListener('click', closeCurrentOverlay);
+  $('project-detail-back').addEventListener('click', closeCurrentOverlay);
+
+  /* ----------------------------------------------------------
+     SECTIONS
+     ---------------------------------------------------------- */
+  function showSection(sectionId) {
+    if (currentSection === sectionId) return;
+    currentSection = sectionId;
+    navLinks.forEach((link) => {
+      const active = link.dataset.section === sectionId;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    });
+    subjectsSection.classList.toggle('active', sectionId === 'subjects');
+    projectsSection.classList.toggle('active', sectionId === 'projects');
+  }
+
+  function updateStats() {
+    let totalTopics = 0;
+    let totalLabs = 0;
+    SUBJECTS.forEach((subject) => {
+      const stats = countSubjectStats(subject);
+      totalTopics += stats.totalTopics;
+      totalLabs += stats.files;
+    });
+    $('stat-topics').textContent = totalTopics;
+    $('stat-interactive').textContent = totalLabs;
+    $('stat-subjects').textContent = SUBJECTS.length;
+    $('stat-projects').textContent = PROJECTS.length;
+  }
+
+  /* ----------------------------------------------------------
+     SUBJECT CARDS
+     ---------------------------------------------------------- */
+  function renderSubjectsList() {
+    subjectGrid.innerHTML = '';
+    SUBJECTS.forEach((subject) => {
+      const stats = countSubjectStats(subject);
+      const pct = stats.totalTopics ? Math.round((stats.withInteractive / stats.totalTopics) * 100) : 0;
+      const card = document.createElement('a');
+      card.className = 'subject-card reveal accent-' + subject.accent;
+      card.href = '#subjects/' + subject.id;
+      card.innerHTML = `
+        <div class="sc-top">
+          <span class="sc-emoji" aria-hidden="true">${subject.emoji}</span>
+          <span class="sc-code">${subject.code}</span>
+        </div>
+        <h3>${subject.title}</h3>
+        <p>${subject.description}</p>
+        <div class="sc-groups">${subject.conceptGroups.map((g) => '<span>' + g.title + '</span>').join('')}</div>
+        <div class="sc-stats">
+          <span><strong>${stats.totalTopics}</strong> ${plural(stats.totalTopics, 'topic')}</span>
+          <span><strong>${stats.files}</strong> ${plural(stats.files, 'lab')}</span>
+          <span><strong>${subject.conceptGroups.length}</strong> ${plural(subject.conceptGroups.length, 'group')}</span>
+        </div>
+        <div class="sc-progress" aria-label="${pct}% of topics have an interactive lab"><span style="width:${pct}%"></span></div>
+        <span class="sc-cta">Open subject ${ICONS.arrow}</span>
+      `;
+      subjectGrid.appendChild(card);
+    });
+    reveal(subjectGrid);
+  }
+
+  /* ----------------------------------------------------------
+     SUBJECT DRILL-DOWN
+     ---------------------------------------------------------- */
+  function openSubject(subject) {
+    const changed = currentSubject !== subject;
+    subjectsList.classList.add('hidden');
+    topicsView.classList.remove('hidden');
+    document.body.classList.add('in-subject');
+    if (!changed) return;
+
+    currentSubject = subject;
+    topicsView.className = 'topics-view accent-' + subject.accent;
+    $('topics-eyebrow').textContent = subject.code;
+    $('topics-title').textContent = subject.title;
+    $('topics-description').textContent = subject.description;
+
+    const stats = countSubjectStats(subject);
+    const pct = stats.totalTopics ? Math.round((stats.withInteractive / stats.totalTopics) * 100) : 0;
+    $('progress-label').innerHTML = '<strong>' + stats.withInteractive + '</strong> of ' + stats.totalTopics +
+      ' topics have interactive labs · <strong>' + stats.files + '</strong> ' + plural(stats.files, 'lab') +
+      ' with <strong>' + stats.labs + '</strong> sections';
+    $('progress-fill').style.width = pct + '%';
+
+    topicSearch.value = '';
+    renderConceptGroups(subject);
+    setTopicFilter('all');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function closeSubject() {
+    topicsView.classList.add('hidden');
+    subjectsList.classList.remove('hidden');
+    document.body.classList.remove('in-subject');
+    if (currentSubject) {
+      currentSubject = null;
+      conceptContainer.innerHTML = '';
+      groupNav.innerHTML = '';
+    }
+  }
+
+  function createTopicCard(subject, topic) {
+    const labs = labsOf(topic);
+    const hasInteractive = labs.length > 0;
+    const href = '#subjects/' + subject.id + '/' + topic.slug;
+    const card = document.createElement('article');
+    card.className = 'topic-card reveal' + (hasInteractive ? '' : ' theory-only');
+    card.dataset.kind = hasInteractive ? 'interactive' : 'theory';
+    card.dataset.search = (topic.title + ' ' + topic.notes + ' ' + topic.tags.join(' ') + ' ' +
+      labs.map((l) => l.label).join(' ')).toLowerCase();
+
+    const tags = topic.tags.filter((t) => t !== 'Theory' && t !== 'Interactive');
+    const statusTag = hasInteractive
+      ? '<span class="tag tag-live">' + ICONS.play + 'Interactive</span>'
+      : '<span class="tag tag-theory">' + ICONS.book + 'Theory</span>';
+
+    const formulasHtml = topic.formulas.length
+      ? '<div class="topic-formulas">' + topic.formulas.map((f) => '<span class="formula">' + f + '</span>').join('') + '</div>'
+      : '';
+
+    const extrasHtml = labs.length > 1
+      ? '<div class="lab-chips"><span class="lab-chips-label">Also explore</span>' +
+        labs.slice(1).map((lab, i) => '<a class="lab-chip" href="' + href + '/' + (i + 1) + '">' + lab.label + '</a>').join('') +
+        '</div>'
+      : '';
+
+    const actionHtml = hasInteractive
+      ? '<a class="card-action" href="' + href + '">' + ICONS.play + '<span>Launch: ' + labs[0].label + '</span></a>'
+      : '<a class="card-action" href="' + href + '">' + ICONS.book + '<span>Read notes</span></a>';
+
+    card.innerHTML =
+      '<div class="tag-row">' + statusTag + tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
+      '<h4>' + topic.title + '</h4>' +
+      '<p class="topic-notes">' + topic.notes + '</p>' +
+      formulasHtml +
+      '<div class="card-footer">' + actionHtml + extrasHtml + '</div>';
+
+    // Clicking anywhere on the card (outside links) opens the primary lab / notes.
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a') || window.getSelection().toString()) return;
+      location.hash = href;
+    });
+    return card;
+  }
+
+  function renderConceptGroups(subject) {
+    conceptContainer.innerHTML = '';
+    groupNav.innerHTML = '';
+
+    subject.conceptGroups.forEach((group) => {
+      const section = document.createElement('section');
+      section.className = 'concept-group';
+      section.id = 'group-' + group.id;
+      section.innerHTML =
+        '<header class="concept-group-header reveal">' +
+        '<div class="cg-icon" aria-hidden="true">' + group.icon + '</div>' +
+        '<div class="cg-info"><h3>' + group.title + '</h3>' +
+        '<span class="cg-count">' + group.topics.length + ' topic' + (group.topics.length > 1 ? 's' : '') + '</span></div>' +
+        '</header>';
+      const grid = document.createElement('div');
+      grid.className = 'topic-grid';
+      group.topics.forEach((topic) => grid.appendChild(createTopicCard(subject, topic)));
+      section.appendChild(grid);
+      conceptContainer.appendChild(section);
+
+      if (subject.conceptGroups.length > 1) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'group-chip';
+        chip.textContent = group.title;
+        chip.addEventListener('click', () => {
+          section.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        });
+        groupNav.appendChild(chip);
+      }
+    });
+    groupNav.hidden = subject.conceptGroups.length < 2;
+    $('topics-toolbar').hidden = countSubjectStats(subject).totalTopics < 4;
+
+    reveal(conceptContainer);
+    typesetMathJax(conceptContainer);
+  }
+
+  function setTopicFilter(filter) {
+    topicFilter = filter;
+    document.querySelectorAll('#topic-filter-bar .filter-btn').forEach((b) => {
+      const active = b.dataset.filter === filter;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', active);
+    });
+    applyTopicFilter();
+  }
+
+  function applyTopicFilter() {
+    const q = topicSearch.value.trim().toLowerCase();
+    let visibleTotal = 0;
+    conceptContainer.querySelectorAll('.concept-group').forEach((section) => {
+      let visible = 0;
+      section.querySelectorAll('.topic-card').forEach((card) => {
+        const show = (topicFilter === 'all' || card.dataset.kind === topicFilter) && (!q || card.dataset.search.includes(q));
+        card.hidden = !show;
+        if (show) { visible++; card.classList.add('visible'); }
+      });
+      section.hidden = visible === 0;
+      visibleTotal += visible;
+    });
+    topicsEmpty.classList.toggle('hidden', visibleTotal > 0);
+  }
+
+  topicSearch.addEventListener('input', applyTopicFilter);
+  document.querySelectorAll('#topic-filter-bar .filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setTopicFilter(btn.dataset.filter));
+  });
+
+  function findTopic(subject, slug) {
+    for (const group of subject.conceptGroups) {
+      const topic = group.topics.find((t) => t.slug === slug);
+      if (topic) return topic;
+    }
+    return null;
+  }
+
+  /* ----------------------------------------------------------
+     LAB OVERLAY (interactive topics)
+     ---------------------------------------------------------- */
+  function openLab(subject, topic, labIndex) {
+    const labs = labsOf(topic);
+    const idx = Math.min(Math.max(labIndex || 0, 0), labs.length - 1);
+    const lab = labs[idx];
+    const url = labUrl(subject, lab);
+    const base = '#subjects/' + subject.id + '/' + topic.slug;
+
+    iframeTitle.textContent = topic.title;
+    labTabs.innerHTML = labs.length > 1
+      ? labs.map((l, i) => '<a role="tab" class="lab-tab' + (i === idx ? ' active' : '') + '" aria-selected="' + (i === idx) +
+        '" href="' + base + (i ? '/' + i : '') + '">' + l.label + '</a>').join('')
+      : '';
+    labTabs.hidden = labs.length < 2;
+    labTabs.parentElement.classList.toggle('has-tabs', labs.length > 1);
+
+    clearTimeout(iframeResetTimer);
+    if (url !== currentLabUrl) {
+      const sameDoc = currentLabUrl && stripHash(currentLabUrl) === stripHash(url);
+      currentLabUrl = url;
+      if (sameDoc) {
+        // Same page, different section: the lab listens for hash changes, so no reload/spinner.
+        iframeEl.src = url;
+      } else {
+        iframeLoading.classList.remove('hidden');
+        iframeEl.onload = () => iframeLoading.classList.add('hidden');
+        iframeEl.src = url;
+      }
+    }
+    openOverlay(iframeOverlay);
+  }
+
+  $('iframe-open-new').addEventListener('click', () => {
+    if (currentLabUrl) window.open(currentLabUrl, '_blank', 'noopener');
+  });
+
+  /* ----------------------------------------------------------
+     THEORY OVERLAY (theory-only topics)
+     ---------------------------------------------------------- */
+  function openTheory(subject, topic) {
+    theoryTitle.textContent = topic.title;
+    let html = '<article class="theory-card accent-' + subject.accent + '">';
+    html += '<span class="section-eyebrow">' + subject.code + '</span>';
+    html += '<h2>' + topic.title + '</h2>';
+    html += '<div class="tag-row">' + topic.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>';
+    html += '<p class="theory-notes">' + topic.notes + '</p>';
+    if (topic.formulas.length) {
+      html += '<h4>Key formulas</h4><div class="topic-formulas">';
+      topic.formulas.forEach((f) => { html += '<span class="formula">' + f + '</span>'; });
+      html += '</div>';
+    }
+    html += '<div class="theory-notice">' + ICONS.info + '<span>An interactive visual for this topic is planned for a future update.</span></div>';
+    html += '</article>';
+
+    theoryContent.innerHTML = html;
+    openOverlay(theoryOverlay);
+    typesetMathJax(theoryContent);
+  }
+
+  /* ----------------------------------------------------------
+     PROJECT CARDS
+     ---------------------------------------------------------- */
+  const PROJECT_ORDER = [
+    'autosar-rag-chatbot', 'nlp-resume-classification', 'breast-cancer', 'bike-sharing',
+    'stock-price-forecasting', 'cnn-image-classification', 'linear-vs-mlp',
+    'drone-rescue-dp', 'multi-armed-bandit', 'robust-lunarlander-rl', 'transformer-news-summarization',
+  ];
+  const ORDERED_PROJECTS = PROJECT_ORDER
+    .map((id) => PROJECTS.find((p) => p.id === id))
+    .filter(Boolean)
+    .concat(PROJECTS.filter((p) => !PROJECT_ORDER.includes(p.id)));
 
   function projectMediaHtml(project, detail) {
     if (project.image) {
-      const alt = detail ? project.title + ' Pipeline Overview' : project.title;
-      return '<img src="' + project.image + '" alt="' + alt + '" loading="lazy">';
+      const alt = project.title + (detail ? ' — pipeline overview' : '');
+      return '<img src="' + project.image + '" alt="' + alt + '" loading="lazy" decoding="async">';
     }
-
-    return '<div class="project-art project-art--' + project.art + '"><span class="project-art-kicker">'
-      + project.artKicker + '</span><strong>' + project.artTitle + '</strong><span class="project-art-mark" aria-hidden="true"></span></div>';
+    return '<div class="project-art project-art--' + project.art + '"><span class="project-art-kicker">' +
+      project.artKicker + '</span><strong>' + project.artTitle + '</strong><span class="project-art-mark" aria-hidden="true"></span></div>';
   }
 
   function renderProjectTiles() {
     projectTilesContainer.innerHTML = '';
+    ORDERED_PROJECTS
+      .filter((p) => projectFilter === 'all' || p.category === projectFilter)
+      .forEach((project) => {
+        const href = '#projects/' + project.id;
+        const maxTags = 4;
+        const extraTags = project.tags.length - maxTags;
+        const tagsHtml = project.tags.slice(0, maxTags).map((t) => '<span class="ptag">' + t + '</span>').join('') +
+          (extraTags > 0 ? '<span class="ptag ptag-more">+' + extraTags + '</span>' : '');
+        const resultsHtml = (project.results || []).slice(0, 3)
+          .map((r) => '<div><strong>' + r.value + '</strong><span>' + r.label + '</span></div>').join('');
 
-    // Define display order
-    const projectOrder = [
-      'autosar-rag-chatbot', 'nlp-resume-classification', 'breast-cancer', 'bike-sharing',
-      'stock-price-forecasting', 'cnn-image-classification', 'linear-vs-mlp',
-      'drone-rescue-dp', 'multi-armed-bandit', 'robust-lunarlander-rl', 'transformer-news-summarization',
-    ];
-    const orderedProjects = projectOrder
-      .map((id) => PROJECTS.find((p) => p.id === id))
-      .filter(Boolean)
-      .concat(PROJECTS.filter((p) => !projectOrder.includes(p.id)));
-
-    const activeFilter = document.querySelector('.project-filter-btn.active');
-    const filter = activeFilter ? activeFilter.dataset.filter : 'all';
-
-    const categories = [
-      { key: 'ml', label: 'ML ENGINEERING', description: 'End-to-end pipelines, deployments, and production systems' },
-      { key: 'ai', label: 'AI / DEEP LEARNING', description: 'Algorithm implementations, architecture comparisons, and concept explorations' },
-    ];
-
-    let globalIndex = 0;
-
-    categories.forEach((cat) => {
-      if (filter !== 'all' && filter !== cat.key) return;
-      const catProjects = orderedProjects.filter((p) => p.category === cat.key);
-      if (!catProjects.length) return;
-
-      const header = document.createElement('div');
-      header.className = 'project-category-header';
-      header.innerHTML = '<span class="section-eyebrow">' + cat.label + '</span><p>' + cat.description + '</p>';
-      projectTilesContainer.appendChild(header);
-
-      catProjects.forEach((project) => {
-        const index = PROJECTS.indexOf(project);
-        const tile = document.createElement('div');
-        tile.className = 'project-tile';
-        tile.dataset.projectId = project.id;
-
-      const tagsHtml = project.tags.map((t) => `<span class="ptag">${t}</span>`).join('');
-
-      tile.innerHTML = `
-        <div class="project-tile-image" data-project-idx="${index}">
-          ${projectMediaHtml(project, false)}
-          <span class="image-click-hint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
-            View Project
-          </span>
-        </div>
-        <div class="project-tile-content">
-          <h3>${project.title}</h3>
-          <p class="project-summary">${project.summary}</p>
-          <div class="project-tags">${tagsHtml}</div>
-          <div class="project-ctas">
-            <button class="project-cta primary" data-project-idx="${index}">
-              View Project
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-            <a class="project-cta secondary" href="${project.github}" target="_blank" rel="noopener">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-              Source Code
-            </a>
+        const card = document.createElement('article');
+        card.className = 'project-card reveal cat-' + project.category;
+        card.innerHTML = `
+          <a class="project-media" href="${href}" tabindex="-1" aria-hidden="true">
+            ${projectMediaHtml(project, false)}
+            <span class="project-cat">${CATEGORIES[project.category].label}</span>
+          </a>
+          <div class="project-body">
+            <h3><a href="${href}">${project.title}</a></h3>
+            <p class="project-summary">${project.summary}</p>
+            ${resultsHtml ? '<div class="project-results">' + resultsHtml + '</div>' : ''}
+            <div class="project-tags">${tagsHtml}</div>
+            <div class="project-ctas">
+              <a class="btn btn-primary btn-sm" href="${href}">Case study ${ICONS.arrow}</a>
+              ${project.github ? '<a class="btn btn-ghost btn-sm" href="' + project.github + '" target="_blank" rel="noopener">' + ICONS.github + 'Source</a>' : ''}
+            </div>
           </div>
-        </div>
-      `;
-
-      if (!project.github) tile.querySelector('.project-cta.secondary').remove();
-
-      projectTilesContainer.appendChild(tile);
-
-      // Animate in after a short delay
-      requestAnimationFrame(() => {
-        setTimeout(() => tile.classList.add('visible'), globalIndex * 120 + 100);
+        `;
+        projectTilesContainer.appendChild(card);
       });
-      globalIndex++;
-      });
-    });
-
-    // Attach click handlers
-    projectTilesContainer.querySelectorAll('[data-project-idx]').forEach((el) => {
-      if (el.tagName === 'A') return; // Skip github links
-      el.addEventListener('click', (e) => {
-        if (e.target.closest('a')) return; // Don't intercept anchor clicks
-        const idx = parseInt(el.dataset.projectIdx, 10);
-        openProjectDetail(PROJECTS[idx]);
-      });
-    });
+    reveal(projectTilesContainer);
   }
 
-  // Filter button listeners
-  document.querySelectorAll('.project-filter-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.project-filter-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderProjectTiles();
+  function setProjectFilter(filter) {
+    projectFilter = filter;
+    document.querySelectorAll('#project-filter-bar .filter-btn').forEach((b) => {
+      const active = b.dataset.filter === filter;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', active);
     });
+    renderProjectTiles();
+  }
+
+  document.querySelectorAll('#project-filter-bar .filter-btn').forEach((btn) => {
+    const f = btn.dataset.filter;
+    btn.querySelector('.count').textContent = f === 'all' ? PROJECTS.length : PROJECTS.filter((p) => p.category === f).length;
+    btn.addEventListener('click', () => setProjectFilter(f));
   });
 
   /* ----------------------------------------------------------
      PROJECT DETAIL OVERLAY
      ---------------------------------------------------------- */
-  let currentProject = null;
+  function openProjectDetail(project) {
+    if (currentProjectId !== project.id) {
+      currentProjectId = project.id;
+      projectDetailTitle.textContent = project.title;
+      projectDetailGithub.href = project.github || '#';
+      projectDetailGithub.hidden = !project.github;
 
-  function openProjectDetail(project, skipHash) {
-    currentProject = project;
-    projectDetailTitle.textContent = project.title;
-    projectDetailGithub.href = project.github || '#';
-    projectDetailGithub.hidden = !project.github;
-    if (!skipHash) setHash('projects/' + project.id);
+      const i = ORDERED_PROJECTS.indexOf(project);
+      const prev = ORDERED_PROJECTS[(i - 1 + ORDERED_PROJECTS.length) % ORDERED_PROJECTS.length];
+      const next = ORDERED_PROJECTS[(i + 1) % ORDERED_PROJECTS.length];
 
-    // Build detail content
-    const checkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      let html = '<div class="detail-wrap">';
+      html += '<header class="detail-hero">';
+      html += '<span class="section-eyebrow">' + CATEGORIES[project.category].eyebrow + '</span>';
+      html += '<h1>' + project.title + '</h1>';
+      html += '<p>' + project.summary + '</p>';
+      html += '<div class="project-tags">' + project.tags.map((t) => '<span class="ptag">' + t + '</span>').join('') + '</div>';
+      html += '</header>';
 
-    let html = '';
+      html += '<div class="detail-image">' + projectMediaHtml(project, true) + '</div>';
 
-    // Detail Hero
-    html += '<div class="detail-hero">';
-    html += '<div class="detail-eyebrow">END-TO-END ML PROJECT</div>';
-    html += '<h1>' + project.title + '</h1>';
-    html += '<p>' + project.summary + '</p>';
-    html += '</div>';
-
-    // Detail Image
-    html += '<div class="detail-image">';
-    html += projectMediaHtml(project, true);
-    html += '</div>';
-
-    // Results Banner
-    if (project.results && project.results.length) {
-      html += '<div class="results-banner"><div class="results-banner-inner">';
-      project.results.forEach((r) => {
-        html += '<div class="result-stat">';
-        html += '<div class="rs-value">' + r.value + '</div>';
-        html += '<div class="rs-label">' + r.label + '</div>';
-        html += '</div>';
-      });
-      html += '</div></div>';
-    }
-
-    // Pipeline Steps
-    html += '<div class="pipeline-section">';
-    html += '<h2>Pipeline Steps & Learnings</h2>';
-
-    project.steps.forEach((step, i) => {
-      html += '<div class="step-card">';
-      html += '<div class="step-header">';
-      html += '<span class="step-number">' + (i + 1) + '</span>';
-      html += '<h3>' + step.title + '</h3>';
-      html += '</div>';
-      html += '<p class="step-description">' + step.description + '</p>';
-      html += '<div class="step-learnings">';
-      html += '<h4>Key Learnings</h4>';
-      step.learnings.forEach((l) => {
-        html += '<div class="learning-item">' + checkSvg + '<span>' + l + '</span></div>';
-      });
-      html += '</div></div>';
-    });
-
-    html += '</div>';
-
-    // GitHub CTA at bottom
-    html += '<div class="detail-github">';
-    html += '<a class="github-cta" href="' + project.github + '" target="_blank" rel="noopener">';
-    html += '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>';
-    html += 'View on GitHub';
-    html += '</a>';
-    html += '</div>';
-
-    projectDetailScroll.innerHTML = html;
-    projectDetailScroll.scrollTop = 0;
-    projectDetailOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeProjectDetail(skipHash) {
-    projectDetailOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-    if (!skipHash) setHash('projects');
-    currentProject = null;
-  }
-
-  projectDetailBack.addEventListener('click', () => closeProjectDetail());
-
-  /* ----------------------------------------------------------
-     GLOBAL KEY HANDLERS
-     ---------------------------------------------------------- */
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (projectDetailOverlay.classList.contains('open')) closeProjectDetail();
-      else if (iframeOverlay.classList.contains('open')) closeIframe();
-      else if (theoryOverlay.classList.contains('open')) closeTheory();
-    }
-  });
-
-  /* ----------------------------------------------------------
-     SCROLL REVEAL
-     ---------------------------------------------------------- */
-  function initScrollReveal() {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
-          }
+      if (project.results && project.results.length) {
+        html += '<div class="results-banner">';
+        project.results.forEach((r) => {
+          html += '<div class="result-stat"><div class="rs-value">' + r.value + '</div><div class="rs-label">' + r.label + '</div></div>';
         });
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
-    );
-    document.querySelectorAll('.fade-in-up').forEach((el) => observer.observe(el));
+        html += '</div>';
+      }
+
+      html += '<section class="pipeline-section"><h2>Pipeline steps &amp; learnings</h2><ol class="timeline">';
+      project.steps.forEach((step, n) => {
+        html += '<li class="step-card">';
+        html += '<span class="step-number">' + String(n + 1).padStart(2, '0') + '</span>';
+        html += '<div class="step-content"><h3>' + step.title + '</h3>';
+        html += '<p class="step-description">' + richText(step.description) + '</p>';
+        html += '<div class="step-learnings"><h4>Key learnings</h4><ul>';
+        step.learnings.forEach((l) => { html += '<li>' + ICONS.check + '<span>' + richText(l) + '</span></li>'; });
+        html += '</ul></div></div></li>';
+      });
+      html += '</ol></section>';
+
+      if (project.github) {
+        html += '<div class="detail-github"><a class="btn btn-primary" href="' + project.github + '" target="_blank" rel="noopener">' +
+          ICONS.github + 'View source on GitHub</a></div>';
+      }
+
+      html += '<nav class="detail-pager" aria-label="More projects">';
+      html += '<a href="#projects/' + prev.id + '"><span>← Previous</span><strong>' + prev.title + '</strong></a>';
+      html += '<a href="#projects/' + next.id + '" class="next"><span>Next →</span><strong>' + next.title + '</strong></a>';
+      html += '</nav></div>';
+
+      projectDetailScroll.innerHTML = html;
+      projectDetailScroll.scrollTop = 0;
+    }
+    openOverlay(projectDetailOverlay);
   }
 
   /* ----------------------------------------------------------
      HASH ROUTING
+     #projects | #projects/<id>
+     #subjects | #subjects/<subject> | #subjects/<subject>/<topic>[/<labIndex>]
      ---------------------------------------------------------- */
-  function setHash(path) {
-    history.pushState(null, '', '#' + path);
+  function parseHash() {
+    return decodeURIComponent(location.hash.replace(/^#/, '')).split('/').filter(Boolean);
   }
 
-  function navigate(sectionId, skipHash) {
-    switchSection(sectionId);
-    if (!skipHash) setHash(sectionId);
+  function go(path) {
+    if (location.hash.replace(/^#/, '') === path) handleRoute();
+    else location.hash = path;
   }
 
   function handleRoute() {
-    const hash = location.hash.replace('#', '');
-    const parts = hash.split('/');
-
-    // Close any open overlays first
-    if (projectDetailOverlay.classList.contains('open')) closeProjectDetail(true);
-    if (iframeOverlay.classList.contains('open')) closeIframe();
-    if (theoryOverlay.classList.contains('open')) closeTheory();
+    const parts = parseHash();
 
     if (parts[0] === 'subjects') {
-      switchSection('subjects');
-      if (parts[1]) {
-        const subject = SUBJECTS.find((s) => s.id === parts[1]);
-        if (subject) openSubject(subject, true);
-      } else {
-        // Show subjects list
-        if (currentSubject) closeSubject(true);
+      showSection('subjects');
+      const subject = parts[1] && SUBJECTS.find((s) => s.id === parts[1]);
+      if (!subject) {
+        closeAllOverlays();
+        closeSubject();
+        return;
       }
-    } else if (parts[0] === 'projects') {
-      switchSection('projects');
-      if (parts[1]) {
-        const project = PROJECTS.find((p) => p.id === parts[1]);
-        if (project) openProjectDetail(project, true);
-      }
-    } else {
-      // Default: show projects
-      switchSection('projects');
+      openSubject(subject);
+      const topic = parts[2] && findTopic(subject, parts[2]);
+      if (!topic) { closeAllOverlays(); return; }
+      if (topic.interactive) openLab(subject, topic, parseInt(parts[3], 10) || 0);
+      else openTheory(subject, topic);
+      return;
     }
+
+    if (parts[0] === 'contact') {
+      closeAllOverlays();
+      return;
+    }
+
+    showSection('projects');
+    closeSubject();
+    const project = parts[1] && PROJECTS.find((p) => p.id === parts[1]);
+    if (project) openProjectDetail(project);
+    else { closeAllOverlays(); currentProjectId = null; }
   }
 
-  window.addEventListener('popstate', handleRoute);
+  window.addEventListener('hashchange', handleRoute);
+
+  // Smooth-scroll helpers for in-page CTAs (hero, contact).
+  document.querySelectorAll('[data-scroll]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = $(link.dataset.scroll);
+      if (target === projectsSection && currentSection !== 'projects') go('projects');
+      requestAnimationFrame(() => target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }));
+    });
+  });
+
+  // Top-level nav: switching section scrolls back to the section start.
+  navLinks.forEach((link) => {
+    link.addEventListener('click', () => {
+      if (currentSection !== link.dataset.section) setTimeout(() => window.scrollTo({ top: 0, behavior: 'auto' }), 0);
+    });
+  });
+
+  // Hide résumé links when no résumé has been published alongside the site.
+  function checkResume() {
+    const links = document.querySelectorAll('[data-resume]');
+    if (!links.length || location.protocol === 'file:') { links.forEach((l) => l.remove()); return; }
+    fetch('resume.pdf', { method: 'HEAD' })
+      .then((r) => { if (!r.ok) links.forEach((l) => l.remove()); })
+      .catch(() => links.forEach((l) => l.remove()));
+  }
+
+  // Topbar gains a border/shadow once the page scrolls.
+  const topbar = $('topbar');
+  const onScroll = () => topbar.classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', onScroll, { passive: true });
 
   /* ----------------------------------------------------------
      INIT
      ---------------------------------------------------------- */
+  $('footer-year').textContent = new Date().getFullYear();
   renderSubjectsList();
   renderProjectTiles();
   updateStats();
-
-  // Restore view from URL hash on first load
-  if (location.hash) {
-    handleRoute();
-  } else {
-    switchSection('projects');
-  }
-
-  requestAnimationFrame(() => initScrollReveal());
+  handleRoute();
+  onScroll();
+  checkResume();
+  reveal(document);
 })();
-

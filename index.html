@@ -4,9 +4,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shray Vijay - Portfolio</title>
+  <title>Shray Vijay — AI/ML Engineer</title>
   <meta name="description"
-    content="Interactive portfolio showcasing Mathematical Foundations for Machine Learning — 3D visualisers, gradient descent labs, PCA explorers, and more.">
+    content="Portfolio of Shray Vijay, AI/ML Engineer — production GenAI and RAG systems, end-to-end ML pipelines, and interactive labs for machine learning and its mathematical foundations.">
+  <meta name="theme-color" content="#07080d">
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2307080d'/%3E%3Ctext x='50%25' y='56%25' text-anchor='middle' dominant-baseline='middle' font-family='Inter,Arial,sans-serif' font-weight='800' font-size='28' fill='%237cc4ff'%3ESV%3C/text%3E%3C/svg%3E">
+  <script>
+    /* Apply the saved theme before first paint to avoid a flash */
+    (function () {
+      try {
+        var t = localStorage.getItem('sv-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
   <link rel="stylesheet" href="styles.css">
   <!-- MathJax for LaTeX formula rendering -->
   <script>
@@ -20,157 +36,277 @@
 </head>
 
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- ============================================
        TOPBAR
        ============================================ -->
   <header class="topbar" id="topbar">
-    <a href="./" class="logo">
-      <span class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-          stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      </span>
-      <span class="logo-text">Shray<span>Vijay</span></span>
-    </a>
+    <div class="topbar-inner container">
+      <a href="#projects" class="logo" aria-label="Shray Vijay — home">
+        <span class="logo-mark">SV</span>
+        <span class="logo-text">Shray<span>Vijay</span></span>
+      </a>
 
-    <nav>
-      <a href="#" data-section="projects" class="active" id="nav-projects">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-        <span class="nav-label">Projects</span>
-      </a>
-      <a href="#" data-section="subjects" id="nav-subjects">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-        </svg>
-        <span class="nav-label">Subjects</span>
-      </a>
-    </nav>
+      <nav class="main-nav" aria-label="Primary">
+        <a href="#projects" data-section="projects" class="active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+          <span>Projects</span>
+        </a>
+        <a href="#subjects" data-section="subjects">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <span><span class="hide-sm">Interactive </span>Labs</span>
+        </a>
+      </nav>
 
-    <div class="topbar-end">
-      <a href="https://github.com/shray028" target="_blank" rel="noopener" aria-label="GitHub Profile" title="GitHub">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-        </svg>
-      </a>
+      <div class="topbar-end">
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle colour theme" title="Toggle theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/shray028" target="_blank" rel="noopener" aria-label="GitHub profile"
+          title="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+          </svg>
+        </a>
+        <a class="btn btn-primary btn-sm topbar-cta" href="#contact" data-scroll="contact">Contact</a>
+      </div>
     </div>
   </header>
 
-  <!-- ============================================
-       HERO
-       ============================================ -->
-  <section class="hero container" id="hero">
-    <h1 id="hero-title">AI/ML Engineer</h1>
-    <p id="hero-subtitle">I build production GenAI systems and visualize the concepts behind them.</p>
-    <ul class="hero-highlights" id="hero-highlights"></ul>
-
-    <!-- Stats Strip -->
-    <div class="stats-strip hidden" id="stats-strip">
-      <div class="stat-item">
-        <span class="stat-number" id="stat-topics">15</span>
-        <span class="stat-name">Topics</span>
-      </div>
-      <span class="stat-dot"></span>
-      <div class="stat-item">
-        <span class="stat-number" id="stat-interactive">14</span>
-        <span class="stat-name">Interactive</span>
-      </div>
-      <span class="stat-dot"></span>
-      <div class="stat-item">
-        <span class="stat-number" id="stat-subjects">1</span>
-        <span class="stat-name">Subject</span>
-      </div>
-      <span class="stat-dot"></span>
-      <div class="stat-item">
-        <span class="stat-number" id="stat-projects">1</span>
-        <span class="stat-name">Projects</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================
-       SUBJECTS SECTION
-       ============================================ -->
-  <section class="subjects-section container" id="subjects-section">
-    <!-- Subjects List (default view) -->
-    <div id="subjects-list" class="subjects-list">
-      <!-- Subject cards rendered by app.js -->
-    </div>
-
-    <!-- Topics View (hidden, shown on subject click) -->
-    <div id="topics-view" class="topics-view hidden">
-      <div class="topics-header">
-        <button class="back-btn" id="back-to-subjects">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          All Subjects
-        </button>
-        <div class="topics-meta">
-          <span class="section-eyebrow" id="topics-eyebrow"></span>
-          <h2 id="topics-title"></h2>
+  <main id="main">
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero container" id="hero">
+      <div class="hero-copy">
+        <span class="hero-badge"><span class="pulse-dot" aria-hidden="true"></span>Open to AI/ML engineering roles</span>
+        <h1>Hi, I'm Shray —<br><span class="grad-text">AI/ML Engineer</span></h1>
+        <p class="hero-lead">I build production GenAI systems and visualise the concepts behind them — from RAG
+          pipelines and microservices to from-scratch neural networks and interactive 3D maths labs.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="#projects" data-scroll="projects-section">
+            Explore projects
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a class="btn btn-ghost" href="#subjects">Try the interactive labs</a>
         </div>
-        <div class="section-right">
-          <div class="progress-label" id="progress-label"></div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+      </div>
+
+      <ul class="hero-highlights" aria-label="Highlights">
+        <li>
+          <span class="hl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </span>
+          <div><strong>End-to-end ML systems</strong><span>Data cleaning and feature engineering through to deployed
+              apps.</span></div>
+        </li>
+        <li>
+          <span class="hl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+            </svg>
+          </span>
+          <div><strong>GenAI in practice</strong><span>RAG pipelines, embeddings and LLM integration on real
+              documents.</span></div>
+        </li>
+        <li>
+          <span class="hl-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+          </span>
+          <div><strong>Strong foundations</strong><span>I build 3D visualisations to understand concepts in
+              depth.</span></div>
+        </li>
+      </ul>
+
+      <dl class="stats-strip" id="stats-strip">
+        <div class="stat-item">
+          <dt>Projects</dt>
+          <dd id="stat-projects">–</dd>
+        </div>
+        <div class="stat-item">
+          <dt>Interactive labs</dt>
+          <dd id="stat-interactive">–</dd>
+        </div>
+        <div class="stat-item">
+          <dt>Topics covered</dt>
+          <dd id="stat-topics">–</dd>
+        </div>
+        <div class="stat-item">
+          <dt>Subjects</dt>
+          <dd id="stat-subjects">–</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- ============================================
+         PROJECTS SECTION
+         ============================================ -->
+    <section class="page-section projects-section active container" id="projects-section" aria-labelledby="projects-heading">
+      <div class="section-header">
+        <div>
+          <span class="section-eyebrow">Project library</span>
+          <h2 id="projects-heading">Selected projects</h2>
+          <p>End-to-end ML systems and deep-learning explorations, each with a step-by-step case study.</p>
+        </div>
+        <div class="filter-bar" id="project-filter-bar" role="group" aria-label="Filter projects">
+          <button class="filter-btn active" data-filter="all" aria-pressed="true">All <span class="count"></span></button>
+          <button class="filter-btn" data-filter="ml" aria-pressed="false">ML Engineering <span class="count"></span></button>
+          <button class="filter-btn" data-filter="ai" aria-pressed="false">AI / Deep Learning <span class="count"></span></button>
+        </div>
+      </div>
+
+      <!-- Project cards rendered by app.js -->
+      <div class="project-grid" id="project-tiles"></div>
+    </section>
+
+    <!-- ============================================
+         SUBJECTS SECTION
+         ============================================ -->
+    <section class="page-section subjects-section container" id="subjects-section" aria-labelledby="subjects-heading">
+      <!-- Subjects List (default view) -->
+      <div id="subjects-list" class="subjects-list">
+        <div class="section-header">
+          <div>
+            <span class="section-eyebrow">Learning in public</span>
+            <h2 id="subjects-heading">Interactive labs</h2>
+            <p>Concepts from my coursework, rebuilt as hands-on 3D visualisers, simulations and formula sheets.</p>
+          </div>
+        </div>
+        <div class="subject-cards-grid" id="subject-cards-grid"></div>
+      </div>
+
+      <!-- Topics View (shown on subject click) -->
+      <div id="topics-view" class="topics-view hidden">
+        <a class="back-link" id="back-to-subjects" href="#subjects">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          All subjects
+        </a>
+
+        <div class="topics-header" id="topics-header">
+          <div class="topics-meta">
+            <span class="section-eyebrow" id="topics-eyebrow"></span>
+            <h2 id="topics-title"></h2>
+            <p id="topics-description"></p>
+          </div>
+          <div class="topics-progress">
+            <div class="progress-label" id="progress-label"></div>
+            <div class="progress-bar" aria-hidden="true">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topics-toolbar" id="topics-toolbar">
+          <label class="search-field">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <span class="sr-only">Search topics</span>
+            <input type="search" id="topic-search" placeholder="Search topics, formulas, tags…" autocomplete="off">
+          </label>
+          <div class="filter-bar" id="topic-filter-bar" role="group" aria-label="Filter topics">
+            <button class="filter-btn active" data-filter="all" aria-pressed="true">All</button>
+            <button class="filter-btn" data-filter="interactive" aria-pressed="false">Interactive</button>
+            <button class="filter-btn" data-filter="theory" aria-pressed="false">Theory</button>
+          </div>
+        </div>
+        <nav class="group-nav" id="group-nav" aria-label="Concept groups"></nav>
+
+        <div class="concept-groups-container" id="concept-groups-container"></div>
+        <p class="empty-state hidden" id="topics-empty">No topics match your search.</p>
+      </div>
+    </section>
+
+    <!-- ============================================
+         CONTACT
+         ============================================ -->
+    <section class="contact container" id="contact" aria-labelledby="contact-heading">
+      <div class="contact-card">
+        <div>
+          <span class="section-eyebrow">Get in touch</span>
+          <h2 id="contact-heading">Let's build something intelligent.</h2>
+          <p>I'm interested in AI/ML engineering roles and collaborations on GenAI, RAG and applied ML systems.</p>
+        </div>
+        <div class="contact-actions">
+          <a class="btn btn-primary" href="mailto:shrayvijay028@gmail.com">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 7-10 6L2 7" />
+            </svg>
+            shrayvijay028@gmail.com
+          </a>
+          <div class="contact-links">
+            <a class="btn btn-ghost" href="https://linkedin.com/in/shrayvijay/" target="_blank" rel="noopener">LinkedIn</a>
+            <a class="btn btn-ghost" href="https://github.com/shray028" target="_blank" rel="noopener">GitHub</a>
+            <a class="btn btn-ghost" href="./resume.pdf" target="_blank" rel="noopener" data-resume>Résumé</a>
+            <a class="btn btn-ghost" href="tel:+918764097571">+91 87640 97571</a>
           </div>
         </div>
       </div>
-      <div class="concept-groups-container" id="concept-groups-container"></div>
-    </div>
-  </section>
+    </section>
+  </main>
 
   <!-- ============================================
-       PROJECTS SECTION
+       IFRAME OVERLAY (interactive labs)
        ============================================ -->
-  <section class="projects-section active container" id="projects-section">
-    <div class="section-header">
-      <div>
-        <span class="section-eyebrow">PROJECT LIBRARY</span>
-        <h2>Explore Projects</h2>
-        <p>End-to-end ML systems and deep learning algorithm explorations built from scratch.</p>
-      </div>
-    </div>
-
-    <div class="project-filter-bar" id="project-filter-bar">
-      <button class="project-filter-btn active" data-filter="all">All</button>
-      <button class="project-filter-btn" data-filter="ml">ML Engineering</button>
-      <button class="project-filter-btn" data-filter="ai">AI / Deep Learning</button>
-    </div>
-
-    <!-- Project tiles rendered by app.js -->
-    <div class="project-tiles" id="project-tiles"></div>
-  </section>
-
-  <!-- ============================================
-       IFRAME OVERLAY
-       ============================================ -->
-  <div class="iframe-overlay" id="iframe-overlay">
-    <div class="iframe-toolbar">
-      <button class="iframe-back-btn" id="iframe-back">
+  <div class="overlay iframe-overlay" id="iframe-overlay" role="dialog" aria-modal="true" aria-labelledby="iframe-title"
+    hidden>
+    <div class="overlay-toolbar">
+      <button class="btn btn-ghost btn-sm" id="iframe-back" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12" />
-          <polyline points="12 19 5 12 12 5" />
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         Back
       </button>
-      <span class="iframe-title" id="iframe-title"></span>
-      <button class="iframe-open-btn" id="iframe-open-new">
-        Open in tab
+      <div class="overlay-heading">
+        <span class="overlay-title" id="iframe-title"></span>
+        <div class="lab-tabs" id="lab-tabs" role="tablist" aria-label="Labs for this topic"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="iframe-open-new" type="button">
+        <span class="hide-sm">Open in new tab</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
+          stroke-linejoin="round" aria-hidden="true">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
           <polyline points="15 3 21 3 21 9" />
           <line x1="10" y1="14" x2="21" y2="3" />
@@ -180,74 +316,71 @@
     <div class="iframe-container">
       <div class="iframe-loading" id="iframe-loading">
         <div class="spinner"></div>
+        <span>Loading lab…</span>
       </div>
-      <iframe id="interactive-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-popups"
-        loading="lazy"></iframe>
+      <iframe id="interactive-frame" title="Interactive lab" src="about:blank"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation"></iframe>
     </div>
   </div>
 
   <!-- ============================================
-       THEORY DETAIL OVERLAY
+       THEORY OVERLAY
        ============================================ -->
-  <div class="theory-overlay" id="theory-overlay">
-    <div class="theory-toolbar">
-      <button class="iframe-back-btn" id="theory-back">
+  <div class="overlay theory-overlay" id="theory-overlay" role="dialog" aria-modal="true"
+    aria-labelledby="theory-overlay-title" hidden>
+    <div class="overlay-toolbar">
+      <button class="btn btn-ghost btn-sm" id="theory-back" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12" />
-          <polyline points="12 19 5 12 12 5" />
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         Back
       </button>
-      <span class="iframe-title" id="theory-overlay-title"></span>
+      <div class="overlay-heading"><span class="overlay-title" id="theory-overlay-title"></span></div>
+      <span></span>
     </div>
-    <div class="theory-scroll">
-      <div class="theory-panel" id="theory-content">
-        <!-- Filled by app.js -->
-      </div>
+    <div class="overlay-scroll">
+      <div class="theory-panel" id="theory-content"></div>
     </div>
   </div>
 
   <!-- ============================================
        PROJECT DETAIL OVERLAY
        ============================================ -->
-  <div class="project-detail-overlay" id="project-detail-overlay">
-    <div class="project-detail-toolbar">
-      <button class="iframe-back-btn" id="project-detail-back">
+  <div class="overlay project-detail-overlay" id="project-detail-overlay" role="dialog" aria-modal="true"
+    aria-labelledby="project-detail-title" hidden>
+    <div class="overlay-toolbar">
+      <button class="btn btn-ghost btn-sm" id="project-detail-back" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12" />
-          <polyline points="12 19 5 12 12 5" />
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
         </svg>
         Back
       </button>
-      <span class="detail-title" id="project-detail-title"></span>
-      <a class="iframe-open-btn" id="project-detail-github" href="#" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="currentColor">
+      <div class="overlay-heading"><span class="overlay-title" id="project-detail-title"></span></div>
+      <a class="btn btn-ghost btn-sm" id="project-detail-github" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path
             d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
         </svg>
-        GitHub
+        <span class="hide-sm">GitHub</span>
       </a>
     </div>
-    <div class="project-detail-scroll" id="project-detail-scroll">
-      <!-- Filled by app.js -->
-    </div>
+    <div class="overlay-scroll" id="project-detail-scroll"></div>
   </div>
 
   <!-- ============================================
        FOOTER
        ============================================ -->
-  <footer>
+  <footer class="site-footer">
     <div class="footer-inner container">
-      <span class="footer-brand">Shray Vijay</span>
-      <span>Interactive ML Portfolio · 2026</span>
+      <span class="footer-brand"><span class="logo-mark">SV</span> Shray Vijay</span>
+      <span class="footer-note">AI/ML Engineer · Interactive ML Portfolio · <span id="footer-year">2026</span></span>
       <div class="footer-links">
-        <a href="tel:+918764097571">8764097571</a>
-        <a href="mailto:shrayvijay028@gmail.com">shrayvijay028@gmail.com</a>
+        <a href="mailto:shrayvijay028@gmail.com">Email</a>
         <a href="https://linkedin.com/in/shrayvijay/" target="_blank" rel="noopener">LinkedIn</a>
-        <a href="./resume.pdf" target="_blank" rel="noopener">Resume</a>
         <a href="https://github.com/shray028" target="_blank" rel="noopener">GitHub</a>
+        <a href="./resume.pdf" target="_blank" rel="noopener" data-resume>Résumé</a>
       </div>
     </div>
   </footer>

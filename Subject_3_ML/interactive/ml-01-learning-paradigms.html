@@ -390,7 +390,7 @@ const App = (() => {
   }
 
   resize();
-  return { load, act, start() { load('supervised'); loop(); } };
+  return { load, act, start(){ const h=location.hash.slice(1); load(MODULES[h] ? h : 'supervised'); window.addEventListener('hashchange', ()=>{ const k=location.hash.slice(1); if (MODULES[k] && k!==mode) load(k); }); loop(); } };
 })();
 App.start();
 </script>

@@ -14,6 +14,7 @@ MFML_htmls/
 !app.js
 !styles.css
 !.gitignore
+!resume.pdf
 
 # Keep PNG images in the Projects directories
 !Projects/**/*.png
