@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Deterioration Prediction — Microservices Architecture</title>
+  <meta name="description"
+    content="Interactive system-design explainer: microservices, synchronous REST/gRPC vs asynchronous Kafka events, caches, databases, model registry, alerting, auditing and monitoring for an ML patient-deterioration predictor.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    /* ---------- Layout ---------- */
+    .top-grid {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .pform { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+    .pform .full { grid-column: 1 / -1; }
+    .pform .input.bad { border-color: var(--red); }
+
+    .resp {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: 12.5px;
+    }
+
+    .resp.ok { border-color: rgba(95, 179, 249, 0.35); }
+    .resp.high { border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.06); }
+    .resp.err { border-color: rgba(248, 113, 113, 0.5); }
+    .resp .code-line { font: 700 13px var(--font-mono); }
+
+    /* ---------- Step card ---------- */
+    .stepcard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0; }
+    .stepcard .left { padding: 16px 18px; border-right: 1px solid var(--line); }
+    .stepcard .right { padding: 16px 18px; }
+    .step-count { color: var(--amber); font: 600 11px var(--font-mono); letter-spacing: 0.1em; }
+    .step-title { margin: 4px 0 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+    .step-text { color: var(--text-2); }
+    .step-meta { display: grid; gap: 6px; margin-top: 12px; font-size: 12.5px; }
+    .step-meta div { color: var(--text-2); }
+    .step-meta b { color: var(--dim); font: 600 10.5px var(--font-mono); letter-spacing: 0.08em; margin-right: 6px; }
+    .step-progress { height: 4px; border-radius: 999px; background: var(--surface); overflow: hidden; margin-top: 14px; }
+    .step-progress span { display: block; height: 100%; background: var(--amber); transition: width 0.4s var(--ease); }
+
+    .stage-box { min-height: 170px; }
+    .checklist { display: grid; gap: 4px; font: 12.5px var(--font-mono); }
+    .checklist div { display: flex; gap: 8px; align-items: center; animation: rowIn 0.3s var(--ease) both; }
+    .checklist .ok { color: #bbf7d0; }
+    .checklist .bad { color: #fecaca; }
+    .checklist svg { width: 14px; height: 14px; }
+    .transform { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; font: 12px var(--font-mono); }
+    .transform .col { padding: 8px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+    .transform .col div { display: flex; justify-content: space-between; gap: 8px; }
+    .transform .arrow { color: var(--amber); }
+    .pipeline-mini { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .pipeline-mini span { font: 500 10.5px var(--font-mono); padding: 2px 7px; border-radius: 6px; background: var(--surface); color: var(--muted); }
+    .pipeline-mini span.on { color: #fff; background: rgba(251, 146, 60, 0.25); }
+    .risk-meter { position: relative; height: 12px; border-radius: 999px; background: linear-gradient(90deg, #22c55e 0 39%, #f59e0b 39% 69%, #ef4444 69% 100%); margin: 10px 0 4px; }
+    .risk-meter i { position: absolute; top: -5px; width: 4px; height: 22px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 2px #000; transition: left 0.6s var(--ease); }
+    .risk-scale { display: flex; justify-content: space-between; color: var(--dim); font: 10.5px var(--font-mono); }
+
+    /* ---------- Diagram ---------- */
+    .diagram-card { margin-top: 16px; }
+    .diagram-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .diagram-wrap { position: relative; padding: 6px 8px 10px; }
+    #arch { width: 100%; min-width: 1000px; height: auto; }
+    .callout-pill {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font: 600 12px var(--font-mono);
+      letter-spacing: 0.04em;
+      background: #0b0e17;
+      border: 1px solid var(--line-strong);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .callout-pill.show { opacity: 1; }
+
+    /* SVG nodes */
+    .node { cursor: pointer; transition: opacity 0.3s; }
+    .node .box { fill: #0f1320; stroke: #2d3650; stroke-width: 1.4; transition: stroke 0.25s, fill 0.25s; }
+    .node:hover .box { stroke: #4a5778; }
+    .node .nm { fill: #eef2fb; font: 700 12.5px var(--font-body); }
+    .node .st { fill: #8c94a9; font: 500 10.5px var(--font-mono); }
+    .node .ic { color: #8c94a9; }
+    .node.kind-store .box { fill: #0d1220; }
+    .node.kind-actor .box { fill: #121a2c; stroke-dasharray: 4 3; }
+    .node.active .box { stroke: #fbbf24; stroke-width: 2.4; filter: url(#glow); fill: #17140d; }
+    .node.active .ic { color: #fbbf24; }
+    .node.success .box { stroke: #3f9e6a; }
+    .node.success .ic { color: #4ade80; }
+    .node.error .box { stroke: #f87171; stroke-width: 2.2; fill: #1c0f12; }
+    .node.error .ic { color: #f87171; }
+    .node.skipped { opacity: 0.35; }
+    .node .badge-ok, .node .badge-err { display: none; }
+    .node.success .badge-ok { display: block; }
+    .node.error .badge-err { display: block; }
+    .node.sel .box { stroke: #5fb3f9; stroke-width: 2.4; }
+    .node .why { display: none; cursor: help; }
+    body.why-on .node .why { display: block; }
+
+    .edge { cursor: pointer; transition: opacity 0.3s; }
+    .edge .ln { fill: none; stroke-width: 2; }
+    .edge .hit { fill: none; stroke: transparent; stroke-width: 14; }
+    .edge:hover .ln { stroke-width: 3.2; }
+    .edge.sel .ln { stroke-width: 3.6; }
+    .edge.flow .ln { stroke-width: 3; }
+    .edge-lbl { font: 600 10px var(--font-mono); pointer-events: none; }
+
+    .dim { opacity: 0.16; }
+
+    .topic { transition: opacity 0.3s; }
+    .topic rect { fill: #1a140c; stroke: #6b4a22; }
+    .topic text { fill: #fdba74; font: 600 10.5px var(--font-mono); }
+    .topic.pulse rect { fill: #3a2410; stroke: #fb923c; }
+    .topic.used rect { stroke: #fb923c; }
+
+    /* ---------- Legend ---------- */
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend svg { width: 34px; height: 10px; }
+
+    /* ---------- Drawer inspector ---------- */
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 120;
+      width: min(420px, 100%);
+      overflow-y: auto;
+      border-left: 1px solid var(--line-strong);
+      background: var(--panel);
+      box-shadow: -30px 0 60px -30px rgba(0, 0, 0, 0.8);
+      transform: translateX(105%);
+      transition: transform 0.3s var(--ease);
+    }
+
+    .drawer.open { transform: none; }
+    .drawer .card-head { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+    .insp { display: grid; gap: 14px; padding: 16px 18px 30px; }
+    .insp h4 { color: var(--dim); font: 600 10.5px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .insp p, .insp li { color: var(--text-2); font-size: 13px; }
+    .insp ul { padding-left: 16px; }
+    .insp .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    /* ---------- Panels row ---------- */
+    .panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+    .evt-json { padding: 0 14px 14px; }
+
+    /* ---------- Timeline ---------- */
+    .timeline { position: relative; padding: 14px 16px 18px; }
+    .tl-row { display: grid; grid-template-columns: 190px 1fr 56px; gap: 10px; align-items: center; height: 24px; font-size: 12px; }
+    .tl-row .nm { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tl-row .ms { color: var(--dim); font: 11px var(--font-mono); text-align: right; }
+    .tl-track { position: relative; height: 10px; }
+    .tl-track i { position: absolute; top: 0; height: 10px; border-radius: 4px; }
+    .tl-marker { position: absolute; top: 8px; bottom: 8px; width: 0; border-left: 2px dashed var(--blue); pointer-events: none; }
+    .tl-marker span { position: absolute; top: -2px; left: 6px; color: var(--blue); font: 600 10.5px var(--font-mono); white-space: nowrap; }
+
+    /* ---------- Compare cards ---------- */
+    .cmp { display: grid; gap: 10px; }
+    .flow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 12px var(--font-mono); }
+    .flow-line span { padding: 4px 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+    .flow-line em { color: var(--dim); font-style: normal; }
+    .branch { display: grid; gap: 5px; padding-left: 18px; border-left: 2px dashed rgba(251, 146, 60, 0.5); margin-left: 40px; }
+    .why-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .suggest li { margin-bottom: 8px; color: var(--text-2); }
+    .suggest li b { color: var(--text); }
+    details.card summary { cursor: pointer; padding: 14px 18px; font-weight: 700; }
+    details.card[open] summary { border-bottom: 1px solid var(--line); }
+
+    /* ---------- Mobile vertical pipeline ---------- */
+    .mobile-flow { display: none; padding: 12px; gap: 6px; }
+    .mf-item { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .mf-item svg { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+    .mf-item .s { margin-left: auto; color: var(--dim); font: 11px var(--font-mono); text-align: right; }
+    .mf-item.active { border-color: #fbbf24; }
+    .mf-item.success { border-color: #3f9e6a; }
+    .mf-item.error { border-color: #f87171; }
+    .mf-arrow { text-align: center; color: var(--blue); font-size: 12px; line-height: 1; }
+    .mf-sep { margin-top: 10px; color: var(--amber); font: 600 11px var(--font-mono); letter-spacing: 0.08em; }
+
+    @media (max-width: 1100px) {
+      .top-grid { grid-template-columns: minmax(0, 1fr); }
+      .panels { grid-template-columns: minmax(0, 1fr); }
+      .why-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 700px) {
+      .svg-scroll { display: none; }
+      .mobile-flow { display: grid; }
+      .stepcard { grid-template-columns: minmax(0, 1fr); }
+      .stepcard .left { border-right: 0; border-bottom: 1px solid var(--line); }
+      .why-grid { grid-template-columns: minmax(0, 1fr); }
+      .tl-row { grid-template-columns: 120px 1fr 44px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / Microservices</span>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" id="btn-exam"><i data-icon="book"></i>Exam answer</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Microservices • ML System Design</span>
+      <h1>ML-Based <span class="grad">Patient Deterioration</span> Prediction System</h1>
+      <p class="sub">Interactive Microservices Architecture &amp; Communication Guide</p>
+      <p class="desc">Follow one patient request from hospital application to ML prediction, alerting, auditing, logging and
+        monitoring. Click any service or arrow to learn <b>what</b> it does, <b>how</b> it communicates and <b>why</b>.</p>
+      <div class="disclaimer"><i data-icon="info"></i>Educational simulation only — synthetic patients, illustrative scores,
+        thresholds and timings. Not a medical device and not clinically meaningful.</div>
+    </section>
+
+    <!-- ============ Patient simulator + step card ============ -->
+    <section class="top-grid">
+      <div class="card">
+        <div class="card-head">
+          <h3><i data-icon="monitor"></i>Hospital Application / EHR</h3>
+          <span class="chip blue">client</span>
+        </div>
+        <div class="card-pad">
+          <div class="presets" id="presets">
+            <button class="btn btn-sm" data-preset="stable">Stable Patient</button>
+            <button class="btn btn-sm" data-preset="deteriorating">Deteriorating Patient</button>
+            <button class="btn btn-sm btn-warn" data-preset="invalid">Invalid Data</button>
+          </div>
+          <form class="pform" id="pform" autocomplete="off">
+            <div class="field full"><label for="f-name">Patient name (synthetic)</label><input class="input" id="f-name"></div>
+            <div class="field"><label for="f-age">Age</label><input class="input" id="f-age" type="number"></div>
+            <div class="field"><label for="f-gender">Gender</label>
+              <select class="input" id="f-gender">
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="field"><label for="f-hr">Heart rate (bpm)</label><input class="input" id="f-hr" type="number"></div>
+            <div class="field"><label for="f-bp">Blood pressure (mmHg)</label><input class="input" id="f-bp" placeholder="92/58"></div>
+            <div class="field"><label for="f-temp">Temperature (°C)</label><input class="input" id="f-temp" type="number" step="0.1"></div>
+            <div class="field"><label for="f-spo2">Oxygen saturation (%)</label><input class="input" id="f-spo2" type="number"></div>
+          </form>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-primary" id="btn-send"><i data-icon="send"></i>Send Patient Data</button>
+          </div>
+          <div class="resp" id="resp"><span class="muted">Response will appear here after the synchronous path completes.</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3><i data-icon="route"></i>Simulation</h3>
+          <div class="btn-row">
+            <button class="btn btn-sm btn-primary" id="btn-run"><i data-icon="play"></i>Run Simulation</button>
+            <button class="btn btn-sm" id="btn-pause" disabled><i data-icon="pause"></i>Pause</button>
+            <button class="btn btn-sm" id="btn-prev" disabled><i data-icon="stepB"></i>Previous</button>
+            <button class="btn btn-sm" id="btn-next"><i data-icon="stepF"></i>Step Through</button>
+            <button class="btn btn-sm" id="btn-reset"><i data-icon="reset"></i>Reset</button>
+            <div class="seg" id="speed" aria-label="Speed">
+              <button data-speed="0.5">0.5×</button>
+              <button data-speed="1" class="on">1×</button>
+              <button data-speed="2">2×</button>
+            </div>
+          </div>
+        </div>
+        <div class="stepcard">
+          <div class="left">
+            <div class="step-count" id="step-count">READY</div>
+            <div class="step-title" id="step-title">Choose a patient preset and press Run or Step Through</div>
+            <div class="step-text" id="step-text">The main prediction request is <b>synchronous</b> — the hospital app waits for an answer.
+              Alerts, audit, logs and metrics happen <b>asynchronously</b> in the background through Kafka and telemetry.</div>
+            <div class="step-meta" id="step-meta"></div>
+            <div class="step-progress"><span id="step-bar" style="width:0%"></span></div>
+          </div>
+          <div class="right">
+            <div class="label" style="margin-bottom:8px">Stage detail</div>
+            <div class="stage-box" id="stage-box"><p class="muted small">Validation checks, feature transformations, inference and the risk decision appear here as the request moves through each service.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Architecture diagram ============ -->
+    <section class="card diagram-card">
+      <div class="diagram-tools">
+        <div class="seg" id="filters" aria-label="Architecture filter">
+          <button data-filter="all" class="on">All</button>
+          <button data-filter="request">Request Path</button>
+          <button data-filter="events">Events</button>
+          <button data-filter="stores">Data Stores</button>
+          <button data-filter="observability">Observability</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="btn-why" aria-pressed="false"><i data-icon="help"></i>Why is it designed this way?</button>
+        </div>
+      </div>
+      <div class="diagram-wrap">
+        <div class="callout-pill" id="callout"></div>
+        <div class="svg-scroll">
+          <svg id="arch" viewBox="0 0 1400 664" role="img" aria-label="Microservices architecture diagram">
+            <defs>
+              <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="4" result="b" />
+                <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <g id="layer-bus"></g>
+            <g id="layer-nodes"></g>
+            <g id="layer-edges"></g>
+            <g id="layer-packets"></g>
+          </svg>
+        </div>
+        <div class="mobile-flow" id="mobile-flow"></div>
+      </div>
+      <div class="card-pad" style="border-top:1px solid var(--line)">
+        <div class="legend" id="legend"></div>
+      </div>
+    </section>
+
+    <div class="why-grid" id="why-grid" hidden></div>
+
+    <!-- ============ Trace + event bus ============ -->
+    <section class="panels">
+      <div class="card">
+        <div class="card-head">
+          <h3><i data-icon="activity"></i>Live request trace</h3>
+          <span class="chip" id="req-id">req-—</span>
+        </div>
+        <div class="log" id="trace"><div class="empty">No request yet.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3><i data-icon="network"></i>Event bus (Kafka)</h3>
+          <span class="chip amber">async · pub/sub</span>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Event</th><th>Producer</th><th>Consumers</th><th>Status</th></tr></thead>
+          <tbody id="events"><tr><td colspan="4" class="empty">Events published during the run appear here. Click one to inspect its JSON.</td></tr></tbody>
+        </table>
+        <div class="evt-json" id="evt-json"></div>
+      </div>
+    </section>
+
+    <!-- ============ Timeline ============ -->
+    <section class="card" style="margin-top:16px">
+      <div class="card-head">
+        <h3><i data-icon="clock"></i>Timeline <span class="dim small" style="font-weight:500">— illustrative timing</span></h3>
+        <div class="legend"><span><i style="width:14px;height:8px;border-radius:3px;background:var(--blue);display:inline-block"></i>synchronous</span><span><i style="width:14px;height:8px;border-radius:3px;background:var(--orange);display:inline-block"></i>asynchronous</span></div>
+      </div>
+      <div class="timeline" id="timeline"><div class="empty">Run a simulation to see how background work continues after the HTTP response.</div></div>
+    </section>
+
+    <!-- ============ Learning sections ============ -->
+    <h2 class="section-title">Synchronous vs asynchronous<small>Which communication fits which job?</small></h2>
+    <div class="grid-2">
+      <div class="card card-pad cmp">
+        <span class="chip blue" style="justify-self:start">SYNCHRONOUS · REST/HTTPS · gRPC</span>
+        <div class="flow-line"><span>Hospital App</span><em>⇄</em><span>API Gateway</span><em>⇄</em><span>Prediction services</span><em>⇄</em><span>Response</span></div>
+        <p><b>Caller waits.</b> Use when the result is needed immediately to continue.</p>
+        <p class="muted small">Examples: prediction request · validation · inference · risk scoring</p>
+      </div>
+      <div class="card card-pad cmp">
+        <span class="chip amber" style="justify-self:start">ASYNCHRONOUS · KAFKA PUB/SUB</span>
+        <div class="flow-line"><span>Risk Scoring</span><em>→</em><span>Kafka</span></div>
+        <div class="branch">
+          <div class="flow-line"><em>↘</em><span>Notification / Alert</span></div>
+          <div class="flow-line"><em>↘</em><span>Audit</span></div>
+          <div class="flow-line"><em>↘</em><span>Activity Logging</span></div>
+        </div>
+        <p><b>Producer does not wait</b> for consumers. Use for side-effects that must not slow the response.</p>
+        <p class="muted small">Examples: alerts · auditing · logging (monitoring uses telemetry pipelines)</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Database vs cache vs event bus<small>Three different jobs — don't mix them up</small></h2>
+    <div class="grid-3">
+      <div class="card card-pad"><span class="chip navy">DATABASE</span>
+        <p style="margin-top:10px"><b>Durable state</b> — the system of record.</p>
+        <p class="muted small">Patient records · predictions · audit records. Persistence: long-term; survives restarts.</p>
+      </div>
+      <div class="card card-pad"><span class="chip green">REDIS CACHE</span>
+        <p style="margin-top:10px"><b>Fast temporary access</b> (in-memory, with TTL).</p>
+        <p class="muted small">Recent vitals · computed features · prediction context. Never the authoritative record.</p>
+      </div>
+      <div class="card card-pad"><span class="chip amber">KAFKA</span>
+        <p style="margin-top:10px"><b>Moves events</b> between loosely coupled services.</p>
+        <p class="muted small">risk.high · prediction.generated. A durable log with retention — but not the patient database.</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Design review — how I'd harden this architecture<small>Suggestions beyond the exam answer</small></h2>
+    <div class="card card-pad">
+      <ol class="suggest" style="padding-left:18px">
+        <li><b>Prefer an orchestrator over a long synchronous chain.</b> A <i>Prediction Orchestrator</i> (behind the gateway) calling Validation → Preprocessing → Inference → Risk in turn keeps each service independent; in a pure chain every hop adds latency and one slow service blocks the rest.</li>
+        <li><b>Timeouts, retries with back-off and circuit breakers</b> on every synchronous hop, with a safe fallback response (“prediction unavailable — use clinical judgement”) instead of a hanging request.</li>
+        <li><b>Transactional outbox</b>: write the prediction and the outgoing <code>risk.high</code> event in the same DB transaction and relay it to Kafka, so an alert is never lost (or sent for a prediction that was never saved).</li>
+        <li><b>Idempotency</b>: the gateway's <code>X-Request-ID</code> doubles as an idempotency key; consumers de-duplicate so a redelivered <code>risk.high</code> doesn't page the team twice. Failed messages go to a <b>dead-letter queue</b>.</li>
+        <li><b>Minimise patient data (PHI)</b>: replace the name with a pseudonymous <code>patientRef</code> before the ML path — inference never needs a name. Encrypt in transit (mTLS) and at rest; enforce RBAC at the gateway.</li>
+        <li><b>Alert acknowledgement &amp; escalation</b>: Notification tracks whether a clinician acknowledged the alert and escalates if not — delivery alone isn't enough.</li>
+        <li><b>Model monitoring &amp; feedback loop</b>: add a model-monitoring service for data/concept drift and calibration, fed by real outcomes, to trigger retraining and registry promotion.</li>
+        <li><b>Observability via telemetry pipelines</b>: metrics are usually scraped (Prometheus) or pushed through an OpenTelemetry collector rather than sent over Kafka; logs are shipped by agents.</li>
+        <li><b>Append-only audit store</b> (write-once, tamper-evident) to meet compliance requirements.</li>
+        <li><b>Human in the loop</b>: the score supports — not replaces — clinical decisions; show the top contributing vitals alongside the score.</li>
+      </ol>
+    </div>
+
+    <details class="card" style="margin-top:16px">
+      <summary>Architecture summary</summary>
+      <div class="card-pad">
+        <p>The hospital application sends patient demographics and vital signs through an API Gateway. The gateway routes the request through patient intake, validation and preprocessing services. The ML Inference Service retrieves the approved model and generates a deterioration probability. The Risk Scoring Service converts this probability into a risk level, persists the prediction, and returns the result synchronously to the hospital application.</p>
+        <p style="margin-top:10px">Events generated throughout the flow are published asynchronously to Kafka. Notification, audit and logging components consume relevant events independently, and monitoring collects telemetry, ensuring that non-critical background work does not delay the patient prediction response. Redis provides low-latency temporary data access, while databases maintain durable patient, prediction and audit records.</p>
+      </div>
+    </details>
+
+    <p class="footer-note">Software Engineering for ML (SEML) · Interactive lab by Shray Vijay. All data, model outputs, thresholds and timings are simulated for teaching.</p>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-label="Inspector">
+    <div class="card-head">
+      <h3 id="insp-title">Inspector</h3>
+      <button class="btn btn-sm" id="insp-close"><i data-icon="x"></i>Close</button>
+    </div>
+    <div class="insp" id="insp"></div>
+  </aside>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, icon, iconPaths, json, esc, clock, packet, createRunner, CANCELLED, modal } = Lab;
+
+    /* ==========================================================
+       ARCHITECTURE CONFIG — services, stores, connections, events
+       ========================================================== */
+    const W = 162, H = 78;
+    const NODES = [
+      { id: 'hosp', kind: 'actor', icon: 'monitor', lines: ['Hospital', 'Application'], x: 18, y: 150, cat: ['request'],
+        role: 'Client that submits patient demographics and vitals and displays the risk result.',
+        input: 'Clinician / EHR data entry', output: 'HTTP POST /api/v1/patients/predict', comm: 'REST/HTTPS to the API Gateway — synchronous, two-way.',
+        why: 'The clinician needs the prediction now, so the app waits for a response.' },
+      { id: 'gw', icon: 'route', lines: ['API Gateway /', 'Central Routing'], x: 218, y: 150, cat: ['request'],
+        role: 'Single entry point for requests from hospital applications.',
+        input: 'POST /api/v1/patients/predict (JSON)', processing: 'Authenticate & authorise, rate-limit, basic request checks, generate X-Request-ID (correlation ID), route to Patient Intake.',
+        output: 'Routed request with correlation ID', comm: 'Hospital ⇄ Gateway: REST/HTTPS, synchronous. Gateway ⇄ Intake: REST or gRPC.',
+        deps: ['Patient Intake Service'], produces: [], consumes: [],
+        what: 'One controlled front door for every backend service.', how: 'Synchronous REST/HTTPS in, REST/gRPC out.',
+        whyShort: 'Avoids exposing every microservice; centralises auth, rate limiting and routing.',
+        example: 'POST /api/v1/patients/predict\nContent-Type: application/json\nAuthorization: Bearer <token>\nX-Request-ID: req-4812' },
+      { id: 'intake', icon: 'fileInput', lines: ['Patient Intake', 'Service'], x: 418, y: 150, cat: ['request', 'events'],
+        role: 'Receives and structures patient information submitted by the hospital application.',
+        input: 'Patient demographics + vital signs', processing: 'Normalise request structure, attach request metadata, persist the request record, forward for validation.',
+        output: 'Structured patient payload', comm: 'Synchronous from Gateway; DB read/write to Patient Data DB; publishes request.received to Kafka (async).',
+        deps: ['Patient Data DB', 'Validation Service'], produces: ['request.received'], consumes: [], storage: ['Patient Data DB'],
+        what: 'Turns the raw request into a structured, persisted patient payload.', how: 'Sync REST/gRPC in and out; DB write; async event.',
+        whyShort: 'Keeps request handling separate from validation and ML logic.' },
+      { id: 'val', icon: 'shield', lines: ['Validation', 'Service'], x: 618, y: 150, cat: ['request', 'events'],
+        role: 'Checks whether patient data is valid before ML processing.',
+        input: 'Structured patient payload', processing: 'Required fields, types, ranges, missing/invalid values, schema checks.',
+        output: 'Validated data — or HTTP 400 that stops the pipeline early', comm: 'Synchronous; publishes validation.completed / validation.failed (async).',
+        deps: ['Preprocessing Service'], produces: ['validation.completed', 'validation.failed'], consumes: [],
+        what: 'Rejects bad data before it reaches the model.', how: 'Synchronous step in the request path.',
+        whyShort: 'Garbage in → garbage out: an SpO₂ of 140% must never reach inference.' },
+      { id: 'pre', icon: 'sliders', lines: ['Preprocessing /', 'Feature Eng.'], x: 818, y: 150, cat: ['request', 'stores'],
+        role: 'Transforms raw patient information into model-ready numerical features.',
+        input: 'Validated vitals', processing: 'Cleaning → missing-value handling → normalisation → feature engineering (e.g. mean arterial pressure) → feature vector.',
+        output: 'Feature vector', comm: 'Synchronous; cache read/write with Redis.', deps: ['Redis Cache', 'ML Inference Service'], storage: ['Redis Cache'],
+        produces: [], consumes: [],
+        what: 'Builds the exact features the model was trained on.', how: 'Sync call to inference; Redis cache-aside.',
+        whyShort: 'Training/serving consistency — the same transformations must run at inference time.' },
+      { id: 'inf', icon: 'brain', lines: ['ML Inference', 'Service'], x: 1018, y: 150, cat: ['request', 'events', 'stores'],
+        role: 'Runs the patient deterioration prediction model.',
+        input: 'Preprocessed numerical feature vector', processing: 'Loads the approved model version from the Model Registry and performs inference.',
+        output: 'Deterioration probability (0–1)', comm: 'Synchronous request from Preprocessing; reads model artifacts; Redis read/write; publishes prediction.generated.',
+        deps: ['Redis Cache', 'Model Registry'], produces: ['prediction.generated'], consumes: [], storage: ['Redis Cache', 'Model Registry (read)'],
+        what: 'Scores the patient with PatientDeteriorationModel v3.2.', how: 'Synchronous — Risk Scoring needs the probability before it can respond.',
+        whyShort: 'Isolating inference lets it scale on its own (CPU/GPU) and swap model versions independently.' },
+      { id: 'risk', icon: 'gauge', lines: ['Risk Scoring &', 'Decision'], x: 1218, y: 150, cat: ['request', 'events', 'stores'],
+        role: 'Converts the raw ML probability into an actionable risk level.',
+        input: 'Deterioration probability', processing: 'Applies illustrative thresholds (LOW < 0.40 ≤ MEDIUM < 0.70 ≤ HIGH), builds the prediction object, persists it.',
+        output: 'Risk score + level + summary', comm: 'Synchronous response back to the hospital; DB write; publishes risk.high (async) when HIGH.',
+        deps: ['Prediction & Request DB', 'Kafka'], produces: ['risk.high'], consumes: [], storage: ['Prediction & Request DB'],
+        what: 'Turns a probability into a decision clinicians can act on.', how: 'Sync response; async risk.high event.',
+        whyShort: 'Business rules (thresholds) change separately from the model.' },
+
+      { id: 'pdb', kind: 'store', icon: 'database', lines: ['Patient Data DB'], sub: 'durable records', x: 418, y: 22, h: 62, cat: ['stores'],
+        role: 'Persistent patient/request records (system of record).', comm: 'Database read/write from Patient Intake.', whyShort: 'Patient records must survive restarts — durable storage, not a cache.' },
+      { id: 'registry', kind: 'store', icon: 'package', lines: ['Model Registry'], sub: 'v3.2 · Production', x: 1018, y: 22, h: 62, cat: ['stores'],
+        role: 'Stores model versions, artifacts and metadata; marks the approved production model (PatientDeteriorationModel v3.2).',
+        comm: 'Read by ML Inference (model artifact read). Not part of the user request path.', whyShort: 'Inference code and model artifacts evolve independently; enables versioning, rollback and reproducibility.' },
+      { id: 'preddb', kind: 'store', icon: 'database', lines: ['Prediction DB'], sub: 'durable predictions', x: 1218, y: 22, h: 62, cat: ['stores'],
+        role: 'Stores request ID, timestamp, prediction, risk score, risk level and model version.', comm: 'Read/write from Risk Scoring.', whyShort: 'Predictions must be traceable later — durable storage.' },
+      { id: 'redis', kind: 'store', icon: 'zap', lines: ['Redis Cache'], sub: 'fast · temporary', x: 920, y: 262, w: 128, h: 56, cat: ['stores'],
+        role: 'In-memory cache for recent vitals, computed features and prediction context (with TTL).', comm: 'Cache read/write from Preprocessing and Inference.', whyShort: 'Low-latency reuse of features — but never the authoritative record.' },
+
+      { id: 'notif', icon: 'bell', lines: ['Notification /', 'Alert Service'], x: 110, y: 470, h: 72, cat: ['events'],
+        role: 'Sends urgent alerts to the medical team for high-risk patients.', input: 'risk.high events', processing: 'Builds the alert and fans out to channels (app notification, pager, SMS, email).',
+        output: 'Alert to doctors / nurses', comm: 'Consumes risk.high from Kafka (async).', deps: ['Kafka', 'Medical team channels'], produces: [], consumes: ['risk.high'],
+        what: 'Sends urgent alerts.', how: 'Consumes risk.high from Kafka.', whyShort: 'Alert delivery may involve slow external providers and must not block the prediction response.' },
+      { id: 'audit', icon: 'clipboard', lines: ['Audit Service'], x: 480, y: 470, h: 72, cat: ['events'],
+        role: 'Maintains traceable compliance/audit records: who/what/when happened to a patient operation.', input: 'request.received, validation.*, prediction.generated, risk.high',
+        processing: 'Records request ID, timestamp, patient reference, service, action, model version, alert generated.', output: 'Append-only audit entries',
+        comm: 'Kafka → Audit (async); Audit → Audit Log Store (DB write).', deps: ['Kafka', 'Audit Log Store'], produces: [], consumes: ['request.received', 'validation.completed', 'validation.failed', 'prediction.generated', 'risk.high'],
+        what: 'Business/compliance trail.', how: 'Async Kafka consumer.', whyShort: 'Audit = business events for compliance — different from technical debug logs.' },
+      { id: 'logging', icon: 'fileText', lines: ['Activity Logging', 'Service'], x: 850, y: 470, h: 72, cat: ['events', 'observability'],
+        role: 'Stores operational logs useful for debugging and investigation.', input: 'Application/Kafka events and service logs', processing: 'Structures and indexes logs (e.g. ELK / OpenSearch).',
+        output: 'Searchable technical logs', comm: 'Kafka → Logging (async); writes to Central Log Storage.', deps: ['Kafka', 'Central Log Storage'], produces: [], consumes: ['request.received', 'validation.*', 'prediction.generated', 'risk.high'],
+        what: 'Technical diagnostics.', how: 'Async consumer / log shipping.', whyShort: 'Engineers need searchable logs to debug failures across services.' },
+      { id: 'mon', icon: 'activity', lines: ['Monitoring /', 'Observability'], x: 1218, y: 470, h: 72, cat: ['observability'],
+        role: 'Tracks whether the system itself is healthy (latency, error rate, throughput, CPU, memory, Kafka consumer lag).', input: 'Metrics, logs and traces from every service',
+        processing: 'Aggregates telemetry and evaluates alert rules (e.g. Prometheus, Grafana, OpenTelemetry).', output: 'Dashboards and on-call alerts',
+        comm: 'Telemetry (metrics/traces) — outside the business flow.', deps: ['Monitoring Stack'], produces: [], consumes: ['metrics', 'traces'],
+        what: 'System health.', how: 'Telemetry pipelines (scrape / OTel).', whyShort: 'Business logs alone cannot tell you whether the infrastructure is healthy.' },
+
+      { id: 'team', kind: 'actor', icon: 'users', lines: ['Medical Team'], sub: 'doctors · nurses', x: 110, y: 590, h: 56, cat: ['events'],
+        role: 'Receives high-risk alerts on app, pager, SMS or email (simulated channels).', comm: 'Push notification from the Notification Service.' },
+      { id: 'astore', kind: 'store', icon: 'database', lines: ['Audit Log Store'], sub: 'append-only', x: 480, y: 590, h: 56, cat: ['stores', 'events'],
+        role: 'Durable, append-only audit records.', comm: 'Written by the Audit Service.' },
+      { id: 'logs', kind: 'store', icon: 'database', lines: ['Central Logs'], sub: 'ELK / OpenSearch', x: 850, y: 590, h: 56, cat: ['stores', 'observability'],
+        role: 'Searchable store of technical logs.', comm: 'Written by the Activity Logging Service.' },
+      { id: 'mstack', kind: 'store', icon: 'chart', lines: ['Monitoring Stack'], sub: 'Prometheus · Grafana', x: 1218, y: 590, h: 56, cat: ['observability'],
+        role: 'Time-series metrics, dashboards and alert rules.', comm: 'Receives telemetry from the Monitoring service / collectors.' },
+    ];
+    const NODE = Object.fromEntries(NODES.map((n) => [n.id, Object.assign({ w: W, h: H, kind: 'service' }, n)]));
+    Object.values(NODE).forEach((n) => { n.cx = n.x + n.w / 2; n.cy = n.y + n.h / 2; n.name = n.lines.join(' ').replace('/ ', '/ ').replace(/\s+/g, ' '); });
+    NODE.gw.name = 'API Gateway / Central Routing Service';
+    NODE.pre.name = 'Preprocessing / Feature Engineering Service';
+    NODE.risk.name = 'Risk Scoring & Decision Service';
+    NODE.mon.name = 'Monitoring / Observability Service';
+    NODE.notif.name = 'Notification / Alert Service';
+    NODE.preddb.name = 'Prediction & Request DB';
+    NODE.logs.name = 'Central Log Storage';
+    NODE.logging.name = 'Activity Logging Service';
+
+    const KAFKA = { id: 'kafka', x: 18, y: 350, w: 1362, h: 64 };
+    const TOPICS = ['request.received', 'validation.completed', 'validation.failed', 'prediction.generated', 'risk.high', 'audit.event', 'service.error', 'system.metric'];
+
+    const TYPES = {
+      sync: { color: '#5fb3f9', dash: '', label: 'Synchronous request / response', two: true },
+      async: { color: '#fb923c', dash: '6 5', label: 'Asynchronous event (Kafka)' },
+      db: { color: '#7d93c4', dash: '', label: 'Database read / write', two: true },
+      cache: { color: '#4ade80', dash: '', label: 'Redis cache read / write', two: true },
+      model: { color: '#7d93c4', dash: '2 4', label: 'Model artifact read' },
+      tel: { color: '#b18cff', dash: '2 5', label: 'Logs / metrics / traces (telemetry)' },
+      alert: { color: '#f87171', dash: '6 4', label: 'Alert push' },
+    };
+
+    const B = (n) => n.y + n.h; // bottom y
+    const E = [
+      // synchronous request path
+      ['hosp-gw', 'hosp', 'gw', 'sync', 'REST/HTTPS', ['request'], 'The hospital needs an immediate prediction, so it sends an HTTPS request and waits for the response.'],
+      ['gw-intake', 'gw', 'intake', 'sync', 'REST/gRPC', ['request'], 'The gateway forwards the authenticated request and waits — the result must flow back to the same caller.'],
+      ['intake-val', 'intake', 'val', 'sync', 'REST/gRPC', ['request'], 'Validation must finish before any processing can continue.'],
+      ['val-pre', 'val', 'pre', 'sync', 'REST/gRPC', ['request'], 'The next processing stage requires validated data before continuing.'],
+      ['pre-inf', 'pre', 'inf', 'sync', 'REST/gRPC', ['request'], 'Inference cannot run without the feature vector.'],
+      ['inf-risk', 'inf', 'risk', 'sync', 'REST/gRPC', ['request'], 'Risk Scoring needs the probability before it can respond to the hospital.'],
+      // storage
+      ['intake-pdb', 'intake', 'pdb', 'db', 'read/write', ['stores'], 'Patient/request records must be durable.'],
+      ['risk-preddb', 'risk', 'preddb', 'db', 'read/write', ['stores'], 'Predictions are persisted for traceability and later review.'],
+      ['pre-redis', 'pre', 'redis', 'cache', 'GET/SET', ['stores'], 'Recently computed features are cached for low-latency reuse.'],
+      ['inf-redis', 'inf', 'redis', 'cache', 'GET/SET', ['stores'], 'Prediction context is cached for fast follow-up requests.'],
+      ['reg-inf', 'registry', 'inf', 'model', 'read model', ['stores'], 'Inference loads the approved model artifact; the registry is not on the user request path.'],
+      // async producers
+      ['intake-k', 'intake', 'kafka', 'async', 'request.received', ['events'], 'Recording that a request arrived must not slow the request down.'],
+      ['val-k', 'val', 'kafka', 'async', 'validation.*', ['events'], 'Validation outcomes (including failures) are recorded in the background.'],
+      ['inf-k', 'inf', 'kafka', 'async', 'prediction.generated', ['events'], 'Downstream consumers learn about predictions without being called directly.'],
+      ['risk-k', 'risk', 'kafka', 'async', 'risk.high', ['events'], 'Risk prediction does not need to wait for downstream notification delivery.'],
+      // async consumers
+      ['k-notif', 'kafka', 'notif', 'async', 'risk.high', ['events'], 'Alerting is an asynchronous side effect — a slow SMS provider must not delay the prediction.'],
+      ['k-audit', 'kafka', 'audit', 'async', 'audit events', ['events'], 'Audit consumes events independently; it can catch up even if it was briefly down.'],
+      ['k-log', 'kafka', 'logging', 'async', 'app events', ['events', 'observability'], 'Logging consumes events independently of the request.'],
+      ['notif-team', 'notif', 'team', 'alert', 'app · pager · SMS', ['events'], 'Alerts are pushed to clinicians over multiple channels.'],
+      ['audit-astore', 'audit', 'astore', 'db', 'append', ['stores', 'events'], 'Audit entries are written to durable, append-only storage.'],
+      ['log-logs', 'logging', 'logs', 'db', 'index', ['stores', 'observability'], 'Logs are indexed for search.'],
+      ['tel-mon', 'risk', 'mon', 'tel', 'metrics · traces', ['observability'], 'Every service emits telemetry; monitoring observes the system from outside the business flow.'],
+      ['mon-mstack', 'mon', 'mstack', 'tel', 'store', ['observability'], 'Metrics are stored for dashboards and alert rules.'],
+    ];
+
+    function edgePoints(id, a, b) {
+      const n1 = NODE[a], n2 = NODE[b];
+      switch (id) {
+        case 'intake-pdb': return [[n1.cx, n1.y], [n2.cx, B(n2)]];
+        case 'risk-preddb': return [[n1.cx, n1.y], [n2.cx, B(n2)]];
+        case 'reg-inf': return [[n1.cx, B(n1)], [n2.cx, n2.y]];
+        case 'pre-redis': return [[n1.x + 52, B(n1)], [n1.x + 52, n2.cy], [n2.x, n2.cy]];
+        case 'inf-redis': return [[n1.x + 50, B(n1)], [n1.x + 50, n2.cy], [n2.x + n2.w, n2.cy]];
+        case 'intake-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
+        case 'val-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
+        case 'inf-k': return [[n1.x + 132, B(n1)], [n1.x + 132, KAFKA.y]];
+        case 'risk-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
+        case 'k-notif': case 'k-audit': case 'k-log': return [[n2.cx, KAFKA.y + KAFKA.h], [n2.cx, n2.y]];
+        case 'notif-team': case 'audit-astore': case 'log-logs': case 'mon-mstack': return [[n1.cx, B(n1)], [n2.cx, n2.y]];
+        case 'tel-mon': return [[n1.x + n1.w, n1.cy + 18], [1392, n1.cy + 18], [1392, n2.cy], [n2.x + n2.w, n2.cy]];
+        default: return [[n1.x + n1.w, n1.cy], [n2.x, n2.cy]]; // horizontal sync hop
+      }
+    }
+    const EDGES = E.map(([id, from, to, type, label, cat, why]) => ({ id, from, to, type, label, cat, why, pts: edgePoints(id, from, to) }));
+    const EDGE = Object.fromEntries(EDGES.map((e) => [e.id, e]));
+
+    const EVENT_INFO = {
+      'request.received': { producer: 'Patient Intake', consumers: ['Audit', 'Logging'] },
+      'validation.completed': { producer: 'Validation', consumers: ['Audit', 'Logging'] },
+      'validation.failed': { producer: 'Validation', consumers: ['Audit', 'Logging'] },
+      'prediction.generated': { producer: 'ML Inference', consumers: ['Audit', 'Logging'] },
+      'risk.high': { producer: 'Risk Scoring', consumers: ['Notification', 'Audit', 'Logging'] },
+    };
+
+    /* ==========================================================
+       PATIENT PRESETS & ILLUSTRATIVE LOGIC
+       ========================================================== */
+    const PRESETS = {
+      stable: { name: 'Demo Patient A', age: 45, gender: 'Female', hr: 76, bp: '122/80', temp: 36.8, spo2: 97, score: 0.18 },
+      deteriorating: { name: 'Demo Patient', age: 68, gender: 'Male', hr: 118, bp: '92/58', temp: 38.4, spo2: 89, score: 0.87 },
+      invalid: { name: 'Demo Patient C', age: 59, gender: 'Male', hr: 104, bp: '110/70', temp: 37.9, spo2: 140, score: null },
+    };
+    let presetKey = 'deteriorating';
+    let presetDirty = false;
+
+    const F = { name: $('#f-name'), age: $('#f-age'), gender: $('#f-gender'), hr: $('#f-hr'), bp: $('#f-bp'), temp: $('#f-temp'), spo2: $('#f-spo2') };
+
+    function loadPreset(key) {
+      presetKey = key;
+      presetDirty = false;
+      const p = PRESETS[key];
+      F.name.value = p.name; F.age.value = p.age; F.gender.value = p.gender; F.hr.value = p.hr;
+      F.bp.value = p.bp; F.temp.value = p.temp; F.spo2.value = p.spo2;
+      $$('#presets [data-preset]').forEach((b) => b.classList.toggle('btn-primary', b.dataset.preset === key));
+      Object.values(F).forEach((f) => f.classList.remove('bad'));
+      resetAll();
+    }
+
+    function readPatient() {
+      const [sys, dia] = String(F.bp.value).split('/').map((v) => parseFloat(v));
+      return {
+        patientName: F.name.value.trim(), age: parseFloat(F.age.value), gender: F.gender.value,
+        heartRate: parseFloat(F.hr.value), bloodPressure: { systolic: sys, diastolic: dia },
+        temperature: parseFloat(F.temp.value), oxygenSaturation: parseFloat(F.spo2.value),
+      };
+    }
+
+    const num = (v) => typeof v === 'number' && !Number.isNaN(v);
+    function validate(p) {
+      const bp = p.bloodPressure;
+      return [
+        { field: 'patientName', ok: p.patientName.length > 0, msg: 'present', bad: 'missing', input: 'name' },
+        { field: 'age', ok: num(p.age) && p.age >= 0 && p.age <= 120, msg: 'valid (0–120)', bad: '= ' + p.age + ' · expected 0–120', input: 'age' },
+        { field: 'gender', ok: ['Male', 'Female', 'Other'].includes(p.gender), msg: 'valid', bad: 'unknown', input: 'gender' },
+        { field: 'heartRate', ok: num(p.heartRate) && p.heartRate >= 20 && p.heartRate <= 250, msg: 'valid (20–250)', bad: '= ' + p.heartRate + ' · expected 20–250 bpm', input: 'hr' },
+        { field: 'bloodPressure', ok: num(bp.systolic) && num(bp.diastolic) && bp.systolic >= 50 && bp.systolic <= 260 && bp.diastolic >= 20 && bp.diastolic <= 160 && bp.systolic > bp.diastolic, msg: 'present & plausible', bad: '= ' + F.bp.value + ' · expected e.g. 120/80', input: 'bp' },
+        { field: 'temperature', ok: num(p.temperature) && p.temperature >= 30 && p.temperature <= 43, msg: 'valid (30–43 °C)', bad: '= ' + p.temperature + ' · expected 30–43 °C', input: 'temp' },
+        { field: 'oxygenSaturation', ok: num(p.oxygenSaturation) && p.oxygenSaturation >= 0 && p.oxygenSaturation <= 100, msg: 'valid (0–100%)', bad: '= ' + p.oxygenSaturation + '% · expected 0–100%', input: 'spo2' },
+      ];
+    }
+
+    // Illustrative early-warning-style score for custom inputs (NOT clinically meaningful).
+    function illustrativeScore(p) {
+      let pts = 0;
+      if (p.heartRate >= 111) pts += 2; else if (p.heartRate >= 91 || p.heartRate <= 50) pts += 1;
+      if (p.bloodPressure.systolic <= 90) pts += 3; else if (p.bloodPressure.systolic <= 100) pts += 2; else if (p.bloodPressure.systolic <= 110) pts += 1;
+      if (p.temperature >= 39.1) pts += 2; else if (p.temperature >= 38.1 || p.temperature <= 35) pts += 1;
+      if (p.oxygenSaturation <= 91) pts += 3; else if (p.oxygenSaturation <= 93) pts += 2; else if (p.oxygenSaturation <= 95) pts += 1;
+      if (p.age >= 65) pts += 1;
+      return Math.round((1 / (1 + Math.exp(-(pts - 5) * 0.6))) * 100) / 100;
+    }
+
+    const level = (s) => (s >= 0.7 ? 'HIGH' : s >= 0.4 ? 'MEDIUM' : 'LOW');
+
+    function features(p) {
+      const map = (p.bloodPressure.systolic + 2 * p.bloodPressure.diastolic) / 3;
+      const r = (v) => (Math.round(v * 100) / 100).toFixed(2);
+      return {
+        raw: [['Age', p.age], ['HR', p.heartRate + ' bpm'], ['SBP', p.bloodPressure.systolic], ['DBP', p.bloodPressure.diastolic], ['Temp', p.temperature + ' °C'], ['SpO₂', p.oxygenSaturation + '%']],
+        feats: [['age_normalized', r(p.age / 100)], ['heart_rate_norm', r((p.heartRate - 75) / 25)], ['mean_arterial_pressure', Math.round(map)], ['temperature_scaled', r((p.temperature - 37) / 1.5)], ['spo2_normalized', r(p.oxygenSaturation / 100)], ['shock_index', r(p.heartRate / p.bloodPressure.systolic)]],
+      };
+    }
+
+    /* ==========================================================
+       RENDER DIAGRAM
+       ========================================================== */
+    const arch = $('#arch');
+    const LE = $('#layer-edges'), LB = $('#layer-bus'), LN = $('#layer-nodes'), LP = $('#layer-packets');
+    const defs = arch.querySelector('defs');
+
+    Object.entries(TYPES).forEach(([k, t]) => {
+      ['end', 'start'].forEach((side) => {
+        const m = svg('marker', { id: 'm-' + k + '-' + side, viewBox: '0 0 10 10', refX: side === 'end' ? 9 : 1, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+        svg('path', { d: 'M0,0 L10,5 L0,10 z', fill: t.color }, m);
+      });
+    });
+
+    const pathD = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ');
+
+    const edgeEls = {};
+    EDGES.forEach((e) => {
+      const t = TYPES[e.type];
+      const g = svg('g', { class: 'edge', 'data-id': e.id, tabindex: 0, role: 'button', 'aria-label': e.from + ' to ' + e.to + ' (' + t.label + ')' }, LE);
+      const d = pathD(e.pts);
+      svg('path', { class: 'hit', d }, g);
+      const ln = svg('path', { class: 'ln', d, stroke: t.color, 'stroke-dasharray': t.dash, 'marker-end': 'url(#m-' + e.type + '-end)' }, g);
+      if (t.two) ln.setAttribute('marker-start', 'url(#m-' + e.type + '-start)');
+      e.path = ln;
+      // labels for producer/consumer edges & a few key ones
+      const lbl = { 'hosp-gw': [118 + 81, 138], 'intake-k': [NODE.intake.cx + 6, 290], 'val-k': [NODE.val.cx + 6, 290], 'inf-k': [NODE.inf.x + 138, 336], 'risk-k': [NODE.risk.cx + 6, 290], 'reg-inf': [NODE.inf.cx + 6, 120], 'tel-mon': [1386, 448] }[e.id];
+      if (lbl) {
+        const tx = svg('text', { class: 'edge-lbl', x: lbl[0], y: lbl[1], fill: t.color, 'text-anchor': e.id === 'hosp-gw' ? 'middle' : e.id === 'tel-mon' ? 'end' : 'start' }, g);
+        tx.textContent = e.id === 'tel-mon' ? 'telemetry' : e.label;
+      }
+      g.addEventListener('click', () => inspectEdge(e.id));
+      g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); inspectEdge(e.id); } });
+      edgeEls[e.id] = g;
+    });
+
+    // band label for sync path
+    const bl = svg('text', { x: 318, y: 138, fill: '#5fb3f9', class: 'edge-lbl' }, LE);
+    bl.textContent = 'SYNC REQUEST PATH · REST/gRPC · caller waits';
+
+    // Kafka bus
+    const busG = svg('g', { class: 'node kind-bus', 'data-id': 'kafka', tabindex: 0, role: 'button', 'aria-label': 'Kafka Event Bus' }, LB);
+    svg('rect', { class: 'box', x: KAFKA.x, y: KAFKA.y, width: KAFKA.w, height: KAFKA.h, rx: 14, fill: '#120d08', stroke: '#6b4a22', 'stroke-width': 1.4 }, busG);
+    const kt = svg('text', { x: KAFKA.x + 16, y: KAFKA.y + 20, fill: '#fdba74', style: 'font:700 12.5px Inter, sans-serif' }, busG);
+    kt.textContent = 'Kafka Event Bus';
+    const ks = svg('text', { x: KAFKA.x + 130, y: KAFKA.y + 20, fill: '#8c94a9', style: 'font:500 10.5px JetBrains Mono, monospace' }, busG);
+    ks.textContent = 'asynchronous · publish/subscribe · NOT the main prediction request path';
+    const topicEls = {};
+    let tx0 = KAFKA.x + 16;
+    TOPICS.forEach((tp) => {
+      const w = tp.length * 6.6 + 18;
+      const g = svg('g', { class: 'topic' }, busG);
+      svg('rect', { x: tx0, y: KAFKA.y + 32, width: w, height: 22, rx: 11 }, g);
+      const t = svg('text', { x: tx0 + w / 2, y: KAFKA.y + 47, 'text-anchor': 'middle' }, g);
+      t.textContent = tp;
+      topicEls[tp] = g;
+      tx0 += w + 10;
+    });
+    busG.addEventListener('click', () => inspectNode('kafka'));
+    busG.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); inspectNode('kafka'); } });
+
+    // Nodes
+    const nodeEls = {};
+    Object.values(NODE).forEach((n) => {
+      const g = svg('g', { class: 'node kind-' + n.kind, 'data-id': n.id, tabindex: 0, role: 'button', 'aria-label': n.name }, LN);
+      if (n.kind === 'store' && n.icon === 'database') {
+        const r = 7;
+        svg('path', { class: 'box', d: `M${n.x},${n.y + r} a${n.w / 2},${r} 0 0,1 ${n.w},0 v${n.h - 2 * r} a${n.w / 2},${r} 0 0,1 ${-n.w},0 z` }, g);
+        svg('path', { d: `M${n.x},${n.y + r} a${n.w / 2},${r} 0 0,0 ${n.w},0`, fill: 'none', stroke: '#2d3650', 'stroke-width': 1.2 }, g);
+      } else {
+        svg('rect', { class: 'box', x: n.x, y: n.y, width: n.w, height: n.h, rx: 12 }, g);
+      }
+      const ic = svg('g', { class: 'ic', transform: `translate(${n.x + 12},${n.y + (n.h > 60 ? 14 : 12)}) scale(0.78)` }, g);
+      ic.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths(n.icon)}</g>`;
+      const lx = n.x + 38;
+      n.lines.forEach((ln, i) => {
+        const t = svg('text', { class: 'nm', x: lx, y: n.y + (n.h > 60 ? 26 : 24) + i * 15 }, g);
+        t.textContent = ln;
+      });
+      const stY = n.y + n.h - 11;
+      const st = svg('text', { class: 'st', x: n.x + 12, y: stY }, g);
+      st.textContent = n.sub || (n.kind === 'service' ? 'idle' : '');
+      n.subDefault = st.textContent;
+      // success / error badges
+      const ok = svg('g', { class: 'badge-ok' }, g);
+      svg('circle', { cx: n.x + n.w - 2, cy: n.y + 2, r: 8, fill: '#14532d', stroke: '#4ade80' }, ok);
+      svg('path', { d: `M${n.x + n.w - 6},${n.y + 2} l3,3 l5,-6`, fill: 'none', stroke: '#4ade80', 'stroke-width': 2 }, ok);
+      const er = svg('g', { class: 'badge-err' }, g);
+      svg('circle', { cx: n.x + n.w - 2, cy: n.y + 2, r: 8, fill: '#450a0a', stroke: '#f87171' }, er);
+      const ex = svg('text', { x: n.x + n.w - 2, y: n.y + 6, 'text-anchor': 'middle', fill: '#f87171', style: 'font:800 11px Inter, sans-serif' }, er);
+      ex.textContent = '!';
+      if (n.whyShort) {
+        const wg = svg('g', { class: 'why' }, g);
+        svg('circle', { cx: n.x + n.w - 12, cy: n.y + n.h - 12, r: 8, fill: '#1e1b4b', stroke: '#a78bfa' }, wg);
+        const q = svg('text', { x: n.x + n.w - 12, y: n.y + n.h - 8, 'text-anchor': 'middle', fill: '#c4b5fd', style: 'font:800 11px Inter, sans-serif' }, wg);
+        q.textContent = '?';
+        const tt = svg('title', {}, wg);
+        tt.textContent = 'Why? ' + n.whyShort;
+      }
+      g.addEventListener('click', () => inspectNode(n.id));
+      g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); inspectNode(n.id); } });
+      nodeEls[n.id] = { g, st };
+    });
+    nodeEls.kafka = { g: busG, st: null };
+
+    // Legend
+    $('#legend').innerHTML = Object.entries(TYPES).map(([k, t]) =>
+      `<span><svg viewBox="0 0 34 10"><line x1="2" y1="5" x2="30" y2="5" stroke="${t.color}" stroke-width="2.4" stroke-dasharray="${t.dash}"/><path d="M27,1 L33,5 L27,9 z" fill="${t.color}"/>${t.two ? `<path d="M7,1 L1,5 L7,9 z" fill="${t.color}"/>` : ''}</svg>${t.label}</span>`).join('');
+
+    // Mobile vertical list
+    const MOBILE = [['hosp', 'gw', 'intake', 'val', 'pre', 'inf', 'risk'], ['kafka', 'notif', 'team', 'audit', 'logging', 'mon']];
+    $('#mobile-flow').innerHTML =
+      '<div class="mf-sep">SYNCHRONOUS REQUEST PATH</div>' +
+      MOBILE[0].map((id, i) => (i ? '<div class="mf-arrow">⇅ REST/gRPC</div>' : '') + mfItem(id)).join('') +
+      '<div class="mf-sep">ASYNCHRONOUS BACKGROUND (KAFKA / TELEMETRY)</div>' + MOBILE[1].map(mfItem).join('');
+    function mfItem(id) {
+      const n = NODE[id] || { name: 'Kafka Event Bus', icon: 'network' };
+      return `<button class="mf-item" data-id="${id}">${icon(n.icon)}<span>${esc(n.name)}</span><span class="s"></span></button>`;
+    }
+    $$('#mobile-flow .mf-item').forEach((b) => b.addEventListener('click', () => inspectNode(b.dataset.id)));
+
+    /* ==========================================================
+       STATE & RENDERING
+       ========================================================== */
+    const runner = createRunner();
+    let S;
+    function freshState() {
+      return { node: {}, status: {}, focus: null, flow: [], events: [], trace: [], response: null, stage: null, step: -1, reqId: 'req-' + (4800 + Math.floor(Math.random() * 199)) };
+    }
+    S = freshState();
+    let filter = 'all';
+    let steps = [];
+    let playing = false;
+    let selected = null;
+
+    function catOf(id) { return id === 'kafka' ? ['events'] : (NODE[id] ? NODE[id].cat : []); }
+
+    function render() {
+      Object.keys(nodeEls).forEach((id) => {
+        const { g, st } = nodeEls[id];
+        const state = S.node[id] || 'idle';
+        g.classList.remove('active', 'success', 'error', 'skipped');
+        if (state !== 'idle') g.classList.add(state);
+        g.classList.toggle('sel', selected === 'n:' + id);
+        if (st) st.textContent = S.status[id] || NODE[id].subDefault;
+        const focusDim = S.focus && !S.focus.includes(id);
+        const filterDim = filter !== 'all' && !catOf(id).includes(filter);
+        g.classList.toggle('dim', !!(focusDim || filterDim));
+        const mf = $('#mobile-flow .mf-item[data-id="' + id + '"]');
+        if (mf) {
+          mf.classList.remove('active', 'success', 'error');
+          if (['active', 'success', 'error'].includes(state)) mf.classList.add(state);
+          mf.querySelector('.s').textContent = S.status[id] || '';
+        }
+      });
+      EDGES.forEach((e) => {
+        const g = edgeEls[e.id];
+        const inFlow = S.flow.includes(e.id);
+        g.classList.toggle('flow', inFlow);
+        g.classList.toggle('sel', selected === 'e:' + e.id);
+        const focusDim = S.focus && !inFlow;
+        const filterDim = filter !== 'all' && !e.cat.includes(filter);
+        g.classList.toggle('dim', !!(focusDim || filterDim));
+      });
+      TOPICS.forEach((tp) => {
+        topicEls[tp].classList.toggle('used', S.events.some((ev) => ev.name === tp));
+      });
+      renderTrace();
+      renderEvents();
+      renderResponse();
+      renderStage();
+      renderTimeline();
+      $('#req-id').textContent = S.reqId;
+    }
+
+    function renderTrace() {
+      const el = $('#trace');
+      if (!S.trace.length) { el.innerHTML = '<div class="empty">No request yet.</div>'; return; }
+      el.innerHTML = S.trace.map((r) => `<div class="log-row ${r.cls}"><span class="t">${r.time}</span><span class="s">${esc(r.svc)}</span><span class="m">${esc(r.msg)}</span></div>`).join('');
+      el.scrollTop = el.scrollHeight;
+    }
+
+    let selectedEvent = null;
+    function renderEvents() {
+      const tb = $('#events');
+      if (!S.events.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="empty">Events published during the run appear here. Click one to inspect its JSON.</td></tr>';
+        $('#evt-json').innerHTML = '';
+        return;
+      }
+      tb.innerHTML = S.events.map((ev, i) => `<tr class="clickable ${selectedEvent === i ? 'sel' : ''}" data-i="${i}"><td><span class="chip amber">${ev.name}</span></td><td>${ev.producer}</td><td>${ev.consumers.join(', ')}</td><td>${ev.status === 'Delivered' ? '<span class="chip green">Delivered</span>' : '<span class="chip">Published</span>'}</td></tr>`).join('');
+      $$('#events tr[data-i]').forEach((tr) => tr.addEventListener('click', () => { selectedEvent = +tr.dataset.i; renderEvents(); }));
+      $('#evt-json').innerHTML = selectedEvent != null && S.events[selectedEvent] ? '<pre class="code">' + json(S.events[selectedEvent].payload) + '</pre>' : '';
+    }
+
+    function renderResponse() {
+      const el = $('#resp');
+      const r = S.response;
+      if (!r) { el.className = 'resp'; el.innerHTML = '<span class="muted">Response will appear here after the synchronous path completes.</span>'; return; }
+      if (r.code === 400) {
+        el.className = 'resp err';
+        el.innerHTML = `<div class="code-line" style="color:var(--red)">HTTP 400 Bad Request</div><pre class="code" style="margin-top:6px">${json(r.body)}</pre><div class="small muted" style="margin-top:6px">No ML prediction was made — the pipeline stopped at validation.</div>`;
+        return;
+      }
+      el.className = 'resp ' + (r.body.riskLevel === 'HIGH' ? 'high' : 'ok');
+      el.innerHTML = `<div class="code-line" style="color:var(--blue)">HTTP 200 OK</div>
+        <div style="margin-top:6px">Risk score: <b>${r.body.riskScore.toFixed(2)}</b> · Risk level: <b style="color:${r.body.riskLevel === 'HIGH' ? 'var(--red)' : r.body.riskLevel === 'MEDIUM' ? 'var(--amber)' : 'var(--green)'}">${r.body.riskLevel}</b></div>
+        <div class="muted small">${esc(r.body.summary)} (model ${r.body.modelVersion})</div>`;
+    }
+
+    function renderStage() {
+      const el = $('#stage-box');
+      const st = S.stage;
+      if (!st) return;
+      if (st.type === 'gateway') {
+        el.innerHTML = `<pre class="code">${esc(NODE.gw.example.replace('req-4812', S.reqId))}</pre><div class="checklist" style="margin-top:8px">${['Authenticated (bearer token)', 'Authorised for /predict', 'Rate limit OK', 'Correlation ID ' + S.reqId + ' attached'].map((c) => `<div class="ok">${icon('check')}${c}</div>`).join('')}</div>`;
+      } else if (st.type === 'payload') {
+        el.innerHTML = '<div class="label" style="margin-bottom:6px">Structured payload</div><pre class="code">' + json(st.payload) + '</pre>';
+      } else if (st.type === 'validation') {
+        el.innerHTML = '<div class="checklist">' + st.checks.map((c, i) => c.ok
+          ? `<div class="ok" style="animation-delay:${i * 60}ms">${icon('check')}${c.field} ${c.msg}</div>`
+          : `<div class="bad" style="animation-delay:${i * 60}ms">${icon('x')}${c.field} ${esc(c.bad)}</div>`).join('') + '</div>' +
+          (st.failed ? '<div class="callout red" style="margin-top:10px">' + icon('alert') + '<div><b>VALIDATION FAILED</b> — the synchronous pipeline stops here. No preprocessing, inference or risk scoring will run.</div></div>' : '');
+      } else if (st.type === 'features') {
+        const f = st.f;
+        el.innerHTML = `<div class="transform"><div class="col"><div class="label">Raw</div>${f.raw.map((r) => `<div><span>${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div><div class="arrow">→</div><div class="col"><div class="label">Model features</div>${f.feats.map((r) => `<div><span>${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div></div>
+          <div class="pipeline-mini">${['Cleaning', 'Missing values', 'Normalisation', 'Feature engineering', 'Feature vector'].map((s) => `<span class="on">${s}</span>`).join('')}</div>
+          <div class="small dim" style="margin-top:6px">MAP ≈ (SBP + 2 × DBP) / 3 · feature values are illustrative</div>`;
+      } else if (st.type === 'inference') {
+        el.innerHTML = `<div class="label">PatientDeteriorationModel v3.2</div>
+          <div class="checklist" style="margin-top:6px">${st.lines.map((l) => `<div class="ok">${icon('check')}${l}</div>`).join('')}</div>
+          ${st.score != null ? `<div style="margin-top:10px;font-size:13px">Deterioration probability</div><div style="font:800 30px var(--font-mono)">${st.score.toFixed(2)}</div>` : ''}`;
+      } else if (st.type === 'risk') {
+        const lvl = level(st.score);
+        el.innerHTML = `<div style="font-size:13px">ML probability <b class="mono">${st.score.toFixed(2)}</b> → threshold <b class="mono">HIGH if score ≥ 0.70</b></div>
+          <div class="risk-meter"><i style="left:calc(${st.score * 100}% - 2px)"></i></div>
+          <div class="risk-scale"><span>0 LOW</span><span>0.40 MEDIUM</span><span>0.70 HIGH</span><span>1</span></div>
+          <div style="margin-top:10px;font:800 20px var(--font-body);color:${lvl === 'HIGH' ? 'var(--red)' : lvl === 'MEDIUM' ? 'var(--amber)' : 'var(--green)'}">${lvl} RISK</div>
+          <div class="small dim">Illustrative thresholds for architecture demonstration only.</div>`;
+      } else if (st.type === 'alert') {
+        el.innerHTML = st.html;
+      } else if (st.type === 'metrics') {
+        el.innerHTML = '<div class="grid-2" style="gap:8px">' + st.metrics.map((m) => `<div class="stat"><div class="v" style="font-size:17px">${m[1]}</div><div class="k">${m[0]}</div></div>`).join('') + '</div><div class="small dim" style="margin-top:6px">Simulated metrics · observability sits outside the business flow.</div>';
+      } else if (st.type === 'html') {
+        el.innerHTML = st.html;
+      }
+    }
+
+    function renderTimeline() {
+      const el = $('#timeline');
+      const rows = S.trace.filter((r) => r.tl).sort((a, b) => a.t - b.t);
+      if (!rows.length) { el.innerHTML = '<div class="empty">Run a simulation to see how background work continues after the HTTP response.</div>'; return; }
+      const max = Math.max(140, ...rows.map((r) => r.t + 8));
+      const respRow = rows.find((r) => r.respDone);
+      el.innerHTML = rows.map((r) => `<div class="tl-row"><span class="nm">${esc(r.tl)}</span><div class="tl-track"><i style="left:${(r.t / max) * 100}%;width:${Math.max(1.4, (8 / max) * 100)}%;background:${r.async ? 'var(--orange)' : 'var(--blue)'}"></i></div><span class="ms">${r.t} ms</span></div>`).join('') +
+        (respRow ? `<div class="tl-marker" style="left:calc(16px + 200px + (100% - 32px - 200px - 66px) * ${respRow.t / max})"><span>response returned</span></div>` : '');
+    }
+
+    /* ==========================================================
+       STEP CONTEXT — every step works both animated and instant
+       ========================================================== */
+    let calloutTimer = null;
+    function makeCtx(step, instant) {
+      let tOff = 0;
+      const ctx = {
+        instant,
+        set(id, state, status) { S.node[id] = state; if (status != null) S.status[id] = status; if (!instant) render(); },
+        status(id, text) { S.status[id] = text; if (!instant) render(); },
+        flow(id) { if (!S.flow.includes(id)) S.flow.push(id); },
+        async anim(id, label, opts) {
+          ctx.flow(id);
+          if (instant) return;
+          render();
+          const e = EDGE[id];
+          await packet(e.path, Object.assign({ label, color: TYPES[e.type].color, duration: 1000, runner, layer: LP }, opts));
+        },
+        wait(ms) { return instant ? Promise.resolve() : runner.wait(ms); },
+        trace(svc, msg, cls, extra) {
+          const t = (step.t || 0) + tOff;
+          tOff += 1;
+          S.trace.push(Object.assign({ time: clock(baseTime + t), t, svc, msg, cls: cls || 'info' }, extra || {}));
+          if (!instant) render();
+        },
+        callout(kind, text) {
+          if (instant) return;
+          const el = $('#callout');
+          const color = { sync: 'var(--blue)', async: 'var(--orange)', cache: 'var(--green)', db: 'var(--navy)', model: 'var(--navy)', obs: 'var(--purple)', err: 'var(--red)' }[kind];
+          el.textContent = text;
+          el.style.color = color;
+          el.style.borderColor = color;
+          el.classList.add('show');
+          clearTimeout(calloutTimer);
+          calloutTimer = setTimeout(() => el.classList.remove('show'), 2600 / runner.speed);
+        },
+        publish(name, producerId, edgeId, payload) {
+          const info = EVENT_INFO[name];
+          S.events.push({ name, producer: info.producer, consumers: info.consumers, status: 'Published', payload: Object.assign({ eventType: name, requestId: S.reqId }, payload, { timestamp: new Date(baseTime + (step.t || 0)).toISOString() }) });
+          ctx.flow(edgeId);
+          ctx.trace('Kafka', name + ' published by ' + info.producer, 'evt');
+          if (instant) return Promise.resolve();
+          ctx.callout('async', 'ASYNC — producer continues');
+          // Fire-and-forget: the producer does not wait for this packet.
+          return packet(EDGE[edgeId].path, { label: name, color: TYPES.async.color, duration: 900, runner, layer: LP }).then(() => {
+            topicEls[name].classList.add('pulse');
+            setTimeout(() => topicEls[name].classList.remove('pulse'), 700);
+          }).catch(() => { });
+        },
+        deliver(names) { S.events.forEach((ev) => { if (names.includes(ev.name)) ev.status = 'Delivered'; }); if (!instant) render(); },
+        stage(st) { S.stage = st; if (!instant) render(); },
+        respond(code, body) { S.response = { code, body }; if (!instant) render(); },
+      };
+      return ctx;
+    }
+
+    /* ==========================================================
+       SCENARIO SCRIPT
+       ========================================================== */
+    let baseTime = Date.now();
+    function buildSteps() {
+      const p = readPatient();
+      const checks = validate(p);
+      const valid = checks.every((c) => c.ok);
+      const preset = PRESETS[presetKey];
+      const score = !presetDirty && preset.score != null ? preset.score : illustrativeScore(p);
+      const lvl = level(score);
+      const high = lvl === 'HIGH';
+      const f = valid ? features(p) : null;
+      const payload = { patientName: p.patientName, age: p.age, gender: p.gender, heartRate: p.heartRate, bloodPressure: p.bloodPressure, temperature: p.temperature, oxygenSaturation: p.oxygenSaturation };
+      const summary = high ? 'Elevated deterioration risk detected.' : lvl === 'MEDIUM' ? 'Moderate risk — continue close observation.' : 'No elevated deterioration risk detected.';
+      const prediction = { riskScore: score, riskLevel: lvl, modelVersion: 'v3.2', summary };
+      const failed = checks.filter((c) => !c.ok);
+
+      const common = [
+        { t: 0, title: 'Hospital sends patient data', focus: ['hosp', 'gw'], comm: 'REST/HTTPS · synchronous', why: 'The clinician needs a result now, so the app waits for the response.',
+          text: 'The hospital application POSTs patient demographics and vitals to the API Gateway and <b>waits</b>.',
+          run: async (c) => { c.set('hosp', 'active', 'sending…'); c.trace('Hospital App', 'POST /api/v1/patients/predict', 'info', { tl: 'Hospital request' }); c.callout('sync', 'SYNC — caller is waiting'); await c.anim('hosp-gw', 'HTTP POST'); c.set('hosp', 'active', 'waiting for response…'); } },
+        { t: 4, title: 'API Gateway routes the request', focus: ['gw', 'intake'], comm: 'Gateway ⇄ Intake · REST/gRPC · synchronous', why: 'One controlled entry point handles auth, rate limiting and correlation IDs instead of exposing every service.',
+          text: 'The gateway authenticates, rate-limits, attaches <code>X-Request-ID</code> and forwards the request.',
+          run: async (c) => { c.set('gw', 'active', 'auth · rate limit'); c.stage({ type: 'gateway' }); c.trace('API Gateway', 'Request received · ' + S.reqId + ' assigned', 'info', { tl: 'API Gateway' }); await c.wait(500); await c.anim('gw-intake', 'Patient JSON'); c.set('gw', 'success', 'routed'); } },
+        { t: 10, title: 'Intake Service receives the request', focus: ['intake', 'kafka'], comm: 'Synchronous in · async request.received out', why: 'Publishing request.received lets audit and logging react without slowing the request.',
+          text: 'Patient Intake normalises the payload and attaches metadata. It publishes <code>request.received</code> to Kafka and <b>continues immediately</b>.',
+          run: async (c) => { c.set('intake', 'active', 'payload accepted'); c.stage({ type: 'payload', payload }); c.trace('Patient Intake', 'Patient payload accepted', 'info', { tl: 'Patient Intake' }); c.publish('request.received', 'intake', 'intake-k', { source: 'hospital-app' }); await c.wait(600); } },
+        { t: 14, title: 'Patient record is stored', focus: ['intake', 'pdb'], comm: 'Database read/write', why: 'Patient and request data must be durable — it has to survive restarts.',
+          text: 'Intake persists the request/patient record in the <b>Patient Data DB</b>.',
+          run: async (c) => { c.callout('db', 'DURABLE STORAGE'); await c.anim('intake-pdb', 'INSERT'); c.set('pdb', 'success', 'record stored'); c.trace('Patient Data DB', 'Patient/request record stored', 'ok', { tl: 'Patient DB write' }); } },
+      ];
+
+      if (!valid) {
+        return common.concat([
+          { t: 18, title: 'Validation detects invalid data', focus: ['intake', 'val'], comm: 'Synchronous', why: 'Invalid values must never reach the model — and the caller deserves a clear error immediately.',
+            text: 'The Validation Service checks fields and ranges and finds: <b>' + failed.map((x) => x.field + ' ' + esc(x.bad)).join('; ') + '</b>.',
+            run: async (c) => {
+              c.set('intake', 'success', 'forwarded');
+              await c.anim('intake-val', 'Patient JSON');
+              c.set('val', 'active', 'validating…');
+              c.stage({ type: 'validation', checks, failed: true });
+              await c.wait(900);
+              c.set('val', 'error', 'VALIDATION FAILED');
+              c.callout('err', 'VALIDATION FAILED — pipeline stops');
+              ['pre', 'inf', 'risk'].forEach((id) => c.set(id, 'skipped', 'skipped'));
+              c.trace('Validation', 'Validation failed: ' + failed.map((x) => x.field).join(', '), 'err', { tl: 'Validation (failed)' });
+            } },
+          { t: 26, title: 'HTTP 400 returned — no prediction', focus: ['hosp', 'gw', 'intake', 'val'], comm: 'Synchronous response (right → left)', why: 'The synchronous pipeline can terminate early; the caller gets an actionable error instead of waiting.',
+            text: 'The error travels back through Intake and the Gateway. <b>Preprocessing, inference and risk scoring never run.</b>',
+            run: async (c) => {
+              c.callout('sync', 'SYNC — response to the waiting caller');
+              await c.anim('intake-val', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
+              await c.anim('gw-intake', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
+              await c.anim('hosp-gw', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
+              c.set('hosp', 'error', 'HTTP 400 received');
+              c.respond(400, { error: failed[0].field + ' ' + (failed[0].field === 'oxygenSaturation' ? 'must be between 0 and 100' : 'is invalid'), requestId: S.reqId, details: failed.map((x) => x.field) });
+              c.trace('Hospital App', 'HTTP 400 Bad Request received', 'err', { tl: 'Response returned (400)', respDone: true });
+            } },
+          { t: 28, title: 'validation.failed published to Kafka', focus: ['val', 'kafka'], comm: 'Asynchronous event', why: 'Failures are still recorded for audit and debugging — without delaying the error response.',
+            text: 'Validation publishes <code>validation.failed</code>. Audit and logging will record the failure in the background.',
+            run: async (c) => { await c.publish('validation.failed', 'val', 'val-k', { errors: failed.map((x) => ({ field: x.field, problem: x.bad })) }); c.trace('Kafka', 'validation.failed stored on topic', 'evt', { tl: 'Kafka validation.failed', async: true }); } },
+          { t: 34, title: 'Audit records the failed request', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → store (DB write)', why: 'Compliance needs a trail of every request, including rejected ones.',
+            text: 'The Audit Service consumes <code>request.received</code> and <code>validation.failed</code> and appends audit entries.',
+            run: async (c) => { await c.anim('k-audit', 'validation.failed'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', '2 entries'); c.deliver(['request.received', 'validation.failed']); c.trace('Audit Service', 'Audit entries persisted', 'ok', { tl: 'Audit persisted', async: true }); } },
+          { t: 38, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Engineers can search why requests were rejected.',
+            text: 'The Activity Logging Service stores a technical log line for the rejected request.',
+            run: async (c) => { await c.anim('k-log', 'app events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'status=REJECTED'); c.trace('Activity Logging', 'service=validation requestId=' + S.reqId + ' status=REJECTED', 'ok', { tl: 'Logs processed', async: true }); } },
+          { t: 44, title: 'Monitoring sees the error-rate change', focus: ['risk', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'Observability tracks system health — a spike in 4xx responses may reveal an integration bug upstream.',
+            text: 'Services emit telemetry; Monitoring records a 4xx response and the request latency.',
+            run: async (c) => { c.callout('obs', 'OBSERVABILITY — outside business flow'); await c.anim('tel-mon', 'metrics'); c.set('mon', 'active', 'collecting'); await c.anim('mon-mstack', 'store'); c.set('mon', 'success', 'metrics stored'); c.set('mstack', 'success', '4xx +1'); c.stage({ type: 'metrics', metrics: [['API latency', '26 ms'], ['4xx rate', '↑ 1 request'], ['Requests/sec', '41'], ['Kafka lag', '0']] }); c.trace('Monitoring', 'http_4xx_total +1 · latency 26 ms', 'info', { tl: 'Metrics collected', async: true }); } },
+        ]);
+      }
+
+      return common.concat([
+        { t: 18, title: 'Validation checks fields', focus: ['intake', 'val', 'kafka'], comm: 'Synchronous · async validation.completed', why: 'Only valid data may reach the model.',
+          text: 'Required fields, types and ranges all pass. Validation publishes <code>validation.completed</code> and forwards the data.',
+          run: async (c) => { c.set('intake', 'success', 'forwarded'); await c.anim('intake-val', 'Patient JSON'); c.set('val', 'active', 'validating…'); c.stage({ type: 'validation', checks }); await c.wait(900); c.set('val', 'success', '✓ valid'); c.trace('Validation', 'Validation completed — all checks passed', 'ok', { tl: 'Validation' }); c.publish('validation.completed', 'val', 'val-k', { checks: checks.length, passed: checks.length }); } },
+        { t: 27, title: 'Preprocessing creates model features', focus: ['val', 'pre'], comm: 'Synchronous', why: 'The model expects exactly the engineered features it was trained on.',
+          text: 'Raw vitals are cleaned, normalised and engineered into a feature vector (e.g. mean arterial pressure).',
+          run: async (c) => { await c.anim('val-pre', 'Validated data'); c.set('pre', 'active', 'engineering…'); c.stage({ type: 'features', f }); await c.wait(900); c.set('pre', 'active', '6 features'); c.trace('Preprocessing', f.feats.length + ' features generated', 'info', { tl: 'Preprocessing' }); } },
+        { t: 31, title: 'Redis cache checked / updated', focus: ['pre', 'redis'], comm: 'Cache read/write', why: 'Fast temporary access to recent features — the databases stay the system of record.',
+          text: 'Preprocessing checks <code>GET patient:123:features</code> (miss) and writes the new vector with <code>SET … EX 900</code>.',
+          run: async (c) => { c.callout('cache', 'CACHE — fast temporary state'); await c.anim('pre-redis', 'GET → miss'); await c.anim('pre-redis', 'SET features', { duration: 700 }); c.set('redis', 'success', 'features cached'); c.set('pre', 'success', 'vector ready'); c.trace('Redis', 'SET patient:123:features (TTL 15 min)', 'ok', { tl: 'Redis cache' }); } },
+        { t: 39, title: 'ML model loaded from the Model Registry', focus: ['pre', 'inf', 'registry'], comm: 'Model artifact read', why: 'Separating model storage from inference lets model versions be updated (and rolled back) independently.',
+          text: 'Preprocessing calls ML Inference with the feature vector. Inference loads the approved <b>PatientDeteriorationModel v3.2</b>.',
+          run: async (c) => { await c.anim('pre-inf', 'Feature vector'); c.set('inf', 'active', 'loading model…'); c.stage({ type: 'inference', lines: ['Feature vector received', 'Loading model v3.2…'] }); c.callout('model', 'MODEL ARTIFACT'); await c.anim('reg-inf', 'GET model:v3.2'); c.set('registry', 'success', 'v3.2 served'); c.trace('ML Inference', 'Model v3.2 loaded from registry', 'info', { tl: 'Model load' }); } },
+        { t: 55, title: 'Inference runs', focus: ['inf', 'redis', 'kafka'], comm: 'Synchronous · async prediction.generated', why: 'Risk Scoring needs this probability before it can respond.',
+          text: 'The model outputs a deterioration probability of <b>' + score.toFixed(2) + '</b>. Inference publishes <code>prediction.generated</code>.',
+          run: async (c) => { c.set('inf', 'active', 'running inference…'); await c.wait(700); c.stage({ type: 'inference', lines: ['Feature vector received', 'Model v3.2 loaded', 'Inference complete'], score }); c.set('inf', 'success', 'p = ' + score.toFixed(2)); c.trace('ML Inference', 'Prediction = ' + score.toFixed(2), 'ok', { tl: 'Model inference' }); c.anim('inf-redis', 'SET context', { duration: 700 }).catch(() => { }); c.publish('prediction.generated', 'inf', 'inf-k', { riskScore: score, modelVersion: 'v3.2' }); await c.wait(400); } },
+        { t: 72, title: 'Risk score generated', focus: ['inf', 'risk'], comm: 'Synchronous', why: 'Thresholds are business rules that can change independently of the model.',
+          text: 'Risk Scoring applies the illustrative threshold: ' + score.toFixed(2) + (high ? ' ≥ 0.70 → <b style="color:var(--red)">HIGH RISK</b>.' : ' → <b>' + lvl + '</b> risk.'),
+          run: async (c) => { await c.anim('inf-risk', 'p = ' + score.toFixed(2)); c.set('risk', 'active', 'deciding…'); c.stage({ type: 'risk', score }); await c.wait(700); c.set('risk', high ? 'error' : 'success', lvl + ' risk'); c.trace('Risk Scoring', 'Risk = ' + lvl + ' (' + score.toFixed(2) + ')', high ? 'err' : 'ok', { tl: 'Risk scoring' }); } },
+        { t: 80, title: 'Prediction persisted', focus: ['risk', 'preddb'], comm: 'Database read/write', why: 'Predictions must be traceable later: request ID, score, level, timestamp, model version.',
+          text: 'The final prediction object is written to the <b>Prediction &amp; Request DB</b>.',
+          run: async (c) => { c.callout('db', 'DURABLE STORAGE'); c.stage({ type: 'payload', payload: Object.assign({ requestId: S.reqId }, prediction) }); await c.anim('risk-preddb', 'INSERT'); c.set('preddb', 'success', 'prediction stored'); c.trace('Prediction DB', 'Prediction stored for ' + S.reqId, 'ok', { tl: 'Prediction DB write' }); } },
+        { t: 88, title: 'Response returned to the hospital', overlap: true, focus: ['hosp', 'gw', 'intake', 'val', 'pre', 'inf', 'risk'], comm: 'Synchronous response (right → left)', why: 'This is the two-way request/response: the result travels back to the waiting caller.',
+          text: 'HTTP 200 with the risk result flows back through every hop to the hospital app.',
+          run: async (c) => {
+            c.callout('sync', 'SYNC — response to the waiting caller');
+            for (const id of ['inf-risk', 'pre-inf', 'val-pre', 'intake-val', 'gw-intake', 'hosp-gw']) await c.anim(id, 'HTTP 200', { reverse: true, duration: 420 });
+            c.set('hosp', 'success', 'HTTP 200 · ' + lvl);
+            c.respond(200, prediction);
+            c.trace('Hospital App', 'Response returned · HTTP 200 · ' + lvl, 'ok', { tl: 'Response returned (200)', respDone: true });
+          } },
+        high
+          ? { t: 90, title: 'Kafka event published: risk.high', focus: ['risk', 'kafka'], comm: 'Asynchronous · publish/subscribe', why: 'Risk Scoring does not wait for alert delivery — it publishes and moves on.',
+            text: 'Risk Scoring publishes <code>risk.high</code>. It doesn’t call the Notification Service directly.',
+            run: async (c) => { await c.publish('risk.high', 'risk', 'risk-k', { riskScore: score, riskLevel: 'HIGH', modelVersion: 'v3.2' }); c.trace('Kafka', 'risk.high stored on topic', 'evt', { tl: 'Kafka risk.high', async: true }); } }
+          : { t: 90, title: 'No urgent event needed', focus: ['risk', 'kafka'], comm: 'Asynchronous', why: 'prediction.generated was already published for audit/logging; risk.high is only for HIGH risk.',
+            text: 'Risk is <b>' + lvl + '</b>, so <code>risk.high</code> is <b>not</b> published. Background consumers still process the events already on the bus.',
+            run: async (c) => { c.trace('Risk Scoring', 'Risk ' + lvl + ' — no risk.high event', 'info'); await c.wait(500); } },
+        high
+          ? { t: 96, title: 'High-risk event consumed by Alert Service', focus: ['kafka', 'notif'], comm: 'Kafka → Notification (async)', why: 'A slow SMS/pager provider must never delay the prediction response.',
+            text: 'The Notification Service consumes <code>risk.high</code> and builds a high-risk alert.',
+            run: async (c) => { await c.anim('k-notif', 'risk.high'); c.set('notif', 'active', 'alert processing'); c.trace('Notification', 'risk.high consumed — alert processing', 'evt', { tl: 'Notification processing', async: true }); await c.wait(500); } }
+          : { t: 96, title: 'Alert Service stays idle', focus: ['notif'], comm: '—', why: 'Alerting is event-driven: no event, no alert.',
+            text: 'No <code>risk.high</code> event → the Notification Service has nothing to do.',
+            run: async (c) => { c.set('notif', 'idle', 'no alert needed'); await c.wait(400); } },
+        high
+          ? { t: 104, title: 'Medical team alerted', focus: ['notif', 'team'], comm: 'Alert push (simulated channels)', why: 'Clinicians act on high risk — via app notification, pager, SMS or email.',
+            text: '“High-risk alert generated” — pushed to doctors and nurses (simulated channels, no real integrations).',
+            run: async (c) => { c.stage({ type: 'alert', html: '<div class="callout red">' + icon('bell') + '<div><b>High-risk alert generated</b><br>' + esc(p.patientName) + ' · risk ' + score.toFixed(2) + ' · ' + S.reqId + '</div></div><div class="btn-row" style="margin-top:10px">' + ['App notification', 'Pager', 'SMS', 'Email'].map((ch) => '<span class="chip red">' + ch + '</span>').join('') + '</div><p class="small dim" style="margin-top:8px">Simulated delivery — not real integrations.</p>' }); await c.anim('notif-team', 'ALERT'); c.set('notif', 'success', 'alert sent'); c.set('team', 'error', 'alert received'); c.deliver(['risk.high']); c.trace('Medical Team', 'High-risk alert delivered (pager · app)', 'err', { tl: 'Medical team alerted', async: true }); } }
+          : { t: 104, title: 'Medical team not paged', focus: ['team'], comm: '—', why: 'Avoids alert fatigue — only HIGH risk pages clinicians.',
+            text: 'The patient is shown as <b>' + lvl + '</b> risk in the app; nobody is paged.',
+            run: async (c) => { c.set('team', 'idle', 'no page'); await c.wait(300); } },
+        { t: 100, title: 'Audit event recorded', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → store (DB write)', why: 'Audit = who/what/when for compliance; separate from technical logs.',
+          text: 'The Audit Service consumes the request, validation, prediction' + (high ? ' and alert' : '') + ' events and appends audit entries.',
+          run: async (c) => { await c.anim('k-audit', 'audit events'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', S.events.length + ' entries'); c.deliver(['request.received', 'validation.completed', 'prediction.generated']); c.trace('Audit Service', 'Audit entries persisted (' + S.events.length + ')', 'ok', { tl: 'Audit persisted', async: true }); } },
+        { t: 106, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Technical diagnostics for debugging (latency, status, model version).',
+          text: 'The Activity Logging Service stores structured operational logs.',
+          run: async (c) => { await c.anim('k-log', 'app events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'indexed'); c.stage({ type: 'html', html: '<div class="label" style="margin-bottom:6px">Example log line</div><pre class="code">' + esc(new Date(baseTime + 55).toISOString() + '\nservice=ml-inference\nrequestId=' + S.reqId + '\nmodel=v3.2\nlatencyMs=16\nstatus=SUCCESS') + '</pre>' }); c.trace('Activity Logging', 'service=ml-inference requestId=' + S.reqId + ' status=SUCCESS', 'ok', { tl: 'Logs processed', async: true }); } },
+        { t: 112, title: 'Monitoring metrics collected', focus: ['risk', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'Monitoring is not part of the medical prediction logic — it observes system health.',
+          text: 'Services emit metrics and traces; Monitoring stores them for dashboards and alert rules.',
+          run: async (c) => { c.callout('obs', 'OBSERVABILITY — outside business flow'); await c.anim('tel-mon', 'metrics'); c.set('mon', 'active', 'collecting'); await c.anim('mon-mstack', 'store'); c.set('mon', 'success', 'healthy'); c.set('mstack', 'success', 'p95 68 ms'); c.stage({ type: 'metrics', metrics: [['API latency', '42 ms'], ['Inference p95', '68 ms'], ['Error rate', '0.2%'], ['Requests/sec', '41'], ['Kafka lag', '0'], ['CPU (inference)', '38%']] }); c.trace('Monitoring', 'latency p95=68ms · errors=0.2% · lag=0', 'info', { tl: 'Metrics collected', async: true }); } },
+      ]);
+    }
+
+    /* ==========================================================
+       PLAYBACK
+       ========================================================== */
+    const btn = { run: $('#btn-run'), pause: $('#btn-pause'), prev: $('#btn-prev'), next: $('#btn-next'), reset: $('#btn-reset'), send: $('#btn-send') };
+
+    function showStepCard() {
+      const i = S.step;
+      const st = steps[i];
+      if (!st) return;
+      $('#step-count').textContent = 'STEP ' + (i + 1) + ' OF ' + steps.length;
+      $('#step-title').textContent = st.title;
+      $('#step-text').innerHTML = st.text;
+      $('#step-meta').innerHTML = `<div><b>COMMUNICATION</b>${esc(st.comm)}</div><div><b>WHY?</b>${esc(st.why)}</div>`;
+      $('#step-bar').style.width = ((i + 1) / steps.length) * 100 + '%';
+    }
+
+    function updateButtons() {
+      btn.prev.disabled = playing || S.step <= 0;
+      btn.next.disabled = playing || (steps.length && S.step >= steps.length - 1);
+      btn.pause.disabled = !playing;
+      btn.pause.innerHTML = runner.paused ? icon('play') + 'Resume' : icon('pause') + 'Pause';
+      btn.run.disabled = playing;
+    }
+
+    function resetAll() {
+      runner.cancel();
+      playing = false;
+      S = freshState();
+      steps = [];
+      selectedEvent = null;
+      baseTime = Date.now();
+      LP.innerHTML = '';
+      $('#step-count').textContent = 'READY';
+      $('#step-title').textContent = 'Choose a patient preset and press Run or Step Through';
+      $('#step-text').innerHTML = 'The main prediction request is <b>synchronous</b> — the hospital app waits for an answer. Alerts, audit, logs and metrics happen <b>asynchronously</b> in the background through Kafka and telemetry.';
+      $('#step-meta').innerHTML = '';
+      $('#step-bar').style.width = '0%';
+      $('#stage-box').innerHTML = '<p class="muted small">Validation checks, feature transformations, inference and the risk decision appear here as the request moves through each service.</p>';
+      render();
+      updateButtons();
+    }
+
+    function ensureSteps() {
+      if (!steps.length) { baseTime = Date.now(); steps = buildSteps(); }
+    }
+
+    // Rebuild state instantly up to (and including) step index k.
+    async function jumpTo(k) {
+      runner.cancel();
+      LP.innerHTML = '';
+      const keepReq = S.reqId;
+      S = freshState();
+      S.reqId = keepReq;
+      for (let i = 0; i <= k; i++) {
+        S.step = i;
+        await steps[i].run(makeCtx(steps[i], true));
+      }
+      S.focus = steps[k].focus;
+      render();
+      showStepCard();
+      updateButtons();
+    }
+
+    async function playStep(i) {
+      S.step = i;
+      S.focus = steps[i].focus;
+      showStepCard();
+      render();
+      return steps[i].run(makeCtx(steps[i], false));
+    }
+
+    async function next() {
+      ensureSteps();
+      if (S.step >= steps.length - 1) return;
+      const i = S.step + 1;
+      playing = true;
+      updateButtons();
+      try { await playStep(i); } catch (e) { if (e !== CANCELLED) throw e; } finally { playing = false; updateButtons(); }
+    }
+
+    async function runAll() {
+      resetAll();
+      ensureSteps();
+      playing = true;
+      updateButtons();
+      const pending = [];
+      try {
+        for (let i = 0; i < steps.length; i++) {
+          const pr = playStep(i);
+          if (steps[i].overlap) { pr.catch(() => { }); pending.push(pr); await runner.wait(450); } // response keeps travelling while async work starts
+          else await pr;
+          await runner.wait(350);
+        }
+        await Promise.all(pending);
+        S.focus = null;
+        render();
+        $('#step-count').textContent = 'COMPLETE · ' + steps.length + ' STEPS';
+      } catch (e) {
+        if (e !== CANCELLED) throw e;
+      } finally {
+        playing = false;
+        updateButtons();
+      }
+    }
+
+    btn.run.addEventListener('click', runAll);
+    btn.send.addEventListener('click', runAll);
+    btn.next.addEventListener('click', next);
+    btn.prev.addEventListener('click', () => { if (S.step > 0) jumpTo(S.step - 1); });
+    btn.reset.addEventListener('click', resetAll);
+    btn.pause.addEventListener('click', () => { if (runner.paused) runner.resume(); else runner.pause(); updateButtons(); });
+    $$('#speed button').forEach((b) => b.addEventListener('click', () => {
+      runner.speed = +b.dataset.speed;
+      $$('#speed button').forEach((x) => x.classList.toggle('on', x === b));
+    }));
+    $$('#presets [data-preset]').forEach((b) => b.addEventListener('click', () => loadPreset(b.dataset.preset)));
+    Object.values(F).forEach((f) => f.addEventListener('input', () => {
+      presetDirty = true;
+      const checks = validate(readPatient());
+      checks.forEach((c) => F[c.input].classList.toggle('bad', !c.ok));
+      if (steps.length) resetAll();
+    }));
+    $$('#filters button').forEach((b) => b.addEventListener('click', () => {
+      filter = b.dataset.filter;
+      $$('#filters button').forEach((x) => x.classList.toggle('on', x === b));
+      render();
+    }));
+
+    /* ==========================================================
+       INSPECTOR
+       ========================================================== */
+    const drawer = $('#drawer');
+    function openDrawer(title, html) {
+      $('#insp-title').textContent = title;
+      $('#insp').innerHTML = html;
+      drawer.classList.add('open');
+      render();
+    }
+    $('#insp-close').addEventListener('click', () => { drawer.classList.remove('open'); selected = null; render(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawer.classList.contains('open') && !document.querySelector('.modal-back')) { drawer.classList.remove('open'); selected = null; render(); } });
+
+    const sec = (h, body) => body ? `<section><h4>${h}</h4>${body}</section>` : '';
+    const chips = (arr, cls) => arr && arr.length ? '<div class="chips">' + arr.map((a) => `<span class="chip ${cls || ''}">${esc(a)}</span>`).join('') + '</div>' : '';
+
+    function inspectNode(id) {
+      selected = 'n:' + id;
+      if (id === 'kafka') {
+        openDrawer('Kafka Event Bus', `
+          <span class="chip amber">supporting infrastructure — not a microservice</span>
+          <div class="whw"><div><b>WHAT</b>A durable, partitioned log that moves events between loosely coupled services (publish/subscribe).</div>
+          <div><b>HOW</b>Producers publish to topics and continue immediately; each consumer group reads at its own pace.</div>
+          <div><b>WHY</b>Prevents notification, audit and logging work from blocking the prediction request — and lets consumers catch up after downtime.</div></div>
+          ${sec('Topics', chips(TOPICS, 'amber'))}
+          <div class="callout amber">${icon('alert')}<div><b>Kafka is NOT the main prediction request path.</b> The hospital needs an immediate answer, so prediction uses synchronous calls. Kafka handles background work where nobody waits.</div></div>
+          <div class="callout">${icon('info')}<div>Not a database: events have retention, but patient records live in the databases.</div></div>`);
+        return;
+      }
+      const n = NODE[id];
+      const isService = n.kind === 'service';
+      openDrawer(n.name, `
+        <span class="chip ${isService ? 'blue' : n.kind === 'actor' ? '' : 'navy'}">${isService ? 'microservice' : n.kind === 'actor' ? 'external actor' : 'supporting infrastructure'}</span>
+        ${n.what ? `<div class="whw"><div><b>WHAT</b>${esc(n.what)}</div><div><b>HOW</b>${esc(n.how)}</div><div><b>WHY</b>${esc(n.whyShort)}</div></div>` : ''}
+        ${sec('Role', `<p>${esc(n.role)}</p>`)}
+        ${sec('Input', n.input ? `<p>${esc(n.input)}</p>` : '')}
+        ${sec('Processing', n.processing ? `<p>${esc(n.processing)}</p>` : '')}
+        ${sec('Output', n.output ? `<p>${esc(n.output)}</p>` : '')}
+        ${sec('Communication', n.comm ? `<p>${esc(n.comm)}</p>` : '')}
+        ${sec('Dependencies', chips(n.deps))}
+        ${sec('Events produced', chips(n.produces, 'amber'))}
+        ${sec('Events consumed', chips(n.consumes, 'amber'))}
+        ${sec('Storage used', chips(n.storage, 'navy'))}
+        ${!n.what && n.whyShort ? sec('Why this component exists', `<p>${esc(n.whyShort)}</p>`) : ''}
+        ${id === 'inf' ? sec('Why synchronous?', '<p>The Risk Scoring service requires the prediction before it can return a response.</p>') : ''}
+        ${id === 'redis' ? '<div class="callout green">' + icon('zap') + '<div><b>DATABASE = persistent · REDIS = temporary / fast.</b> If Redis is flushed, nothing authoritative is lost.</div></div>' : ''}
+        ${id === 'audit' ? '<div class="callout">' + icon('info') + '<div><b>Audit vs application logs:</b> audit records who/what/when happened to business or patient operations; application logs are technical diagnostics produced by services.</div></div>' : ''}
+        ${n.example ? sec('Example request', `<pre class="code">${esc(n.example)}</pre>`) : ''}
+        ${id === 'intake' ? sec('Example payload', `<pre class="code">${json(readPatient())}</pre>`) : ''}
+        ${id === 'registry' ? sec('Registry entry', `<pre class="code">${json({ model: 'PatientDeteriorationModel', productionVersion: 'v3.2', status: 'Production', created: 'demo' })}</pre>`) : ''}
+      `);
+    }
+
+    function inspectEdge(id) {
+      selected = 'e:' + id;
+      const e = EDGE[id];
+      const t = TYPES[e.type];
+      const from = e.from === 'kafka' ? 'Kafka' : NODE[e.from].name;
+      const to = e.to === 'kafka' ? 'Kafka' : NODE[e.to].name;
+      const typeName = { sync: 'Synchronous', async: 'Asynchronous', db: 'Database read/write', cache: 'Cache read/write', model: 'Model artifact read', tel: 'Telemetry', alert: 'Alert push' }[e.type];
+      const proto = { sync: id === 'hosp-gw' ? 'REST/HTTPS' : 'REST/HTTPS or gRPC', async: 'Kafka topic (publish / subscribe)', db: 'Database driver (SQL)', cache: 'Redis protocol (GET/SET with TTL)', model: 'Registry API / object storage read', tel: 'OpenTelemetry / Prometheus scrape', alert: 'Push · pager · SMS · email (simulated)' }[e.type];
+      const dir = t.two ? 'Two-way (request → response)' : 'One-way';
+      openDrawer(from + ' → ' + to, `
+        <span class="chip" style="color:${t.color};border-color:${t.color}">${typeName}</span>
+        ${sec('Communication type', `<p>${typeName}</p>`)}
+        ${sec('Protocol / pattern', `<p>${proto}</p>`)}
+        ${sec('Direction', `<p>${dir}</p>`)}
+        ${e.type === 'async' ? sec('Event', chips([e.label], 'amber')) : sec('Carries', `<p>${esc(e.label)}</p>`)}
+        ${sec('Why?', `<p>${esc(e.why)}</p>`)}
+        ${e.type === 'sync' ? '<div class="callout blue">' + icon('info') + '<div>Caller waits for the response — use when the next step immediately needs the answer.</div></div>' : ''}
+        ${e.type === 'async' ? '<div class="callout amber">' + icon('info') + '<div>Producer publishes and continues — use when work can happen independently without delaying the response.</div></div>' : ''}
+      `);
+    }
+
+    /* ==========================================================
+       WHY MODE & EXAM ANSWER
+       ========================================================== */
+    const WHY = [
+      ['API Gateway', 'Provides one controlled entry point instead of exposing every microservice.'],
+      ['Kafka', 'Prevents notification/audit/logging work from blocking the prediction request.'],
+      ['Redis', 'Provides fast temporary access without replacing durable databases.'],
+      ['Model Registry', 'Inference code and model artifacts can evolve independently.'],
+      ['Monitoring', 'Business logs cannot by themselves tell whether infrastructure is healthy.'],
+      ['Database — why not Redis?', 'Patient and prediction records need durable persistence.'],
+    ];
+    $('#why-grid').innerHTML = WHY.map(([k, v]) => `<div class="callout purple">${icon('help')}<div><b>${k} — why?</b><br>${v}</div></div>`).join('');
+    $('#btn-why').addEventListener('click', () => {
+      const on = !document.body.classList.contains('why-on');
+      document.body.classList.toggle('why-on', on);
+      $('#why-grid').hidden = !on;
+      $('#btn-why').setAttribute('aria-pressed', on);
+      $('#btn-why').classList.toggle('btn-primary', on);
+    });
+
+    $('#btn-exam').addEventListener('click', () => modal('Exam answer — for a 6-mark question', `
+      <table class="tbl">
+        <thead><tr><th>Microservice</th><th>Responsibility</th><th>Communication</th></tr></thead>
+        <tbody>
+          <tr><td><b>API Gateway / Central Routing</b></td><td>Single entry point; routing, auth, rate limiting, correlation ID</td><td>REST/HTTPS · synchronous</td></tr>
+          <tr><td><b>Patient Intake</b></td><td>Receives demographics + vitals; persists request</td><td>REST/gRPC · synchronous</td></tr>
+          <tr><td><b>Validation</b></td><td>Required fields, types, ranges; rejects invalid data (HTTP 400)</td><td>REST/gRPC · synchronous</td></tr>
+          <tr><td><b>Preprocessing / Feature Eng.</b></td><td>Cleans, normalises, builds features</td><td>REST/gRPC · synchronous</td></tr>
+          <tr><td><b>ML Inference</b></td><td>Runs the deterioration model (from Model Registry)</td><td>REST/gRPC · synchronous</td></tr>
+          <tr><td><b>Risk Scoring &amp; Decision</b></td><td>Probability → risk level; persists prediction; responds</td><td>REST/gRPC · synchronous</td></tr>
+          <tr><td><b>Notification / Alert</b></td><td>Alerts medical team on high risk</td><td>Kafka event (risk.high) · asynchronous</td></tr>
+          <tr><td><b>Audit · Activity Logging · Monitoring</b></td><td>Record requests/predictions/alerts; logs; system health</td><td>Kafka events + telemetry · asynchronous</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted" style="margin-top:10px"><b>Supporting components</b> (not microservices): Kafka event bus, Redis cache, Patient DB, Prediction DB, Audit Log Store, Central Log Storage, Monitoring Stack, Model Registry.</p>
+      <div class="callout blue" style="margin-top:12px">${icon('info')}<div><b>KEY COMMUNICATION IDEA</b><br><b>REST/gRPC</b>: use when the next component immediately needs the answer.<br><b>Kafka</b>: use when work can happen independently without delaying the prediction response.</div></div>
+    `));
+
+    /* ==========================================================
+       INIT
+       ========================================================== */
+    loadPreset('deteriorating');
+  })();
+  </script>
+</body>
+
+</html>

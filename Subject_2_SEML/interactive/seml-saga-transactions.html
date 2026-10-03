@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAGA Pattern — Distributed Transactions &amp; Compensation</title>
+  <meta name="description" content="Interactive SAGA simulator: orchestration vs choreography, database-per-service, failure injection and compensating transactions executed in reverse order.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+    .controls .field { min-width: 210px; }
+    #saga { width: 100%; min-width: 980px; height: auto; }
+    .svc rect { fill: #0f1320; stroke: #2d3650; stroke-width: 1.4; transition: stroke 0.25s, fill 0.25s; }
+    .svc.running rect { stroke: #fbbf24; stroke-width: 2.4; fill: #17140d; filter: url(#glow); }
+    .svc.success rect { stroke: #3f9e6a; }
+    .svc.failed rect { stroke: #f87171; stroke-width: 2.4; fill: #1c0f12; }
+    .svc.compensating rect { stroke: #fb923c; stroke-width: 2.4; fill: #1d1309; filter: url(#glow); }
+    .svc.compensated rect { stroke: #fb923c; }
+    .t-name { fill: #eef2fb; font: 700 12.5px Inter, sans-serif; }
+    .t-fn { fill: #93c5fd; font: 600 10.5px 'JetBrains Mono', monospace; }
+    .t-comp { fill: #fdba74; font: 600 10.5px 'JetBrains Mono', monospace; }
+    .t-st { font: 600 10.5px 'JetBrains Mono', monospace; }
+    .db path.body { fill: #0d1220; stroke: #7d93c4; stroke-width: 1.3; }
+    .link { stroke: #3a465f; stroke-width: 1.6; fill: none; }
+    .orch rect { fill: #121a2c; stroke: #a78bfa; stroke-width: 1.6; }
+    .bus rect { fill: #120d08; stroke: #6b4a22; stroke-width: 1.4; }
+    .sm { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sm span { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); font: 600 11px var(--font-mono); }
+    .sm span.on { color: #fff; border-color: #a78bfa; background: rgba(167, 139, 250, 0.18); }
+    .sm span.bad { color: #fff; border-color: #fb923c; background: rgba(251, 146, 60, 0.18); }
+    .sm span.ok { color: #fff; border-color: #4ade80; background: rgba(74, 222, 128, 0.15); }
+    .log-row { grid-template-columns: 92px 120px 1fr; }
+    .log-row.comp .m { color: #fed7aa; }
+    @media (max-width: 760px) { .controls .field { min-width: 100%; } }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / Distributed transactions</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Sessions 7–8 • SAGA pattern</span>
+      <h1><span class="grad">SAGA</span> Distributed Transactions &amp; Compensation</h1>
+      <p class="sub">Database-per-service means no global ACID transaction — sagas use local transactions plus compensations</p>
+      <p class="desc">Run a business transaction across four microservices, each with its <b>own database</b>. Inject a failure and watch the saga undo the already-committed steps with <b>compensating transactions in reverse order</b> — via a central orchestrator or via events on a broker.</p>
+    </section>
+
+    <div class="card card-pad">
+      <div class="controls">
+        <div class="field"><label for="scenario">Scenario</label>
+          <select class="input" id="scenario">
+            <option value="ml">ML automated platform</option>
+            <option value="trip">Trip booking</option>
+            <option value="food">Food delivery</option>
+          </select>
+        </div>
+        <div class="field"><label>Coordination</label>
+          <div class="seg" id="pattern"><button data-p="orch" class="on">Orchestration</button><button data-p="chor">Choreography</button></div>
+        </div>
+        <div class="field"><label for="fail">Inject failure</label><select class="input" id="fail"></select></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-run"><i data-icon="play"></i>Run transaction</button>
+          <button class="btn" id="btn-reset"><i data-icon="reset"></i>Reset</button>
+          <div class="seg" id="speed"><button data-s="0.5">0.5×</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button></div>
+        </div>
+      </div>
+    </div>
+
+    <section class="card" style="margin-top:16px">
+      <div class="card-head">
+        <h3><i data-icon="git"></i><span id="canvas-title">Orchestration SAGA</span></h3>
+        <div class="sm" id="sm"></div>
+      </div>
+      <div class="svg-scroll" style="padding:8px">
+        <svg id="saga" viewBox="0 0 1200 450" role="img" aria-label="Saga diagram">
+          <defs>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <g id="g-base"></g><g id="g-pk"></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="grid-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="clipboard"></i>Audit ledger</h3><span class="chip" id="outcome">idle</span></div>
+        <div class="log" id="ledger" style="max-height:340px"><div class="empty">Run the transaction to see commands, events, failures and compensations.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="layers"></i>Steps &amp; compensations</h3><span class="chip amber">verb + noun</span></div>
+        <div style="overflow-x:auto"><table class="tbl" id="steps-table"></table></div>
+        <div class="card-pad"><div class="callout amber"><i data-icon="info"></i><div>Compensating transactions are written as proper method names starting with a <b>verb followed by a noun</b> — <code>refundPayment()</code>, <code>cancelHotelBooking()</code>, <code>rollbackModelTraining()</code>. They must be idempotent: running one twice must be safe.</div></div></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Orchestration vs choreography<small>Two ways to coordinate the same saga</small></h2>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th></th><th>Orchestration</th><th>Choreography</th></tr></thead>
+        <tbody>
+          <tr><td><b>Control</b></td><td>Central saga orchestrator (state machine) tells each service what to do</td><td>No central controller — services react to events on a broker (Kafka / RabbitMQ)</td></tr>
+          <tr><td><b>Communication</b></td><td>Command → reply (often async messaging, can be REST)</td><td>Publish / subscribe events</td></tr>
+          <tr><td><b>Coupling</b></td><td>Services coupled to the orchestrator, not to each other</td><td>Loose coupling, but the flow is implicit and spread across services</td></tr>
+          <tr><td><b>Rollback</b></td><td>Orchestrator issues compensations in reverse order</td><td>Failure event triggers each previous service to compensate and publish its own event</td></tr>
+          <tr><td><b>Best for</b></td><td>Complex flows, many steps, clear visibility &amp; monitoring</td><td>Simple flows with few participants</td></tr>
+          <tr><td><b>Risk</b></td><td>Orchestrator can become a bottleneck / single point of logic</td><td>Cyclic dependencies and hard-to-trace flows as it grows</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Why not a distributed ACID transaction?<small>Key exam points</small></h2>
+    <div class="grid-3">
+      <div class="card card-pad"><span class="chip navy">Database per service</span><p class="small" style="margin-top:8px">Each microservice owns its data; no other service touches its tables. That independence rules out a single shared ACID transaction.</p></div>
+      <div class="card card-pad"><span class="chip red">2PC doesn't scale</span><p class="small" style="margin-top:8px">Two-phase commit holds locks across network boundaries and blocks if the coordinator fails — poor availability for microservices.</p></div>
+      <div class="card card-pad"><span class="chip amber">Eventual consistency</span><p class="small" style="margin-top:8px">A saga is a sequence of local transactions. Intermediate states are visible, so the system is eventually — not immediately — consistent.</p></div>
+    </div>
+
+    <p class="footer-note">Scenarios follow in-class examples: ML automated platform, trip booking and food delivery.</p>
+  </main>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, esc, clock, packet, createRunner, CANCELLED, icon } = Lab;
+
+    const SCENARIOS = {
+      ml: { name: 'ML automated platform', steps: [
+        { svc: 'Data Validation Svc', db: 'Dataset DB', fn: 'validateDataset()', comp: 'rollbackDatasetValidation()', ev: 'DatasetValidated', fail: 'schema drift detected' },
+        { svc: 'Training Svc', db: 'Training DB', fn: 'trainModel()', comp: 'rollbackModelTraining()', ev: 'ModelTrained', fail: 'GPU out of memory' },
+        { svc: 'Model Registry Svc', db: 'Registry DB', fn: 'registerModel()', comp: 'deregisterModel()', ev: 'ModelRegistered', fail: 'version conflict' },
+        { svc: 'Deployment Svc', db: 'Deploy DB', fn: 'deployEndpoint()', comp: 'compensateModelDeployment()', ev: 'EndpointDeployed', fail: 'health check failed' },
+      ] },
+      trip: { name: 'Trip booking', steps: [
+        { svc: 'Flight Svc', db: 'Flight DB', fn: 'reserveFlight()', comp: 'cancelFlightReservation()', ev: 'FlightReserved', fail: 'no seats available' },
+        { svc: 'Hotel Svc', db: 'Hotel DB', fn: 'bookHotelRoom()', comp: 'cancelHotelBooking()', ev: 'HotelBooked', fail: 'no rooms left' },
+        { svc: 'Car Rental Svc', db: 'Car DB', fn: 'reserveCar()', comp: 'cancelCarRental()', ev: 'CarReserved', fail: 'no cars at airport' },
+        { svc: 'Payment Svc', db: 'Payment DB', fn: 'processPayment()', comp: 'refundPayment()', ev: 'PaymentProcessed', fail: 'insufficient funds' },
+      ] },
+      food: { name: 'Food delivery', steps: [
+        { svc: 'Order Svc', db: 'Order DB', fn: 'confirmOrder()', comp: 'cancelOrder()', ev: 'OrderConfirmed', fail: 'restaurant closed' },
+        { svc: 'Partner Svc', db: 'Partner DB', fn: 'assignPartner()', comp: 'unassignPartner()', ev: 'PartnerAssigned', fail: 'no partner nearby' },
+        { svc: 'Payment Svc', db: 'Payment DB', fn: 'processPayment()', comp: 'refundPayment()', ev: 'PaymentProcessed', fail: 'insufficient funds' },
+        { svc: 'Delivery Svc', db: 'Schedule DB', fn: 'scheduleDelivery()', comp: 'cancelDeliverySchedule()', ev: 'DeliveryScheduled', fail: 'slot unavailable' },
+      ] },
+    };
+
+    let scenario = 'ml', pattern = 'orch';
+    const runner = createRunner();
+    let running = false;
+    let st = [];
+    let ledger = [];
+    let sm = 'IDLE';
+    let t0 = Date.now();
+    const els = {};
+    const paths = {};
+
+    const steps = () => SCENARIOS[scenario].steps;
+    const failEv = (s) => s.fn.replace('()', '').replace(/^./, (c) => c.toUpperCase()) + 'Failed';
+    const XS = [40, 330, 620, 910], SW = 250, SH = 84;
+
+    function fillFailSelect() {
+      $('#fail').innerHTML = '<option value="-1">No failure (happy path)</option>' + steps().map((s, i) => `<option value="${i}">Step ${i + 1}: ${s.svc} — ${s.fail}</option>`).join('');
+      $('#fail').value = scenario === 'food' ? '2' : '1';
+    }
+
+    function freshState() { st = steps().map(() => ({ status: 'idle', db: '—' })); ledger = []; sm = 'IDLE'; }
+
+    /* ---------- Drawing ---------- */
+    const G = $('#g-base'), GK = $('#g-pk');
+    function draw() {
+      G.innerHTML = ''; GK.innerHTML = '';
+      const orch = pattern === 'orch';
+      $('#canvas-title').textContent = orch ? 'Orchestration SAGA — central coordinator' : 'Choreography SAGA — events on a broker';
+      const svcY = orch ? 170 : 110, dbY = orch ? 330 : 8;
+      $('#saga').setAttribute('viewBox', '0 0 1200 ' + (orch ? 410 : 378));
+      if (orch) {
+        const g = svg('g', { class: 'orch' }, G);
+        svg('rect', { x: 430, y: 16, width: 340, height: 86, rx: 14 }, g);
+        const t = svg('text', { x: 600, y: 46, 'text-anchor': 'middle', class: 't-name' }, g); t.textContent = 'SAGA Orchestrator';
+        const t2 = svg('text', { x: 600, y: 66, 'text-anchor': 'middle', class: 't-fn', fill: '#c4b5fd' }, g); t2.textContent = 'state machine · saga log';
+        els.orchState = svg('text', { x: 600, y: 88, 'text-anchor': 'middle', class: 't-st', fill: '#a78bfa' }, g);
+      } else {
+        const g = svg('g', { class: 'bus' }, G);
+        svg('rect', { x: 20, y: 300, width: 1160, height: 64, rx: 14 }, g);
+        const t = svg('text', { x: 40, y: 324, class: 't-name', fill: '#fdba74' }, g); t.textContent = 'Message broker / event bus (Kafka)';
+        const t2 = svg('text', { x: 40, y: 344, class: 't-fn', fill: '#8c94a9' }, g); t2.textContent = 'publish / subscribe · no central coordinator';
+      }
+      steps().forEach((s, i) => {
+        const x = XS[i], cx = x + SW / 2;
+        // links
+        if (orch) {
+          const ox = 470 + i * 87;
+          paths['cmd' + i] = svg('path', { class: 'link', d: `M${ox},102 L${ox},136 L${cx},136 L${cx},${svcY}` }, G);
+        } else {
+          paths['pub' + i] = svg('path', { class: 'link', d: `M${cx - 40},${svcY + SH} L${cx - 40},300`, 'stroke-dasharray': '6 5', stroke: '#fb923c' }, G);
+          if (i > 0) {
+            const px = XS[i - 1] + SW / 2 - 40;
+            paths['sub' + i] = svg('path', { class: 'link', d: `M${px},332 L${cx + 40},332 L${cx + 40},${svcY + SH}`, 'stroke-opacity': 0 }, G);
+            svg('path', { class: 'link', d: `M${cx + 40},300 L${cx + 40},${svcY + SH}`, 'stroke-dasharray': '6 5', stroke: '#fb923c' }, G);
+          }
+          if (i < steps().length - 1) {
+            const nx = XS[i + 1] + SW / 2 + 40;
+            paths['back' + i] = svg('path', { class: 'link', d: `M${nx},${svcY + SH} L${nx},300 L${nx},332 L${cx - 40},332 L${cx - 40},${svcY + SH}`, 'stroke-opacity': 0 }, G);
+          }
+        }
+        const dbTop = orch ? dbY : dbY;
+        paths['db' + i] = svg('path', { class: 'link', d: orch ? `M${cx},${svcY + SH} L${cx},${dbY}` : `M${cx},${svcY} L${cx},${dbY + 64}`, stroke: '#7d93c4' }, G);
+        // service
+        const g = svg('g', { class: 'svc' }, G);
+        svg('rect', { x, y: svcY, width: SW, height: SH, rx: 12 }, g);
+        const n = svg('text', { x: x + 14, y: svcY + 24, class: 't-name' }, g); n.textContent = (i + 1) + ' · ' + s.svc;
+        const f = svg('text', { x: x + 14, y: svcY + 44, class: 't-fn' }, g); f.textContent = s.fn;
+        const c = svg('text', { x: x + 14, y: svcY + 62, class: 't-comp' }, g); c.textContent = '↩ ' + s.comp;
+        const stt = svg('text', { x: x + SW - 14, y: svcY + 24, 'text-anchor': 'end', class: 't-st', fill: '#8c94a9' }, g);
+        // db
+        const dg = svg('g', { class: 'db' }, G);
+        const dx = cx - 95, r = 7, h = 64;
+        svg('path', { class: 'body', d: `M${dx},${dbTop + r} a95,${r} 0 0,1 190,0 v${h - 2 * r} a95,${r} 0 0,1 -190,0 z` }, dg);
+        svg('path', { d: `M${dx},${dbTop + r} a95,${r} 0 0,0 190,0`, fill: 'none', stroke: '#7d93c4' }, dg);
+        const dn = svg('text', { x: cx, y: dbTop + 30, 'text-anchor': 'middle', class: 't-name' }, dg); dn.textContent = s.db;
+        const ds = svg('text', { x: cx, y: dbTop + 48, 'text-anchor': 'middle', class: 't-st', fill: '#8c94a9' }, dg);
+        els['svc' + i] = { g, stt, ds };
+      });
+      render();
+    }
+
+    const STATUS_COLOR = { idle: '#8c94a9', running: '#fbbf24', success: '#4ade80', failed: '#f87171', compensating: '#fb923c', compensated: '#fb923c' };
+    const DB_COLOR = { '—': '#8c94a9', COMMITTED: '#4ade80', FAILED: '#f87171', 'ROLLED_BACK': '#fb923c', PENDING: '#fbbf24' };
+
+    function render() {
+      steps().forEach((s, i) => {
+        const e = els['svc' + i];
+        if (!e) return;
+        e.g.setAttribute('class', 'svc ' + st[i].status);
+        e.stt.textContent = st[i].status.toUpperCase();
+        e.stt.setAttribute('fill', STATUS_COLOR[st[i].status]);
+        e.ds.textContent = 'status: ' + st[i].db;
+        e.ds.setAttribute('fill', DB_COLOR[st[i].db] || '#8c94a9');
+      });
+      if (els.orchState) els.orchState.textContent = 'STATE: ' + sm;
+      const states = ['STARTED'].concat(steps().map((s, i) => 'STEP_' + (i + 1)), ['COMPENSATING', 'COMPLETED', 'ROLLED_BACK']);
+      $('#sm').innerHTML = states.map((x) => `<span class="${x === sm ? (x === 'COMPENSATING' || x === 'ROLLED_BACK' ? 'bad' : x === 'COMPLETED' ? 'ok' : 'on') : ''}">${x}</span>`).join('');
+      const el = $('#ledger');
+      el.innerHTML = ledger.length ? ledger.map((r) => `<div class="log-row ${r.cls}"><span class="t">${r.time}</span><span class="s">${esc(r.who)}</span><span class="m">${esc(r.msg)}</span></div>`).join('') : '<div class="empty">Run the transaction to see commands, events, failures and compensations.</div>';
+      el.scrollTop = el.scrollHeight;
+      $('#steps-table').innerHTML = '<thead><tr><th>#</th><th>Local transaction</th><th>Compensation</th><th>Local DB</th></tr></thead><tbody>' +
+        steps().map((s, i) => `<tr><td>${i + 1}</td><td><code>${s.fn}</code></td><td><code>${s.comp}</code></td><td style="color:${DB_COLOR[st[i].db] || 'inherit'}">${st[i].db}</td></tr>`).join('') + '</tbody>';
+    }
+
+    const log = (who, msg, cls) => { ledger.push({ time: clock(t0 + ledger.length * 37), who, msg, cls: cls || 'info' }); render(); };
+    const pk = (p, label, color, reverse, dur) => packet(p, { label, color, reverse, runner, layer: GK, duration: dur || 900 });
+
+    /* ---------- Execution ---------- */
+    async function run() {
+      if (running) return;
+      running = true;
+      $('#btn-run').disabled = true;
+      freshState();
+      t0 = Date.now();
+      GK.innerHTML = '';
+      const failAt = +$('#fail').value;
+      const orch = pattern === 'orch';
+      try {
+        sm = 'STARTED'; log(orch ? 'Orchestrator' : 'Client', 'Saga started — ' + SCENARIOS[scenario].name, 'info');
+        await runner.wait(400);
+        let failed = -1;
+        for (let i = 0; i < steps().length; i++) {
+          const s = steps()[i];
+          sm = 'STEP_' + (i + 1);
+          if (orch) { log('Orchestrator', 'command → ' + s.svc + ': ' + s.fn); await pk(paths['cmd' + i], s.fn, '#a78bfa'); }
+          else if (i > 0) { log(s.svc, 'consumed ' + steps()[i - 1].ev + 'Event'); await pk(paths['sub' + i], steps()[i - 1].ev, '#fb923c', false, 1300); }
+          else log('Client', 'request → ' + s.svc + ': ' + s.fn);
+          st[i].status = 'running'; st[i].db = 'PENDING'; render();
+          await runner.wait(500);
+          if (i === failAt) {
+            st[i].status = 'failed'; st[i].db = 'FAILED'; render();
+            log(s.svc, 'local transaction FAILED — ' + s.fail + ' (nothing committed)', 'err');
+            failed = i;
+            break;
+          }
+          await pk(paths['db' + i], 'COMMIT', '#7d93c4', false, 600);
+          st[i].status = 'success'; st[i].db = 'COMMITTED'; render();
+          log(s.svc, 'local transaction committed (' + s.db + ')', 'ok');
+          if (orch) { await pk(paths['cmd' + i], s.ev, '#4ade80', true); log('Orchestrator', 'reply ← ' + s.ev, 'ok'); }
+          else { await pk(paths['pub' + i], s.ev + 'Event', '#fb923c', false, 700); log(s.svc, 'published ' + s.ev + 'Event', 'evt'); }
+        }
+
+        if (failed === -1) {
+          sm = 'COMPLETED'; render();
+          log(orch ? 'Orchestrator' : 'Saga', 'Saga COMPLETED — all local transactions committed', 'ok');
+          setOutcome('completed', 'green');
+        } else {
+          sm = 'COMPENSATING'; render();
+          const fs = steps()[failed];
+          if (orch) { await pk(paths['cmd' + failed], 'FAILED', '#f87171', true); log('Orchestrator', 'reply ← ' + failEv(fs) + ' — starting compensation in reverse order', 'err'); }
+          else { await pk(paths['pub' + failed], failEv(fs) + 'Event', '#f87171', false, 700); log(fs.svc, 'published ' + failEv(fs) + 'Event', 'err'); }
+          if (failed === 0) log('Saga', 'Nothing to compensate — the first step never committed', 'info');
+          for (let j = failed - 1; j >= 0; j--) {
+            const s = steps()[j];
+            if (orch) { log('Orchestrator', 'compensate → ' + s.svc + ': ' + s.comp, 'comp'); await pk(paths['cmd' + j], s.comp, '#fb923c'); }
+            else { const trigger = j === failed - 1 ? failEv(fs) : steps()[j + 1].ev + 'Compensated'; await pk(paths['back' + j], trigger, '#fb923c', false, 1300); log(s.svc, 'consumed ' + trigger + 'Event → ' + s.comp, 'comp'); }
+            st[j].status = 'compensating'; render();
+            await runner.wait(450);
+            await pk(paths['db' + j], 'UNDO', '#fb923c', false, 600);
+            st[j].status = 'compensated'; st[j].db = 'ROLLED_BACK'; render();
+            log(s.svc, s.comp + ' executed — local state rolled back', 'comp');
+            if (orch) await pk(paths['cmd' + j], 'compensated', '#fb923c', true, 700);
+            else if (j > 0) { await pk(paths['pub' + j], s.ev + 'Compensated', '#fb923c', false, 600); log(s.svc, 'published ' + s.ev + 'CompensatedEvent', 'evt'); }
+          }
+          sm = 'ROLLED_BACK'; render();
+          log(orch ? 'Orchestrator' : 'Saga', 'Saga ROLLED_BACK — system is consistent again (no partial work left behind)', 'comp');
+          setOutcome('rolled back', 'amber');
+        }
+      } catch (e) {
+        if (e !== CANCELLED) throw e;
+      } finally {
+        running = false;
+        $('#btn-run').disabled = false;
+      }
+    }
+
+    function setOutcome(text, color) { const o = $('#outcome'); o.textContent = text; o.className = 'chip ' + color; }
+
+    function reset() { runner.cancel(); running = false; $('#btn-run').disabled = false; freshState(); setOutcome('idle', ''); draw(); }
+
+    $('#btn-run').addEventListener('click', run);
+    $('#btn-reset').addEventListener('click', reset);
+    $('#scenario').addEventListener('change', (e) => { scenario = e.target.value; fillFailSelect(); reset(); });
+    $$('#pattern button').forEach((b) => b.addEventListener('click', () => { pattern = b.dataset.p; $$('#pattern button').forEach((x) => x.classList.toggle('on', x === b)); reset(); }));
+    $$('#speed button').forEach((b) => b.addEventListener('click', () => { runner.speed = +b.dataset.s; $$('#speed button').forEach((x) => x.classList.toggle('on', x === b)); }));
+
+    fillFailSelect();
+    freshState();
+    draw();
+  })();
+  </script>
+</body>
+
+</html>

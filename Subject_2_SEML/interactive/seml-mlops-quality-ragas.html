@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MLOps Quality — Data Gates, Drift &amp; RAGAS</title>
+  <meta name="description" content="Interactive MLOps quality lab: data-quality gates with a quarantine branch, data and concept drift detection with PSI/KS and retraining loop, and a RAGAS-style RAG evaluator.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    #gates { width: 100%; min-width: 900px; height: auto; }
+    .gate rect { fill: #0f1320; stroke: #2d3650; stroke-width: 1.4; transition: stroke 0.2s, fill 0.2s; }
+    .gate.flash-ok rect { stroke: #4ade80; }
+    .gate.flash-bad rect { stroke: #f87171; fill: #1c0f12; }
+    .g-name { fill: #eef2fb; font: 700 12px Inter, sans-serif; }
+    .g-sub { fill: #8c94a9; font: 500 10px 'JetBrains Mono', monospace; }
+    .g-cnt { font: 700 11px 'JetBrains Mono', monospace; }
+    .pipe { stroke: #3a465f; stroke-width: 2; fill: none; }
+    .q-row td { font: 12px var(--font-mono); }
+    .hist-wrap svg { width: 100%; height: 220px; }
+    .loop { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .loop span { padding: 6px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 600 12px var(--font-mono); color: var(--muted); transition: all 0.3s; }
+    .loop span.on { color: #fff; border-color: var(--amber); background: rgba(248, 169, 89, 0.15); }
+    .loop em { color: var(--dim); font-style: normal; }
+    .metric-row { display: grid; grid-template-columns: 160px 1fr 50px; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+    .metric-row .v { font: 700 13px var(--font-mono); text-align: right; }
+    .ctx-grid { display: grid; gap: 8px; }
+    @media (max-width: 760px) { .metric-row { grid-template-columns: 120px 1fr 44px; } }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / ML testing &amp; quality</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Sessions 11–12 • ML testing · MLOps · RAGAS</span>
+      <h1>MLOps <span class="grad">Quality Control Loop</span></h1>
+      <p class="sub">Test the data, watch for drift, and evaluate generative answers — because ML behaviour comes from data</p>
+      <p class="desc">Traditional testing is deterministic: <code>input + code → output</code>. In ML, <code>data + expected output → model</code>, so quality assurance must cover the <b>data</b>, the <b>model</b> in production and the <b>pipeline</b>.</p>
+    </section>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" data-tab="gates"><span class="n">01</span>Data quality gates</button>
+      <button class="tab" data-tab="drift"><span class="n">02</span>Drift &amp; retraining</button>
+      <button class="tab" data-tab="ragas"><span class="n">03</span>RAGAS evaluator</button>
+    </div>
+
+    <!-- ================= TAB 1: DATA QUALITY GATES ================= -->
+    <section class="tab-panel" data-panel="gates">
+      <div class="card card-pad">
+        <div class="btn-row" style="justify-content:space-between">
+          <div class="btn-row">
+            <button class="btn btn-primary" id="dq-start"><i data-icon="play"></i>Start stream</button>
+            <button class="btn" id="dq-reset"><i data-icon="reset"></i>Reset</button>
+          </div>
+          <div class="btn-row">
+            <span class="label">Inject</span>
+            <button class="btn btn-sm btn-warn" data-inject="neg_age">Negative age</button>
+            <button class="btn btn-sm btn-warn" data-inject="null_salary">Null salary</button>
+            <button class="btn btn-sm btn-warn" data-inject="schema">Schema type mismatch</button>
+            <button class="btn btn-sm btn-warn" data-inject="dup">Duplicate record</button>
+            <label class="btn btn-sm" style="cursor:pointer"><input type="checkbox" id="imbalance" style="accent-color:var(--red)"> Label imbalance</label>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="svg-scroll" style="padding:8px"><svg id="gates" viewBox="0 0 1200 300" role="img" aria-label="Data quality gates"><g id="g-gates"></g><g id="g-dots"></g></svg></div>
+      </div>
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-head"><h3><i data-icon="alert"></i>Quarantine branch — for human triage</h3><span class="chip red" id="q-count">0</span></div>
+          <div style="max-height:280px;overflow:auto"><table class="tbl"><thead><tr><th>id</th><th>record</th><th>failed gate · reason</th></tr></thead><tbody id="q-body"><tr><td colspan="3" class="empty">No quarantined records yet.</td></tr></tbody></table></div>
+        </div>
+        <div class="card card-pad">
+          <div class="label" style="margin-bottom:10px">Data-quality dimensions (live)</div>
+          <div id="dims"></div>
+          <div id="label-alert" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TAB 2: DRIFT ================= -->
+    <section class="tab-panel" data-panel="drift" hidden>
+      <div class="grid-2">
+        <div class="card card-pad">
+          <div class="seg" id="drift-kind" style="margin-bottom:12px"><button data-k="covariate" class="on">Covariate (data) drift</button><button data-k="concept">Concept drift</button></div>
+          <div id="drift-controls"></div>
+          <div class="grid-2" style="margin-top:14px;gap:10px">
+            <div class="stat"><div class="v" id="d-psi">—</div><div class="k" id="d-psi-k">Population Stability Index</div></div>
+            <div class="stat"><div class="v" id="d-ks">—</div><div class="k" id="d-ks-k">KS statistic</div></div>
+          </div>
+          <div id="drift-alert" style="margin-top:12px"></div>
+        </div>
+        <div class="card card-pad hist-wrap">
+          <div class="label" id="hist-title">Feature distribution — training reference vs live</div>
+          <svg id="hist" viewBox="0 0 520 220" preserveAspectRatio="none"></svg>
+          <div class="legend small" style="display:flex;gap:14px;margin-top:4px"><span><i style="display:inline-block;width:12px;height:8px;background:#5fb3f9;border-radius:2px"></i> reference (training)</span><span><i style="display:inline-block;width:12px;height:8px;background:#fb923c;border-radius:2px"></i> live (production)</span></div>
+        </div>
+      </div>
+      <div class="card card-pad" style="margin-top:14px">
+        <div class="label" style="margin-bottom:10px">Automated retraining loop</div>
+        <div class="loop" id="loop"></div>
+        <p class="small muted" style="margin-top:10px">Monitoring compares live data (and, once labels arrive, live accuracy) with the training baseline. Crossing a threshold triggers retraining; the new model must pass validation before the registry promotes it.</p>
+      </div>
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card card-pad"><span class="chip amber">Covariate / data drift</span><p class="small" style="margin-top:8px">P(X) changes — the inputs look different from training (e.g. a new customer segment, a pandemic wave changing behaviour). Detectable <b>without labels</b> using PSI, KS-test or KL divergence.</p></div>
+        <div class="card card-pad"><span class="chip red">Concept drift</span><p class="small" style="margin-top:8px">P(y | X) changes — the same inputs now mean something different (e.g. fraud patterns evolve). Inputs can look identical, so you need <b>ground-truth labels</b> and performance monitoring to catch it.</p></div>
+      </div>
+    </section>
+
+    <!-- ================= TAB 3: RAGAS ================= -->
+    <section class="tab-panel" data-panel="ragas" hidden>
+      <div class="btn-row" style="margin-bottom:12px"><span class="label">Presets</span>
+        <div class="seg" id="r-presets"><button data-p="good" class="on">Good answer</button><button data-p="halluc">Hallucinated answer</button><button data-p="miss">Retriever miss</button><button data-p="noisy">Noisy context</button></div>
+      </div>
+      <div class="grid-2">
+        <div class="card card-pad">
+          <div class="field"><label for="r-q">User query</label><input class="input" id="r-q"></div>
+          <div class="label" style="margin:12px 0 6px">Retrieved context chunks (ranked)</div>
+          <div class="ctx-grid" id="r-ctx"></div>
+          <div class="field" style="margin-top:10px"><label for="r-a">Generated answer</label><textarea class="input" id="r-a"></textarea></div>
+          <div class="field" style="margin-top:10px"><label for="r-gt">Ground truth</label><textarea class="input" id="r-gt"></textarea></div>
+        </div>
+        <div style="display:grid;gap:14px;align-content:start">
+          <div class="card card-pad">
+            <div class="label" style="margin-bottom:12px">Retriever metrics</div>
+            <div id="m-ret"></div>
+            <div class="label" style="margin:14px 0 12px">Generator metrics</div>
+            <div id="m-gen"></div>
+            <p class="small dim">Green &gt; 0.80 · amber 0.60–0.80 · red &lt; 0.60</p>
+          </div>
+          <div class="card card-pad"><div class="label" style="margin-bottom:8px">Diagnostics</div><div id="r-diag" style="display:grid;gap:8px"></div></div>
+          <div class="card card-pad">
+            <table class="tbl">
+              <thead><tr><th>Metric</th><th>Question it answers</th></tr></thead>
+              <tbody>
+                <tr><td><b>Context precision</b></td><td>Are the top-ranked chunks relevant, with little noise?</td></tr>
+                <tr><td><b>Context recall</b></td><td>Did retrieval find all facts needed for the ground truth?</td></tr>
+                <tr><td><b>Faithfulness</b></td><td>Is every claim in the answer supported by the context? (hallucination check)</td></tr>
+                <tr><td><b>Answer relevance</b></td><td>Does the answer actually address the question?</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer-note">All streams, distributions and scores are simulated. Real RAGAS uses an LLM as judge; this lab approximates the metrics with transparent lexical overlap so you can see why each score moves.</p>
+  </main>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, esc, icon, packet, createRunner } = Lab;
+    Lab.tabs();
+
+    /* ================= TAB 1: DATA QUALITY GATES ================= */
+    const GATES = [
+      { id: 'ingest', name: 'Ingestion', sub: 'raw records', x: 20 },
+      { id: 'schema', name: 'Schema Gate', sub: 'columns · types', x: 220 },
+      { id: 'value', name: 'Value Gate', sub: 'ranges · nulls', x: 420 },
+      { id: 'unique', name: 'Uniqueness Gate', sub: 'duplicate ids', x: 620 },
+      { id: 'label', name: 'Label Health Gate', sub: 'class balance', x: 820 },
+    ];
+    const GG = $('#g-gates'), GD = $('#g-dots');
+    const gateEl = {};
+    const GY = 40, GW = 160, GH = 70;
+    const dqPaths = {};
+    function drawGates() {
+      GATES.forEach((g, i) => {
+        if (i) dqPaths['to-' + g.id] = svg('path', { class: 'pipe', d: `M${GATES[i - 1].x + GW},${GY + GH / 2} L${g.x},${GY + GH / 2}` }, GG);
+      });
+      dqPaths.storeFull = svg('path', { class: 'pipe', d: `M${820 + GW},${GY + GH / 2} L1035,${GY + GH / 2}`, stroke: '#4ade80' }, GG);
+      GATES.slice(1).forEach((g) => { dqPaths['q-' + g.id] = svg('path', { class: 'pipe', d: `M${g.x + GW / 2},${GY + GH} L${g.x + GW / 2},210 L${g.id === 'label' ? g.x + GW / 2 : 1035},210`, stroke: '#7f1d1d', 'stroke-dasharray': '5 4' }, GG); });
+      // quarantine collector line
+      svg('path', { class: 'pipe', d: `M${220 + GW / 2},210 L1035,210`, stroke: '#7f1d1d', 'stroke-dasharray': '5 4' }, GG);
+      GATES.forEach((g) => {
+        const e = svg('g', { class: 'gate' }, GG);
+        svg('rect', { x: g.x, y: GY, width: GW, height: GH, rx: 12 }, e);
+        const t = svg('text', { x: g.x + 12, y: GY + 24, class: 'g-name' }, e); t.textContent = g.name;
+        const t2 = svg('text', { x: g.x + 12, y: GY + 42, class: 'g-sub' }, e); t2.textContent = g.sub;
+        const c = svg('text', { x: g.x + 12, y: GY + 60, class: 'g-cnt', fill: '#4ade80' }, e);
+        gateEl[g.id] = { e, c };
+      });
+      const fs = svg('g', { class: 'gate' }, GG);
+      svg('rect', { x: 1035, y: GY - 6, width: 150, height: GH + 12, rx: 12, fill: '#0d1f16', stroke: '#4ade80' }, fs);
+      const ft = svg('text', { x: 1047, y: GY + 20, class: 'g-name' }, fs); ft.textContent = 'Feature Store';
+      const fs2 = svg('text', { x: 1047, y: GY + 38, class: 'g-sub' }, fs); fs2.textContent = 'training-ready';
+      gateEl.store = { c: svg('text', { x: 1047, y: GY + 58, class: 'g-cnt', fill: '#4ade80' }, fs) };
+      const qs = svg('g', { class: 'gate' }, GG);
+      svg('rect', { x: 1035, y: 180, width: 150, height: 70, rx: 12, fill: '#1c0f12', stroke: '#f87171' }, qs);
+      const qt = svg('text', { x: 1047, y: 204, class: 'g-name' }, qs); qt.textContent = 'Quarantine';
+      const qt2 = svg('text', { x: 1047, y: 222, class: 'g-sub' }, qs); qt2.textContent = 'human triage';
+      gateEl.quar = { c: svg('text', { x: 1047, y: 240, class: 'g-cnt', fill: '#f87171' }, qs) };
+      const lb = svg('text', { x: 240, y: 236, class: 'g-sub', fill: '#f87171' }, GG); lb.textContent = 'failed records are routed out of the main pipeline';
+      const lb2 = svg('text', { x: 20, y: 280, class: 'g-sub' }, GG); lb2.textContent = 'Label Health Gate works on the batch: it flags a batch whose majority class exceeds 80%.';
+    }
+    drawGates();
+
+    let seq = 1;
+    let pending = [];
+    const seenIds = new Set();
+    let passed = [], quarantined = [];
+    const counts = { schema: 0, value: 0, unique: 0, label: 0 };
+    let streamTimer = null;
+    const dqRunner = createRunner();
+    dqRunner.speed = 1.6;
+
+    function makeRecord() {
+      const imb = $('#imbalance').checked;
+      const r = { id: 'C' + String(1000 + seq++), age: 22 + Math.floor(Math.random() * 50), salary: 30000 + Math.floor(Math.random() * 90) * 1000, credit_score: 520 + Math.floor(Math.random() * 300), churn_label: imb ? (Math.random() < 0.95 ? 0 : 1) : (Math.random() < 0.7 ? 0 : 1) };
+      if (pending.length) {
+        const kind = pending.shift();
+        if (kind === 'neg_age') r.age = -7;
+        if (kind === 'null_salary') r.salary = null;
+        if (kind === 'schema') r.salary = 'abc';
+        if (kind === 'dup' && passed.length) r.id = passed[passed.length - 1].id;
+      }
+      return r;
+    }
+
+    function check(r) {
+      if (typeof r.age !== 'number' || !(typeof r.salary === 'number' || r.salary === null) || typeof r.credit_score !== 'number') return { gate: 'schema', reason: 'salary type mismatch: "' + r.salary + '" is not numeric' };
+      if (r.salary === null) return { gate: 'value', reason: 'null salary (completeness)' };
+      if (r.age < 18 || r.age > 100) return { gate: 'value', reason: 'age ' + r.age + ' outside 18–100' };
+      if (seenIds.has(r.id)) return { gate: 'unique', reason: 'duplicate id ' + r.id + ' (uniqueness)' };
+      return null;
+    }
+
+    const gateOrder = ['schema', 'value', 'unique', 'label'];
+    async function flow(r) {
+      const res = check(r);
+      const failIdx = res ? gateOrder.indexOf(res.gate) : 99;
+      try {
+        for (let i = 0; i < gateOrder.length; i++) {
+          const g = gateOrder[i];
+          await packet(dqPaths['to-' + g], { color: res && i >= failIdx ? '#f87171' : '#5fb3f9', duration: 380, runner: dqRunner, layer: GD });
+          if (i === failIdx) {
+            flash(g, false);
+            await packet(dqPaths['q-' + g], { color: '#f87171', duration: 700, runner: dqRunner, layer: GD });
+            counts[g]++;
+            quarantined.unshift({ r, gate: g, reason: res.reason });
+            renderDQ();
+            return;
+          }
+          flash(g, true);
+        }
+        await packet(dqPaths.storeFull, { color: '#4ade80', duration: 300, runner: dqRunner, layer: GD });
+        seenIds.add(r.id);
+        passed.push(r);
+        renderDQ();
+      } catch (e) { /* reset */ }
+    }
+
+    function flash(g, ok) {
+      const e = gateEl[g].e;
+      e.classList.add(ok ? 'flash-ok' : 'flash-bad');
+      setTimeout(() => e.classList.remove('flash-ok', 'flash-bad'), 350);
+    }
+
+    function renderDQ() {
+      gateEl.ingest.c.textContent = (passed.length + quarantined.length) + ' records';
+      gateOrder.forEach((g) => { gateEl[g].c.textContent = counts[g] ? counts[g] + ' quarantined' : '✓ 0 failed'; gateEl[g].c.setAttribute('fill', counts[g] ? '#f87171' : '#4ade80'); });
+      gateEl.store.c.textContent = passed.length + ' rows';
+      gateEl.quar.c.textContent = quarantined.length + ' rows';
+      $('#q-count').textContent = quarantined.length;
+      $('#q-body').innerHTML = quarantined.length ? quarantined.slice(0, 30).map((q) => `<tr class="q-row"><td>${q.r.id}</td><td>age=${q.r.age} salary=${q.r.salary === null ? 'null' : esc(q.r.salary)}</td><td><span class="chip red">${q.gate}</span> ${esc(q.reason)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No quarantined records yet.</td></tr>';
+      const total = passed.length + quarantined.length || 1;
+      const nulls = quarantined.filter((q) => q.r.salary === null).length;
+      const dups = counts.unique;
+      const valueFails = quarantined.filter((q) => q.gate === 'value' && q.r.salary !== null).length;
+      const dims = [
+        ['Completeness', 1 - nulls / total, 'no missing values'],
+        ['Accuracy / validity', 1 - valueFails / total, 'values within business ranges'],
+        ['Consistency', 1 - counts.schema / total, 'types match the schema'],
+        ['Uniqueness', 1 - dups / total, 'no duplicate entities'],
+        ['Timeliness', 0.98, 'records arrive within SLA (simulated)'],
+      ];
+      $('#dims').innerHTML = dims.map(([k, v, d]) => `<div class="metric-row"><span>${k}<br><span class="small dim">${d}</span></span><div class="bar"><span style="width:${v * 100}%;background:${v > 0.95 ? 'var(--green)' : v > 0.85 ? 'var(--amber)' : 'var(--red)'}"></span></div><span class="v">${(v * 100).toFixed(0)}%</span></div>`).join('');
+      const recent = passed.slice(-20);
+      const maj = recent.length ? Math.max(recent.filter((r) => r.churn_label === 0).length, recent.filter((r) => r.churn_label === 1).length) / recent.length : 0;
+      const bad = recent.length >= 10 && maj > 0.8;
+      if (bad && !$('#label-alert').dataset.bad) counts.label++;
+      $('#label-alert').dataset.bad = bad ? '1' : '';
+      gateEl.label.c.textContent = bad ? 'batch imbalance ' + Math.round(maj * 100) + '%' : '✓ balanced';
+      gateEl.label.c.setAttribute('fill', bad ? '#f87171' : '#4ade80');
+      $('#label-alert').innerHTML = bad
+        ? '<div class="callout red">' + icon('alert') + '<div><b>Label Health Gate: batch blocked.</b> Majority class = ' + Math.round(maj * 100) + '% (&gt; 80%) in the last ' + recent.length + ' rows — a model trained on this would just predict “no churn”. Action gateway: hold the batch, rebalance or alert the data owner.</div></div>'
+        : '<div class="callout green">' + icon('check') + '<div>Label health OK — class balance of the recent batch is within limits.</div></div>';
+    }
+
+    $('#dq-start').addEventListener('click', () => {
+      if (streamTimer) { clearInterval(streamTimer); streamTimer = null; $('#dq-start').innerHTML = icon('play') + 'Start stream'; return; }
+      streamTimer = setInterval(() => flow(makeRecord()), 650);
+      flow(makeRecord());
+      $('#dq-start').innerHTML = icon('pause') + 'Pause stream';
+    });
+    $$('[data-inject]').forEach((b) => b.addEventListener('click', () => { pending.push(b.dataset.inject); if (!streamTimer) flow(makeRecord()); }));
+    $('#imbalance').addEventListener('change', () => { if (!streamTimer) for (let i = 0; i < 6; i++) setTimeout(() => flow(makeRecord()), i * 250); });
+    $('#dq-reset').addEventListener('click', () => {
+      if (streamTimer) { clearInterval(streamTimer); streamTimer = null; $('#dq-start').innerHTML = icon('play') + 'Start stream'; }
+      dqRunner.cancel(); GD.innerHTML = ''; seq = 1; pending = []; seenIds.clear(); passed = []; quarantined = []; Object.keys(counts).forEach((k) => (counts[k] = 0)); $('#imbalance').checked = false; renderDQ();
+    });
+    renderDQ();
+
+    /* ================= TAB 2: DRIFT ================= */
+    let driftKind = 'covariate';
+    let shift = 0, spread = 1, concept = 0;
+    function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
+    function normals(n, mu, sd, seed) { const r = rng(seed); const out = []; for (let i = 0; i < n; i++) { const u = 1 - r(), v = r(); out.push(mu + sd * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); } return out; }
+    const REF = normals(3000, 40, 10, 7);
+    const BINS = Array.from({ length: 13 }, (_, i) => 5 + i * 5.5);
+    function histogram(xs) {
+      const c = new Array(BINS.length + 1).fill(0);
+      xs.forEach((x) => { let k = BINS.findIndex((b) => x < b); if (k === -1) k = BINS.length; c[k]++; });
+      return c.map((v) => Math.max(v / xs.length, 1e-4));
+    }
+    function ks(a, b) {
+      const s1 = a.slice().sort((x, y) => x - y), s2 = b.slice().sort((x, y) => x - y);
+      let i = 0, j = 0, d = 0;
+      while (i < s1.length && j < s2.length) { if (s1[i] <= s2[j]) i++; else j++; d = Math.max(d, Math.abs(i / s1.length - j / s2.length)); }
+      return d;
+    }
+    const LOOP = ['Monitor', 'Detect drift', 'Trigger retraining', 'Train on fresh data', 'Validate vs baseline', 'Register model', 'Deploy (canary)'];
+    function renderLoop(active) { $('#loop').innerHTML = LOOP.map((s, i) => (i ? '<em>→</em>' : '') + `<span class="${active.includes(i) ? 'on' : ''}">${s}</span>`).join('') + '<em>↺</em>'; }
+
+    function renderDriftControls() {
+      $('#drift-controls').innerHTML = driftKind === 'covariate'
+        ? `<div class="range-row"><label class="small" for="d-shift">Mean shift of live data (customer age)</label><span class="val" id="d-shift-v">${shift}</span><input type="range" id="d-shift" min="-15" max="15" step="1" value="${shift}" style="grid-column:1/-1"></div>
+           <div class="range-row" style="margin-top:10px"><label class="small" for="d-spread">Spread multiplier</label><span class="val" id="d-spread-v">${spread.toFixed(1)}×</span><input type="range" id="d-spread" min="0.5" max="2" step="0.1" value="${spread}" style="grid-column:1/-1"></div>`
+        : `<div class="range-row"><label class="small" for="d-concept">Change in P(y | X) — e.g. new fraud pattern</label><span class="val" id="d-concept-v">${concept}%</span><input type="range" id="d-concept" min="0" max="60" step="5" value="${concept}" style="grid-column:1/-1"></div>
+           <p class="small muted" style="margin-top:8px">Inputs stay the same — the histogram won't move — but the model's live accuracy (from delayed ground-truth labels) drops.</p>`;
+      const on = (id, fn) => { const el = $('#' + id); if (el) el.addEventListener('input', fn); };
+      on('d-shift', (e) => { shift = +e.target.value; $('#d-shift-v').textContent = shift; renderDrift(); });
+      on('d-spread', (e) => { spread = +e.target.value; $('#d-spread-v').textContent = spread.toFixed(1) + '×'; renderDrift(); });
+      on('d-concept', (e) => { concept = +e.target.value; $('#d-concept-v').textContent = concept + '%'; renderDrift(); });
+    }
+
+    function renderDrift() {
+      const live = driftKind === 'covariate' ? normals(1500, 40 + shift, 10 * spread, 11) : normals(1500, 40, 10, 11);
+      const e = histogram(REF), a = histogram(live);
+      const psi = e.reduce((s, ei, i) => s + (a[i] - ei) * Math.log(a[i] / ei), 0);
+      const k = ks(REF, live);
+      const H = $('#hist');
+      H.innerHTML = '';
+      const max = Math.max(...e, ...a) * 1.15;
+      const bw = 520 / e.length;
+      e.forEach((v, i) => svg('rect', { x: i * bw + 3, y: 210 - (v / max) * 200, width: bw - 6, height: (v / max) * 200, fill: '#5fb3f9', 'fill-opacity': 0.45 }, H));
+      a.forEach((v, i) => svg('rect', { x: i * bw + 3 + bw * 0.25, y: 210 - (v / max) * 200, width: bw * 0.5 - 3, height: (v / max) * 200, fill: '#fb923c', 'fill-opacity': 0.8 }, H));
+      if (driftKind === 'covariate') {
+        $('#d-psi').textContent = psi.toFixed(3); $('#d-psi-k').textContent = 'PSI (> 0.2 = significant drift)';
+        $('#d-ks').textContent = k.toFixed(3); $('#d-ks-k').textContent = 'KS statistic (max CDF gap)';
+        const lvl = psi > 0.2 ? 'red' : psi > 0.1 ? 'amber' : 'green';
+        $('#d-psi').style.color = 'var(--' + lvl + ')';
+        $('#hist-title').textContent = 'Customer age — training reference vs live';
+        $('#drift-alert').innerHTML = psi > 0.2
+          ? '<div class="callout red">' + icon('alert') + '<div><b>Covariate drift detected</b> (PSI ' + psi.toFixed(2) + ' &gt; 0.2). Live inputs no longer resemble training data → trigger retraining pipeline.</div></div>'
+          : psi > 0.1 ? '<div class="callout amber">' + icon('info') + '<div>Moderate shift (0.1 &lt; PSI ≤ 0.2) — investigate, keep monitoring.</div></div>'
+            : '<div class="callout green">' + icon('check') + '<div>Stable — live data matches the training distribution.</div></div>';
+        renderLoop(psi > 0.2 ? [0, 1, 2, 3, 4, 5, 6] : [0]);
+      } else {
+        const acc = 0.91 - concept * 0.0055;
+        $('#d-psi').textContent = psi.toFixed(3); $('#d-psi-k').textContent = 'PSI — inputs unchanged';
+        $('#d-psi').style.color = 'var(--green)';
+        $('#d-ks').textContent = (acc * 100).toFixed(1) + '%'; $('#d-ks-k').textContent = 'Live accuracy (baseline 91%)';
+        $('#hist-title').textContent = 'Transaction amount — inputs look the same';
+        const drop = 0.91 - acc;
+        $('#drift-alert').innerHTML = drop > 0.05
+          ? '<div class="callout red">' + icon('alert') + '<div><b>Concept drift detected</b>: accuracy fell ' + (drop * 100).toFixed(1) + ' points while input statistics are unchanged — only labelled performance monitoring catches this. Retrain with recent labels.</div></div>'
+          : '<div class="callout green">' + icon('check') + '<div>Accuracy within tolerance of the baseline.</div></div>';
+        renderLoop(drop > 0.05 ? [0, 1, 2, 3, 4, 5, 6] : [0]);
+      }
+    }
+    $$('#drift-kind button').forEach((b) => b.addEventListener('click', () => { driftKind = b.dataset.k; $$('#drift-kind button').forEach((x) => x.classList.toggle('on', x === b)); renderDriftControls(); renderDrift(); }));
+    renderDriftControls();
+    renderDrift();
+
+    /* ================= TAB 3: RAGAS ================= */
+    const PRESETS = {
+      good: { q: 'What does the Kubernetes kubelet do when a container crashes?',
+        ctx: ['The kubelet runs on every worker node and restarts containers that crash so that the actual state matches the desired state.', 'A ReplicaSet keeps the desired number of pods running and creates replacements when pods fail.', 'Kubernetes stores cluster state in etcd.'],
+        a: 'The kubelet restarts the crashed container so the actual state matches the desired state.',
+        gt: 'The kubelet restarts crashed containers to match the desired state.' },
+      halluc: { q: 'What does the Kubernetes kubelet do when a container crashes?',
+        ctx: ['The kubelet runs on every worker node and restarts containers that crash so that the actual state matches the desired state.', 'A ReplicaSet keeps the desired number of pods running and creates replacements when pods fail.', 'Kubernetes stores cluster state in etcd.'],
+        a: 'The kubelet emails the cluster administrator and migrates the database to a new region using Terraform.',
+        gt: 'The kubelet restarts crashed containers to match the desired state.' },
+      miss: { q: 'What does the Kubernetes kubelet do when a container crashes?',
+        ctx: ['Docker images are built from layered filesystems.', 'Blue-green deployments switch traffic between two environments.', 'Kubernetes stores cluster state in etcd.'],
+        a: 'Kubernetes stores cluster state in etcd.',
+        gt: 'The kubelet restarts crashed containers to match the desired state.' },
+      noisy: { q: 'What does the Kubernetes kubelet do when a container crashes?',
+        ctx: ['Docker images are built from layered filesystems.', 'Blue-green deployments switch traffic between two environments.', 'The kubelet runs on every worker node and restarts containers that crash so that the actual state matches the desired state.'],
+        a: 'The kubelet restarts the crashed container so the actual state matches the desired state.',
+        gt: 'The kubelet restarts crashed containers to match the desired state.' },
+    };
+    const STOP = new Set('the a an of to and or in on is are as by for with so be it its this that what does do when which from at into than every so'.split(' '));
+    const tok = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w)).map((w) => w.replace(/(ing|ed|es|s)$/, ''));
+    const overlap = (a, b) => { const B = new Set(tok(b)); const A = tok(a); return A.length ? A.filter((w) => B.has(w)).length / A.length : 0; };
+
+    function loadPreset(k) {
+      const p = PRESETS[k];
+      $('#r-q').value = p.q; $('#r-a').value = p.a; $('#r-gt').value = p.gt;
+      $('#r-ctx').innerHTML = p.ctx.map((c, i) => `<textarea class="input" data-i="${i}" rows="2" aria-label="Context chunk ${i + 1}">${esc(c)}</textarea>`).join('');
+      $$('#r-ctx textarea').forEach((t) => t.addEventListener('input', evaluate));
+      evaluate();
+    }
+
+    function evaluate() {
+      const q = $('#r-q').value, a = $('#r-a').value, gt = $('#r-gt').value;
+      const ctx = $$('#r-ctx textarea').map((t) => t.value).filter(Boolean);
+      // Context precision: rank-weighted precision of relevant chunks (relevant = covers the ground truth).
+      const rel = ctx.map((c) => overlap(gt, c) >= 0.4 ? 1 : 0);
+      let hits = 0, sum = 0;
+      rel.forEach((r, i) => { if (r) { hits++; sum += hits / (i + 1); } });
+      const cp = hits ? sum / hits : 0;
+      // Context recall: share of ground-truth terms found in any context.
+      const all = ctx.join(' ');
+      const cr = overlap(gt, all);
+      // Faithfulness: share of answer sentences supported by context (≥ 60% of their terms present).
+      const sents = a.split(/(?<=[.!?])\s+/).filter((s) => tok(s).length);
+      const ff = sents.length ? sents.filter((s) => overlap(s, all) >= 0.6).length / sents.length : 0;
+      // Answer relevance: answer covers the question's key terms and the ground truth.
+      const ar = Math.min(1, 0.5 * overlap(q, a) + 0.5 * overlap(gt, a) + (a.trim() ? 0.25 : 0));
+      const bar = (name, v) => { const c = v > 0.8 ? 'var(--green)' : v >= 0.6 ? 'var(--amber)' : 'var(--red)'; return `<div class="metric-row"><span>${name}</span><div class="bar"><span style="width:${v * 100}%;background:${c}"></span></div><span class="v" style="color:${c}">${v.toFixed(2)}</span></div>`; };
+      $('#m-ret').innerHTML = bar('Context precision', cp) + bar('Context recall', cr);
+      $('#m-gen').innerHTML = bar('Faithfulness', ff) + bar('Answer relevance', ar);
+      const d = [];
+      if (ff < 0.75) d.push(['red', '<b>HIGH HALLUCINATION RISK</b> — the answer contains claims not found in the context. Action: lower temperature (≈0), enforce a strict “answer only from context” system prompt, add citations.']);
+      if (cr < 0.75) d.push(['red', '<b>RETRIEVER FAILURE</b> — core facts are missing from the retrieved context. Action: tune chunk size, increase top-k, try hybrid (BM25 + vector) search.']);
+      if (cp < 0.8 && cr >= 0.75) d.push(['amber', '<b>NOISY CONTEXT</b> — relevant chunks are ranked low. Action: add a cross-encoder re-ranker or reduce top-k.']);
+      if (ar < 0.7) d.push(['amber', '<b>LOW ANSWER RELEVANCE</b> — the answer drifts from the question. Action: tighten the prompt template.']);
+      if (!d.length) d.push(['green', '<b>Healthy RAG response</b> — relevant context retrieved and the answer is grounded in it.']);
+      $('#r-diag').innerHTML = d.map(([c, t]) => `<div class="callout ${c}">${icon(c === 'green' ? 'check' : 'alert')}<div>${t}</div></div>`).join('');
+    }
+    ['r-q', 'r-a', 'r-gt'].forEach((id) => $('#' + id).addEventListener('input', evaluate));
+    $$('#r-presets button').forEach((b) => b.addEventListener('click', () => { $$('#r-presets button').forEach((x) => x.classList.toggle('on', x === b)); loadPreset(b.dataset.p); }));
+    loadPreset('good');
+  })();
+  </script>
+</body>
+
+</html>

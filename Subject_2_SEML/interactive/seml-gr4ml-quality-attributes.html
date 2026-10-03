@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GR4ML Requirements &amp; Quality-Attribute Trade-offs</title>
+  <meta name="description" content="Interactive GR4ML analytics design view: analytics goals, soft goals (quality attributes), algorithms and signed influence links with a live trade-off radar and algorithm fit score.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    .main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    #canvas { width: 100%; height: auto; }
+    .sg-cloud { fill: rgba(177, 140, 255, 0.10); stroke: #8b6fd6; stroke-width: 1.4; }
+    .goal { fill: #121a2c; stroke: #5fb3f9; stroke-width: 1.6; }
+    .hex { fill: #10141f; stroke: #3a465f; stroke-width: 1.4; cursor: pointer; transition: stroke 0.2s, fill 0.2s; }
+    .algo:hover .hex { stroke: #7d93c4; }
+    .algo.sel .hex { stroke: #fbbf24; stroke-width: 2.4; fill: #17140d; }
+    .algo.best .hex { stroke: #4ade80; stroke-width: 2.2; }
+    .algo { cursor: pointer; }
+    .t-name { fill: #eef2fb; font: 700 12.5px Inter, sans-serif; }
+    .t-sub { fill: #8c94a9; font: 500 10.5px 'JetBrains Mono', monospace; }
+    .link { fill: none; stroke-width: 1.4; transition: opacity 0.25s, stroke-width 0.25s; }
+    .link.pos { stroke: #4ade80; }
+    .link.neg { stroke: #f87171; stroke-dasharray: 5 4; }
+    .lbadge rect { stroke-width: 1.2; }
+    .lbadge text { font: 700 10.5px 'JetBrains Mono', monospace; }
+    .faded { opacity: 0.12; }
+    .perf { stroke: #3a465f; stroke-width: 1.4; fill: none; }
+    .radar-axis { stroke: #2a3245; }
+    .radar-grid { fill: none; stroke: #222939; }
+    .radar-lbl { fill: #8c94a9; font: 600 10.5px Inter, sans-serif; }
+    .rank-row { display: grid; grid-template-columns: 150px 1fr 46px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
+    .rank-row .v { font: 600 12px var(--font-mono); text-align: right; }
+    .rank-row.excluded { opacity: 0.4; }
+    .reco { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.06); }
+    .reco .big { font-size: 18px; font-weight: 800; }
+    .views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .view-card ol { padding-left: 18px; color: var(--text-2); font-size: 13px; }
+    .view-card li { margin-bottom: 4px; }
+    .notation { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12.5px; color: var(--text-2); }
+    .notation span { display: inline-flex; align-items: center; gap: 8px; }
+    @media (max-width: 1100px) { .main { grid-template-columns: minmax(0, 1fr); } .views { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / Requirements &amp; quality attributes</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Session 4 • GR4ML</span>
+      <h1>GR4ML <span class="grad">Soft-Goal Trade-off</span> Visualizer</h1>
+      <p class="sub">Goal-oriented Requirements for ML — Analytics Design View</p>
+      <p class="desc">ML requirements are probabilistic: there is rarely one “correct” model, only trade-offs between quality attributes. Pick a domain, set how much each soft goal matters, and click an algorithm to see how it helps (+) or hurts (−) each goal.</p>
+    </section>
+
+    <div class="btn-row" style="margin-bottom:14px">
+      <span class="label">Domain</span>
+      <div class="seg" id="domains">
+        <button data-d="loan" class="on">Loan Default Risk</button>
+        <button data-d="attrition">Employee Attrition</button>
+        <button data-d="health">Healthcare Risk</button>
+      </div>
+      <label class="btn btn-sm" style="cursor:pointer"><input type="checkbox" id="latency-hard" style="accent-color:var(--amber)"> Hard constraint: latency &lt; 100 ms</label>
+    </div>
+
+    <section class="main">
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="target"></i>Analytics design view</h3><span class="small muted">click a hexagon · click again to show all links</span></div>
+        <div class="card-pad" style="padding:8px">
+          <svg id="canvas" viewBox="0 0 900 560" role="img" aria-label="GR4ML analytics design view"></svg>
+        </div>
+        <div class="card-pad" style="border-top:1px solid var(--line)">
+          <div class="notation">
+            <span><svg width="40" height="20"><ellipse cx="20" cy="10" rx="18" ry="8" class="goal"/></svg>Analytics goal (oval)</span>
+            <span><svg width="40" height="20"><path class="sg-cloud" d="M8,16 a5,5 0 0,1 2,-9 a7,7 0 0,1 12,-2 a6,6 0 0,1 10,4 a4,4 0 0,1 -2,7 z"/></svg>Soft goal / quality attribute (cloud)</span>
+            <span><svg width="30" height="22"><polygon class="hex" points="15,2 27,8 27,16 15,22 3,16 3,8"/></svg>Algorithm (hexagon)</span>
+            <span><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" stroke="#4ade80" stroke-width="2"/></svg>helps (+ / ++)</span>
+            <span><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" stroke="#f87171" stroke-width="2" stroke-dasharray="5 4"/></svg>hurts (− / −−)</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:16px">
+        <div class="card card-pad">
+          <div class="label" style="margin-bottom:10px">Soft-goal priority weights</div>
+          <div id="sliders" style="display:grid;gap:10px"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="reco" id="reco"></div>
+          <div class="label" style="margin:16px 0 10px">Algorithm fit score = Σ (weight × attribute score) / Σ weights</div>
+          <div id="ranking"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="label">Trade-off radar</div>
+          <svg id="radar" viewBox="0 0 460 290" style="width:100%;height:auto;max-height:320px"></svg>
+          <div class="notation" id="radar-legend" style="justify-content:center;margin-top:6px"></div>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="section-title">The three GR4ML views — <span id="dom-name"></span><small>From business goals down to data — the analytics design view above is the middle layer</small></h2>
+    <div class="views" id="views"></div>
+
+    <h2 class="section-title">Why requirements for ML are different<small>Key points for the exam</small></h2>
+    <div class="grid-3">
+      <div class="card card-pad"><span class="chip blue">Probabilistic</span><p style="margin-top:8px" class="small">Traditional software: input + code → deterministic output. ML: data + expected output → learned model. Requirements must state acceptable error (e.g. recall ≥ 0.9), not exact behaviour.</p></div>
+      <div class="card card-pad"><span class="chip purple">Soft goals</span><p style="margin-top:8px" class="small">Non-functional requirements such as interpretability, latency (&lt; 100 ms), robustness to missing values and accuracy are modelled as soft goals that are <i>satisficed</i>, not fully met.</p></div>
+      <div class="card card-pad"><span class="chip amber">Trade-offs</span><p style="margin-top:8px" class="small">Influence links (+ / −) make conflicts explicit: an SVM may raise accuracy but hurt interpretability — essential in regulated domains like lending or healthcare.</p></div>
+    </div>
+
+    <p class="footer-note">Attribute scores are illustrative teaching values, not benchmark results. GR4ML was proposed by Nalchigar &amp; Yu (University of Toronto).</p>
+  </main>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, esc } = Lab;
+
+    const SOFT = [
+      { id: 'interp', name: 'Interpretability', sub: 'explainable decisions' },
+      { id: 'latency', name: 'Low Latency', sub: 'inference < 100 ms' },
+      { id: 'robust', name: 'Robustness', sub: 'tolerates missing data' },
+      { id: 'acc', name: 'Accuracy', sub: 'precision / recall' },
+    ];
+    const ALGOS = [
+      { id: 'dt', name: 'Decision Tree', lines: ['Decision', 'Tree'], color: '#5fd0b4', s: { interp: 0.9, latency: 0.78, robust: 0.6, acc: 0.55 } },
+      { id: 'svm', name: 'SVM', lines: ['SVM'], color: '#f0abfc', s: { interp: 0.25, latency: 0.4, robust: 0.42, acc: 0.85 } },
+      { id: 'rf', name: 'Random Forest', lines: ['Random', 'Forest'], color: '#fbbf24', s: { interp: 0.42, latency: 0.55, robust: 0.86, acc: 0.88 } },
+      { id: 'lr', name: 'Logistic Regression', lines: ['Logistic', 'Regression'], color: '#5fb3f9', s: { interp: 0.86, latency: 0.95, robust: 0.45, acc: 0.66 } },
+    ];
+    const DOMAINS = {
+      loan: { name: 'Loan Default Risk', goal: ['Classify applicant', 'default: Yes / No'], w: { interp: 85, latency: 50, robust: 45, acc: 70 },
+        business: ['Reduce loan defaults while staying fair and compliant', 'Decision goal: approve or reject an application', 'Question: will this applicant default within 12 months?'],
+        analytics: ['Analytics goal: binary classification (Yes/No)', 'Soft goals: interpretability (regulators), accuracy, latency at application time', 'Indicators: precision, recall, AUC'],
+        data: ['Features: salary, credit score, repayment history, debt ratio', 'Prepare: handle missing income, encode employment type', 'Labels: historical default outcomes'] },
+      attrition: { name: 'Employee Attrition', goal: ['Classify employee', 'Leave / Stay'], w: { interp: 70, latency: 20, robust: 60, acc: 75 },
+        business: ['Retain key talent and reduce hiring cost', 'Decision goal: which employees get a retention plan?', 'Question: is this employee likely to leave next quarter?'],
+        analytics: ['Analytics goal: classification (Leave/Stay)', 'Soft goals: interpretability for HR, robustness to missing survey data', 'Indicators: recall on “Leave”, F1'],
+        data: ['Features: tenure, salary band, satisfaction score, overtime', 'Prepare: impute missing survey answers, balance classes', 'Labels: past resignations'] },
+      health: { name: 'Healthcare Risk', goal: ['Estimate disease', 'likelihood'], w: { interp: 75, latency: 40, robust: 85, acc: 90 },
+        business: ['Detect high-risk patients early', 'Decision goal: who needs a follow-up screening?', 'Question: what is this patient’s disease likelihood?'],
+        analytics: ['Analytics goal: probabilistic classification', 'Soft goals: accuracy (recall!), robustness to missing vitals, explainability for clinicians', 'Indicators: recall, calibration, AUC'],
+        data: ['Features: vitals, labs, history', 'Prepare: missing-value strategy, unit normalisation', 'Labels: confirmed diagnoses'] },
+    };
+
+    let domain = 'loan';
+    let weights = Object.assign({}, DOMAINS.loan.w);
+    let selected = null;
+
+    const symbol = (v) => (v >= 0.8 ? '++' : v >= 0.6 ? '+' : v >= 0.4 ? '−' : '−−');
+    const positive = (v) => v >= 0.6;
+
+    /* ---------- Canvas ---------- */
+    const C = $('#canvas');
+    const SG_POS = SOFT.map((s, i) => ({ x: 120 + i * 220, y: 78 }));
+    const AL_POS = ALGOS.map((a, i) => ({ x: 120 + i * 220, y: 330 }));
+    const GOAL = { x: 450, y: 500 };
+
+    function cloudPath(cx, cy, w, h) {
+      const x = cx - w / 2, y = cy - h / 2;
+      return `M${x + w * 0.16},${y + h} a${h * 0.32},${h * 0.32} 0 0,1 ${-w * 0.02},${-h * 0.6} a${w * 0.18},${h * 0.42} 0 0,1 ${w * 0.3},${-h * 0.3} a${w * 0.2},${h * 0.45} 0 0,1 ${w * 0.38},${h * 0.04} a${w * 0.14},${h * 0.36} 0 0,1 ${w * 0.08},${h * 0.56} a${h * 0.28},${h * 0.28} 0 0,1 ${-w * 0.08},${h * 0.3} z`;
+    }
+    const hexPts = (cx, cy, r) => [0, 1, 2, 3, 4, 5].map((k) => { const a = Math.PI / 3 * k + Math.PI / 6; return (cx + r * 1.32 * Math.cos(a)) + ',' + (cy + r * Math.sin(a)); }).join(' ');
+
+    function drawCanvas() {
+      C.innerHTML = '';
+      const links = svg('g', {}, C);
+      const badges = svg('g', {}, C);
+      // goal -> algorithms (performed by)
+      ALGOS.forEach((a, i) => {
+        const p = AL_POS[i];
+        const l = svg('line', { class: 'perf', x1: GOAL.x, y1: GOAL.y - 34, x2: p.x, y2: p.y + 42, 'data-a': a.id }, links);
+        if (selected && selected !== a.id) l.classList.add('faded');
+      });
+      const pl = svg('text', { x: GOAL.x + 120, y: GOAL.y - 52, class: 't-sub' }, links);
+      pl.textContent = 'performed by';
+      // influence links
+      ALGOS.forEach((a, i) => {
+        SOFT.forEach((s, j) => {
+          const v = a.s[s.id];
+          const p1 = AL_POS[i], p2 = SG_POS[j];
+          const x1 = p1.x + (j - 1.5) * 14, y1 = p1.y - 40, x2 = p2.x + (i - 1.5) * 14, y2 = p2.y + 30;
+          const mx = (x1 + x2) / 2 + (i - j) * 12, my = (y1 + y2) / 2;
+          const path = svg('path', { class: 'link ' + (positive(v) ? 'pos' : 'neg'), d: `M${x1},${y1} Q${mx},${my} ${x2},${y2}` }, links);
+          const show = selected === a.id;
+          if (selected && !show) path.classList.add('faded');
+          if (show) path.setAttribute('stroke-width', 2.6);
+          if (show || !selected) {
+            const bx = x1 + (x2 - x1) * 0.5 + (mx - (x1 + x2) / 2) * 0.5, by = y1 + (y2 - y1) * 0.5;
+            const g = svg('g', { class: 'lbadge', opacity: show ? 1 : 0.55 }, badges);
+            const col = positive(v) ? '#4ade80' : '#f87171';
+            svg('rect', { x: bx - 13, y: by - 9, width: 26, height: 17, rx: 8, fill: '#0b0e17', stroke: col }, g);
+            const t = svg('text', { x: bx, y: by + 3.5, 'text-anchor': 'middle', fill: col }, g);
+            t.textContent = symbol(v);
+          }
+        });
+      });
+      // soft goals
+      SOFT.forEach((s, j) => {
+        const p = SG_POS[j];
+        svg('path', { class: 'sg-cloud', d: cloudPath(p.x, p.y, 178, 66) }, C);
+        const t = svg('text', { x: p.x, y: p.y - 2, 'text-anchor': 'middle', class: 't-name' }, C);
+        t.textContent = s.name;
+        const t2 = svg('text', { x: p.x, y: p.y + 14, 'text-anchor': 'middle', class: 't-sub' }, C);
+        t2.textContent = s.sub;
+      });
+      // goal
+      svg('ellipse', { class: 'goal', cx: GOAL.x, cy: GOAL.y, rx: 120, ry: 36 }, C);
+      DOMAINS[domain].goal.forEach((ln, k) => {
+        const t = svg('text', { x: GOAL.x, y: GOAL.y - 3 + k * 16, 'text-anchor': 'middle', class: k ? 't-sub' : 't-name' }, C);
+        t.textContent = ln;
+      });
+      const ag = svg('text', { x: GOAL.x, y: GOAL.y + 50, 'text-anchor': 'middle', class: 't-sub' }, C);
+      ag.textContent = 'ANALYTICS GOAL';
+      // algorithms
+      const best = ranking()[0];
+      ALGOS.forEach((a, i) => {
+        const p = AL_POS[i];
+        const g = svg('g', { class: 'algo' + (selected === a.id ? ' sel' : '') + (best.a.id === a.id ? ' best' : ''), tabindex: 0, role: 'button', 'aria-label': a.name }, C);
+        svg('polygon', { class: 'hex', points: hexPts(p.x, p.y, 40) }, g);
+        svg('circle', { cx: p.x - 44, cy: p.y - 22, r: 5, fill: a.color }, g);
+        a.lines.forEach((ln, k) => {
+          const t = svg('text', { x: p.x, y: p.y - (a.lines.length - 1) * 7 + k * 14, 'text-anchor': 'middle', class: 't-name' }, g);
+          t.textContent = ln;
+        });
+        const t2 = svg('text', { x: p.x, y: p.y + 22, 'text-anchor': 'middle', class: 't-sub' }, g);
+        t2.textContent = 'fit ' + fit(a).toFixed(2);
+        const go = () => { selected = selected === a.id ? null : a.id; renderAll(true); };
+        g.addEventListener('click', go);
+        g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      });
+    }
+
+    /* ---------- Scoring ---------- */
+    function excluded(a) { return $('#latency-hard').checked && a.s.latency < 0.5; }
+    function fit(a) {
+      const tot = SOFT.reduce((s, g) => s + weights[g.id], 0) || 1;
+      return SOFT.reduce((s, g) => s + weights[g.id] * a.s[g.id], 0) / tot;
+    }
+    function ranking() {
+      return ALGOS.map((a) => ({ a, f: fit(a), ex: excluded(a) })).sort((x, y) => (x.ex - y.ex) || (y.f - x.f));
+    }
+
+    function renderRanking() {
+      const r = ranking();
+      const best = r[0];
+      $('#ranking').innerHTML = r.map(({ a, f, ex }) => `<div class="rank-row ${ex ? 'excluded' : ''}" data-a="${a.id}"><span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${a.color};margin-right:7px"></span>${a.name}${ex ? ' <span class="chip red" style="margin-left:4px">excluded</span>' : ''}</span><div class="bar"><span style="width:${f * 100}%;background:${a.color}"></span></div><span class="v">${f.toFixed(2)}</span></div>`).join('');
+      $$('#ranking .rank-row').forEach((row) => row.addEventListener('click', () => { selected = row.dataset.a; renderAll(true); }));
+      const top = SOFT.slice().sort((x, y) => weights[y.id] - weights[x.id])[0];
+      const strengths = SOFT.filter((g) => best.a.s[g.id] >= 0.8).map((g) => g.name.toLowerCase());
+      const weak = SOFT.filter((g) => best.a.s[g.id] < 0.5).map((g) => g.name.toLowerCase());
+      $('#reco').innerHTML = `${Lab.icon('sparkles')}<div><div class="label">Recommended for ${esc(DOMAINS[domain].name)}</div><div class="big">${best.a.name}</div><div class="small muted">Top priority: ${top.name.toLowerCase()} (w=${weights[top.id]}). Strong on ${strengths.join(', ') || '—'}${weak.length ? '; trade-off: weaker ' + weak.join(', ') : ''}.</div></div>`;
+    }
+
+    /* ---------- Radar ---------- */
+    function renderRadar() {
+      const R = $('#radar');
+      R.innerHTML = '';
+      const cx = 230, cy = 145, rad = 108;
+      const ang = (k) => -Math.PI / 2 + (Math.PI * 2 * k) / SOFT.length;
+      [0.25, 0.5, 0.75, 1].forEach((f) => {
+        svg('polygon', { class: 'radar-grid', points: SOFT.map((s, k) => (cx + Math.cos(ang(k)) * rad * f) + ',' + (cy + Math.sin(ang(k)) * rad * f)).join(' ') }, R);
+      });
+      SOFT.forEach((s, k) => {
+        svg('line', { class: 'radar-axis', x1: cx, y1: cy, x2: cx + Math.cos(ang(k)) * rad, y2: cy + Math.sin(ang(k)) * rad }, R);
+        const lx = cx + Math.cos(ang(k)) * (rad + 22), ly = cy + Math.sin(ang(k)) * (rad + 14) + 4;
+        const t = svg('text', { class: 'radar-lbl', x: lx, y: ly, 'text-anchor': Math.abs(Math.cos(ang(k))) < 0.2 ? 'middle' : Math.cos(ang(k)) > 0 ? 'start' : 'end' }, R);
+        t.textContent = s.name + ' (' + weights[s.id] + ')';
+      });
+      ALGOS.forEach((a) => {
+        const on = !selected || selected === a.id;
+        svg('polygon', {
+          points: SOFT.map((s, k) => (cx + Math.cos(ang(k)) * rad * a.s[s.id]) + ',' + (cy + Math.sin(ang(k)) * rad * a.s[s.id])).join(' '),
+          fill: a.color, 'fill-opacity': on ? (selected ? 0.25 : 0.08) : 0.02, stroke: a.color, 'stroke-width': selected === a.id ? 2.6 : 1.4, 'stroke-opacity': on ? 1 : 0.2,
+        }, R);
+      });
+      $('#radar-legend').innerHTML = ALGOS.map((a) => `<span><i style="width:9px;height:9px;border-radius:50%;background:${a.color};display:inline-block"></i>${a.name}</span>`).join('');
+    }
+
+    /* ---------- Sliders & views ---------- */
+    function renderSliders() {
+      $('#sliders').innerHTML = SOFT.map((s) => `<div class="range-row"><label for="w-${s.id}" class="small">${s.name} <span class="dim">— ${s.sub}</span></label><span class="val" id="wv-${s.id}">${weights[s.id]}%</span><input type="range" id="w-${s.id}" min="0" max="100" step="5" value="${weights[s.id]}" style="grid-column:1/-1"></div>`).join('');
+      SOFT.forEach((s) => $('#w-' + s.id).addEventListener('input', (e) => { weights[s.id] = +e.target.value; $('#wv-' + s.id).textContent = weights[s.id] + '%'; renderAll(true); }));
+    }
+
+    function renderViews() {
+      const d = DOMAINS[domain];
+      $('#dom-name').textContent = d.name;
+      const card = (title, chip, items) => `<div class="card card-pad view-card"><span class="chip ${chip}">${title}</span><ol style="margin-top:10px">${items.map((i) => '<li>' + esc(i) + '</li>').join('')}</ol></div>`;
+      $('#views').innerHTML = card('1 · Business view', 'blue', d.business) + card('2 · Analytics design view', 'purple', d.analytics) + card('3 · Data preparation view', 'green', d.data);
+    }
+
+    function renderAll(skipSliders) {
+      if (!skipSliders) renderSliders();
+      drawCanvas();
+      renderRanking();
+      renderRadar();
+    }
+
+    $$('#domains button').forEach((b) => b.addEventListener('click', () => {
+      domain = b.dataset.d;
+      weights = Object.assign({}, DOMAINS[domain].w);
+      selected = ranking()[0].a.id;
+      $$('#domains button').forEach((x) => x.classList.toggle('on', x === b));
+      renderViews();
+      renderAll();
+    }));
+    $('#latency-hard').addEventListener('change', () => renderAll(true));
+
+    selected = ranking()[0].a.id;
+    renderViews();
+    renderAll();
+  })();
+  </script>
+</body>
+
+</html>

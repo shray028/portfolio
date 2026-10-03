@@ -537,6 +537,22 @@
      ---------------------------------------------------------- */
   const SEML_CONCEPTS = [
     {
+      id: 'seml-requirements',
+      title: 'Requirements & Quality Attributes',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+      topics: [
+        {
+          title: 'GR4ML Goal Requirements & Soft-Goal Trade-offs',
+          notes: 'ML requirements are probabilistic: state acceptable error (e.g. recall \u2265 0.9), not exact behaviour. GR4ML links business goals to an analytics design view where an analytics goal (oval) is performed by algorithms (hexagons) that help (+) or hurt (\u2212) soft goals (clouds) such as interpretability, latency, robustness to missing data and accuracy. Weighting the soft goals makes the algorithm trade-off explicit \u2014 crucial in regulated domains like lending and healthcare.',
+          formulas: [
+            '\\(\\text{fit}(a) = \\frac{\\sum_i w_i\\, s_{a,i}}{\\sum_i w_i}\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-gr4ml-quality-attributes.html', label: 'GR4ML Trade-off Visualizer' },
+          tags: ['GR4ML', 'Soft Goals', 'NFRs'],
+        },
+      ],
+    },
+    {
       id: 'seml-rag',
       title: 'Retrieval Augmented Generation',
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
@@ -552,6 +568,161 @@
         },
       ],
     },
+    {
+      id: 'seml-patterns',
+      title: 'Architecture Patterns — CQRS & Pipe-and-Filter',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M8 6h8M5 9v3a3 3 0 0 0 3 3h1M19 9v3a3 3 0 0 1-3 3h-1"/></svg>',
+      topics: [
+        {
+          title: 'CQRS & Pipe-and-Filter RAG Architecture',
+          notes: 'Command-Query Separation (Meyer): a method either changes state or returns data. CQRS (Greg Young) applies this at system scale \u2014 separate write and read models, often separate stores, so read-heavy traffic (70\u201380% reads) scales independently of bulk ingestion. Pipe-and-filter chains independent, replaceable filters (extract \u2192 chunk \u2192 embed \u2192 index; embed query \u2192 search \u2192 top-k \u2192 prompt \u2192 LLM). Trade-off: eventual consistency between the write store and the read replica.',
+          formulas: [
+            '\\(\\text{sim}(\\mathbf{q}, \\mathbf{d}) = \\frac{\\mathbf{q}^T\\mathbf{d}}{\\|\\mathbf{q}\\|\\,\\|\\mathbf{d}\\|}\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-cqrs-pipe-filter.html', label: 'CQRS & Pipe-and-Filter Simulator' },
+          tags: ['CQRS', 'Pipe-and-Filter', 'RAG'],
+        },
+      ],
+    },
+    {
+      id: 'seml-microservices',
+      title: 'Microservices & Communication',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/></svg>',
+      topics: [
+        {
+          title: 'Patient Deterioration System — Sync vs Async Microservices',
+          notes: 'Exam case study: an API Gateway routes hospital requests through Patient Intake \u2192 Validation \u2192 Preprocessing \u2192 ML Inference \u2192 Risk Scoring using synchronous REST/gRPC, because the caller needs an immediate answer. Alerts, audit and logging consume Kafka events asynchronously so a slow pager or SMS provider never delays the prediction; monitoring collects telemetry outside the business flow. Redis is a fast cache, databases are the system of record, and the Model Registry serves versioned model artifacts.',
+          formulas: [
+            '\\(T_{\\text{response}} = \\sum_{i\\,\\in\\,\\text{sync path}} t_i\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-microservices-patient-system.html', label: 'Microservices Architecture Explainer' },
+          tags: ['API Gateway', 'Kafka', 'REST/gRPC', 'Exam'],
+        },
+      ],
+    },
+    {
+      id: 'seml-saga',
+      title: 'Distributed Transactions — SAGA',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
+      topics: [
+        {
+          title: 'SAGA Pattern — Orchestration, Choreography & Compensation',
+          notes: 'With a database per service there is no global ACID transaction, and two-phase commit blocks across the network. A saga runs one local transaction per service; if step k fails, compensating transactions undo steps k\u22121 \u2026 1 in reverse order. Name compensations verb + noun (refundPayment(), cancelHotelBooking(), rollbackModelTraining()) and make them idempotent. Orchestration uses a central state machine; choreography reacts to events on a broker.',
+          formulas: [
+            '\\(T_1, \\dots, T_k \\text{ fails} \;\\Rightarrow\; C_{k-1}, \\dots, C_1\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-saga-transactions.html', label: 'SAGA Compensation Simulator' },
+          tags: ['SAGA', 'Compensation', 'Event-driven'],
+        },
+      ],
+    },
+    {
+      id: 'seml-agentic',
+      title: 'Agentic AI, OOP & Profiling',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>',
+      topics: [
+        {
+          title: 'OOP for Agentic AI — the Collaborative Crew',
+          notes: 'Structure LLM agents with OOP: an abstract Agent base class (abstraction) hides the HTTP call behind ask_llm() and keeps the client and memory private (encapsulation). ValidationAgent and SummaryAgent inherit from it and override execute() (inheritance, polymorphism), while ResearchPaperWorkflow has-a list of agents (composition). Profile before optimising: cProfile finds the slow function, line_profiler the slow line, memory_profiler the leak.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-oop-agentic-crew.html', label: 'OOP Crew Playground' },
+          tags: ['OOP', 'Agents', 'cProfile'],
+        },
+      ],
+    },
+    {
+      id: 'seml-mlops-quality',
+      title: 'ML Testing & MLOps Quality',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7 15h10"/></svg>',
+      topics: [
+        {
+          title: 'Data Quality Gates & Quarantine',
+          notes: 'ML behaviour comes from data, so test the data like code. Records pass through schema, value-range, uniqueness and label-health gates; failures are routed to a quarantine branch for human triage instead of silently entering the feature store. Track the data-quality dimensions: completeness, accuracy/validity, consistency, uniqueness and timeliness.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#gates', label: 'Data Quality Gates' },
+          tags: ['Data Quality', 'Quarantine'],
+        },
+        {
+          title: 'Data Drift, Concept Drift & Retraining',
+          notes: 'Covariate (data) drift changes P(X) and is detectable without labels using PSI, the KS test or KL divergence. Concept drift changes P(y|X): inputs look the same but performance drops, so it needs ground-truth labels. Crossing a threshold triggers the loop: retrain \u2192 validate against the baseline \u2192 register \u2192 deploy (canary).',
+          formulas: [
+            '\\(\\text{PSI} = \\sum_i (a_i - e_i)\\ln\\frac{a_i}{e_i}\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#drift', label: 'Drift Detector' },
+          tags: ['Drift', 'PSI', 'Retraining'],
+        },
+        {
+          title: 'RAGAS Evaluation for RAG',
+          notes: 'RAGAS evaluates RAG without human labels, using an LLM as judge. Retriever metrics: context precision (relevant chunks ranked high, little noise) and context recall (all needed facts retrieved). Generator metrics: faithfulness (every claim grounded in the context \u2014 the hallucination check) and answer relevance. Low faithfulness \u2192 lower temperature and a stricter prompt; low recall \u2192 tune chunking and top-k.',
+          formulas: [
+            '\\(\\text{faithfulness} = \\frac{|\\text{supported claims}|}{|\\text{claims in answer}|}\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#ragas', label: 'RAGAS Evaluator' },
+          tags: ['RAGAS', 'LLM Evaluation'],
+        },
+      ],
+    },
+    {
+      id: 'seml-containers',
+      title: 'Containers & Orchestration',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>',
+      topics: [
+        {
+          title: 'Docker Images, Layer Caching & Port Mapping',
+          notes: 'The docker client sends commands to the daemon, which builds images as immutable layers and pulls base images from a registry. Order the Dockerfile from least to most frequently changing: copy requirements.txt and pip install before copying the source code, so a code edit reuses the cached 1 GB dependency layer. -p 8080:5000 maps a host port to the container port.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#docker', label: 'Dockerfile Cache Optimizer' },
+          tags: ['Docker', 'Layer Cache'],
+        },
+        {
+          title: 'Kubernetes Architecture & Self-Healing',
+          notes: 'The control plane (API server, etcd, scheduler, controller manager) stores the desired state; worker nodes run the kubelet, kube-proxy and pods. A Deployment manages a ReplicaSet, which manages pods (typically one container per pod). When a pod crashes or a node fails, the reconcile loop sees desired \u2260 actual and schedules replacements \u2014 self-healing.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#k8s', label: 'Kubernetes Self-Healing Lab' },
+          tags: ['Kubernetes', 'Self-healing'],
+        },
+        {
+          title: 'Rolling vs Blue-Green Deployments',
+          notes: 'A rolling update (the Kubernetes default) replaces pods gradually (4:0 \u2192 3:1 \u2192 \u2026 \u2192 0:4) without extra capacity, but v1 and v2 serve traffic at once and rollback is another rollout. Blue-green keeps two identical environments and flips the router: instant switch and instant rollback, at the cost of double capacity during a release.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#deploy', label: 'Deployment Strategy Visualizer' },
+          tags: ['Deployment', 'Blue-Green'],
+        },
+      ],
+    },
+    {
+      id: 'seml-responsible',
+      title: 'Responsible AI & LLMOps',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1ZM2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>',
+      topics: [
+        {
+          title: 'Explainability — SHAP, LIME & Counterfactuals',
+          notes: 'Interpretability means the model is understandable by itself (shallow trees, linear weights); explainability adds post-hoc explanations for black-box models. Global SHAP ranks features across the dataset; local SHAP/LIME explains one prediction as additive pushes from a base value. Counterfactuals (\u201ca credit score of 705 would flip the decision\u201d) make explanations actionable.',
+          formulas: [
+            '\\(f(x) = \\phi_0 + \\sum_{j=1}^{M} \\phi_j\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#xai', label: 'Explainability Inspector' },
+          tags: ['XAI', 'SHAP', 'LIME'],
+        },
+        {
+          title: 'Provenance, Lineage, Versioning & Reproducibility',
+          notes: 'Provenance records where data came from (source, owner, consent, checksum); lineage records every transformation that produced an artifact. Version code with Git, data with DVC, models in the MLflow registry and environments with Docker. Pin random seeds and dependency versions so the same inputs reproduce the same model \u2014 the basis for audits.',
+          formulas: [],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#lineage', label: 'Lineage & Reproducibility Lab' },
+          tags: ['Lineage', 'DVC', 'MLflow'],
+        },
+        {
+          title: 'LLMOps — Tokens, Cost, Latency & Temperature',
+          notes: 'LLMOps telemetry tracks input, context and completion tokens, cost per request, and latency split into time-to-first-token (grows with prompt and context length) and generation time (grows with output tokens). Temperature rescales the logits: near 0 is deterministic and best for factual extraction; higher values are more creative but riskier. Top-p keeps only the smallest set of tokens covering probability p.',
+          formulas: [
+            '\\(\\text{cost} = \\frac{n_{in}\\,p_{in} + n_{out}\\,p_{out}}{10^6}\\)',
+            '\\(p_i = \\frac{e^{z_i/T}}{\\sum_j e^{z_j/T}}\\)',
+          ],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#llmops', label: 'LLMOps Telemetry Tracker' },
+          tags: ['LLMOps', 'Tokens', 'Cost'],
+        },
+      ],
+    },
   ];
 
   /* ----------------------------------------------------------
@@ -562,7 +733,7 @@
       id: 'seml',
       title: 'Software Engineering for ML',
       code: 'SEML — AIMLC ZG566',
-      description: 'Production GenAI systems, RAG pipelines, embeddings, vector databases, and LLM integration — with step-by-step interactive illustrations.',
+      description: 'Engineering production ML systems: GR4ML requirements, CQRS & pipe-and-filter, microservices, SAGA, agentic OOP, MLOps quality, Docker & Kubernetes, responsible AI and LLMOps — with interactive simulators.',
       emoji: '⚡',
       accent: 'orange',
       folder: 'Rag_illustration',

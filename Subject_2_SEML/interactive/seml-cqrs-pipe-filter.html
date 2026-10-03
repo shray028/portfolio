@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CQRS &amp; Pipe-and-Filter — RAG Architecture Simulator</title>
+  <meta name="description" content="Interactive CQRS and Pipe-and-Filter simulator: a RAG ingestion (command) pipeline and retrieval (query) pipeline with chunking, embeddings, cosine search, and a CQRS vs monolith traffic simulation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    .ctrl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+    #pipe { width: 100%; min-width: 960px; height: auto; }
+    .filter { cursor: pointer; }
+    .filter rect { fill: #0f1320; stroke: #2d3650; stroke-width: 1.4; transition: stroke 0.25s, fill 0.25s; }
+    .filter.w.on rect { stroke: #5fb3f9; fill: #0e1a2b; filter: url(#glow); }
+    .filter.r.on rect { stroke: #4ade80; fill: #0d1f16; filter: url(#glow); }
+    .filter.done rect { stroke: #3f5370; }
+    .filter.sel rect { stroke: #fbbf24 !important; stroke-width: 2.2; }
+    .f-name { fill: #eef2fb; font: 700 12px Inter, sans-serif; }
+    .f-sub { fill: #8c94a9; font: 500 10px 'JetBrains Mono', monospace; }
+    .pipe-w { stroke: #5fb3f9; stroke-width: 3; fill: none; }
+    .pipe-r { stroke: #4ade80; stroke-width: 3; fill: none; }
+    .pipe-db { stroke: #7d93c4; stroke-width: 2; fill: none; stroke-dasharray: 5 4; }
+    .db-shape { fill: #0d1220; stroke: #7d93c4; stroke-width: 1.4; }
+    .db.lock .db-shape { stroke: #f87171; fill: #1c0f12; }
+    .row-lbl { font: 700 11px 'JetBrains Mono', monospace; letter-spacing: 0.08em; }
+    .hidden-el { display: none; }
+    .doc-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .boundary { max-height: 330px; overflow: auto; }
+    .chunk { padding: 6px 9px; margin-bottom: 6px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; color: var(--text-2); }
+    .chunk b { color: var(--blue); font: 600 11px var(--font-mono); margin-right: 6px; }
+    .vec { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
+    .vec span { width: 15px; height: 15px; border-radius: 3px; }
+    .hit { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: start; padding: 7px 9px; margin-bottom: 6px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; }
+    .hit .score { font: 700 12px var(--font-mono); color: var(--green); }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    #chart { width: 100%; height: 160px; }
+    @media (max-width: 1000px) { .ctrl { grid-template-columns: minmax(0, 1fr); } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / Architecture patterns</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Sessions 5–6 • CQRS · Pipe-and-Filter</span>
+      <h1><span class="grad">CQRS &amp; Pipe-and-Filter</span> RAG Simulator</h1>
+      <p class="sub">Command (write) and Query (read) paths as independent filter pipelines</p>
+      <p class="desc">Upload documents down the <b style="color:var(--blue)">command / ingestion</b> pipeline and ask questions down the <b style="color:var(--green)">query / retrieval</b> pipeline. Click any filter to inspect the data at that boundary, then switch to <i>monolith</i> mode and push traffic to see why read/write separation matters.</p>
+    </section>
+
+    <section class="ctrl">
+      <div class="card card-pad">
+        <div class="label" style="margin-bottom:8px">Command side — ingest a document</div>
+        <div class="doc-btns" id="docs"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-primary" id="btn-upload"><i data-icon="fileInput"></i>Upload &amp; index</button>
+          <button class="btn" id="btn-wstep"><i data-icon="stepF"></i>Step forward</button>
+          <span class="small muted" id="w-status">0 chunks indexed</span>
+        </div>
+      </div>
+      <div class="card card-pad">
+        <div class="label" style="margin-bottom:8px">Query side — ask a question</div>
+        <input class="input" id="q" value="How does a saga undo a failed step?">
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-primary" id="btn-query" style="background:linear-gradient(120deg,#22c55e,#14b8a6)"><i data-icon="send"></i>Submit query</button>
+          <button class="btn" id="btn-rstep"><i data-icon="stepF"></i>Step forward</button>
+          <button class="btn" id="btn-reset"><i data-icon="reset"></i>Reset</button>
+          <div class="seg" id="mode"><button data-m="cqrs" class="on">CQRS</button><button data-m="mono">Monolith</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <div class="svg-scroll" style="padding:8px">
+        <svg id="pipe" viewBox="0 0 1200 420" role="img" aria-label="Command and query pipelines">
+          <defs>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <marker id="aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5fb3f9"/></marker>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/></marker>
+            <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7d93c4"/></marker>
+          </defs>
+          <g id="g-pipes"></g><g id="g-nodes"></g><g id="g-pk"></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="grid-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="eye"></i>Filter boundary inspector</h3><span class="chip" id="insp-tag">select a filter</span></div>
+        <div class="card-pad boundary" id="insp"><p class="muted small">Run a pipeline or click any filter box to see the data flowing across that pipe — raw text → chunk array → vectors → index → retrieved context → answer.</p></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="sparkles"></i>Generated answer</h3><span class="chip green">LLM (simulated)</span></div>
+        <div class="card-pad" id="answer"><p class="muted small">Index at least one document, then submit a query.</p></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Traffic simulator — CQRS vs monolith<small>Reads dominate social / e-commerce traffic (≈70–80% reads). What happens when bulk ingestion runs during peak reads?</small></h2>
+    <div class="card card-pad">
+      <div class="grid-3">
+        <div class="range-row"><label class="small" for="s-w">Write ingestion volume (docs/min)</label><span class="val" id="v-w">20</span><input type="range" id="s-w" min="0" max="120" value="20" style="grid-column:1/-1"></div>
+        <div class="range-row"><label class="small" for="s-r">Read throughput (queries/sec)</label><span class="val" id="v-r">400</span><input type="range" id="s-r" min="50" max="2000" step="50" value="400" style="grid-column:1/-1"></div>
+        <div class="btn-row"><button class="btn" id="btn-traffic"><i data-icon="play"></i>Start traffic</button><span class="small muted" id="traffic-mode">mode: CQRS</span></div>
+      </div>
+      <div class="metrics" style="margin-top:14px">
+        <div class="stat"><div class="v" id="m-lat">—</div><div class="k">Query latency p95</div></div>
+        <div class="stat"><div class="v" id="m-lock">—</div><div class="k">DB lock conflicts / s</div></div>
+        <div class="stat"><div class="v" id="m-idx">—</div><div class="k">Vectors indexed</div></div>
+        <div class="stat"><div class="v" id="m-lag">—</div><div class="k">Read-replica lag</div></div>
+      </div>
+      <svg id="chart" viewBox="0 0 600 160" preserveAspectRatio="none" style="margin-top:12px"></svg>
+      <p class="small dim">Simulated metrics for teaching · dashed line = 50 ms latency SLO.</p>
+      <div id="traffic-note" style="margin-top:10px"></div>
+    </div>
+
+    <h2 class="section-title">Concepts<small>What to remember</small></h2>
+    <div class="grid-3">
+      <div class="card card-pad"><span class="chip blue">CQS → CQRS</span><p class="small" style="margin-top:8px">Bertrand Meyer's <b>Command-Query Separation</b>: a method either changes state (command) or returns data (query), never both. Greg Young applied it at system scale as <b>CQRS</b>: separate write and read models — often separate stores — so each scales and evolves independently.</p></div>
+      <div class="card card-pad"><span class="chip green">Pipe-and-filter</span><p class="small" style="margin-top:8px">Data streams through <b>pipes</b> into independent <b>filters</b> that each do one transformation. Filters are reusable and replaceable — swap the embedding model or chunker without touching the rest — and can run concurrently.</p></div>
+      <div class="card card-pad"><span class="chip amber">Trade-off</span><p class="small" style="margin-top:8px">CQRS adds complexity and <b>eventual consistency</b>: a new document becomes searchable only after replication. Worth it when reads and writes have very different load (e.g. a flash-sale where one locked database fails under both).</p></div>
+    </div>
+
+    <p class="footer-note">Demo-scale retrieval: 64-dimensional hashed bag-of-words “embeddings”, chunks of ~25 words with 5-word overlap (production systems typically use ~300 tokens with ~50 overlap and a learned embedding model).</p>
+  </main>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, esc, json, packet, createRunner, CANCELLED, icon } = Lab;
+
+    /* ---------- Demo corpus ---------- */
+    const DOCS = [
+      { id: 'saga', title: 'saga-pattern.pdf', text: 'The saga pattern manages a distributed transaction as a sequence of local transactions, one per microservice. Each service owns its own database, so a global two-phase commit is avoided. When a step fails, the saga runs compensating transactions in reverse order to undo the work already committed. Compensations are named as verb plus noun, for example refundPayment or cancelHotelBooking. In orchestration a central orchestrator calls each participant, while in choreography services react to events published on a message broker such as Kafka.' },
+      { id: 'k8s', title: 'kubernetes-basics.pdf', text: 'Kubernetes schedules containers in pods across worker nodes. The control plane runs the API server, etcd, the scheduler and the controller manager. A deployment manages a replica set and the replica set keeps the desired number of pods running. If a container crashes the kubelet restarts it and the controllers create a replacement pod, which is called self-healing. Rolling updates replace pods gradually, while blue green deployments switch traffic between two identical environments.' },
+      { id: 'cqrs', title: 'cqrs-notes.pdf', text: 'Command query responsibility segregation separates the write model from the read model. Commands change state and queries return data without side effects. Read heavy systems such as social feeds see far more reads than writes, so the read store can be scaled with replicas and denormalised views. The cost is eventual consistency because a write becomes visible to readers only after it is replicated. Pipe and filter architectures process data through independent filters connected by pipes.' },
+    ];
+
+    /* ---------- Pipelines ---------- */
+    const WRITE = [
+      { id: 'w0', name: 'Document Loader', sub: 'PDF / DOCX' },
+      { id: 'w1', name: 'Text Extractor', sub: 'filter' },
+      { id: 'w2', name: 'Text Chunker', sub: 'size 25w · overlap 5' },
+      { id: 'w3', name: 'Embedding Model', sub: '64-d (demo)' },
+      { id: 'w4', name: 'Vector Indexer', sub: 'HNSW-style index' },
+    ];
+    const READ = [
+      { id: 'r0', name: 'User Query', sub: 'text input' },
+      { id: 'r1', name: 'Query Embedder', sub: 'same model' },
+      { id: 'r2', name: 'Similarity Search', sub: 'cosine' },
+      { id: 'r3', name: 'Context Retriever', sub: 'top-k = 3' },
+      { id: 'r4', name: 'Prompt Builder', sub: 'context + system' },
+      { id: 'r5', name: 'LLM Generator', sub: 'answer' },
+    ];
+    const FW = 150, FH = 62, XS = [20, 205, 390, 575, 760, 945];
+    const WY = 60, RY = 300;
+
+    const P = $('#pipe'), GP = $('#g-pipes'), GN = $('#g-nodes'), GK = $('#g-pk');
+    const nodeEl = {};
+    const pipes = {};
+
+    function filterBox(f, x, y, cls) {
+      const g = svg('g', { class: 'filter ' + cls, tabindex: 0, role: 'button', 'aria-label': f.name }, GN);
+      svg('rect', { x, y, width: FW, height: FH, rx: 12 }, g);
+      const t = svg('text', { x: x + 14, y: y + 26, class: 'f-name' }, g); t.textContent = f.name;
+      const t2 = svg('text', { x: x + 14, y: y + 45, class: 'f-sub' }, g); t2.textContent = f.sub;
+      g.addEventListener('click', () => inspect(f.id));
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inspect(f.id); } });
+      nodeEl[f.id] = g;
+    }
+    function dbShape(id, x, y, w, h, name, sub) {
+      const g = svg('g', { class: 'db', 'data-id': id }, GN);
+      const r = 7;
+      svg('path', { class: 'db-shape', d: `M${x},${y + r} a${w / 2},${r} 0 0,1 ${w},0 v${h - 2 * r} a${w / 2},${r} 0 0,1 ${-w},0 z` }, g);
+      svg('path', { d: `M${x},${y + r} a${w / 2},${r} 0 0,0 ${w},0`, fill: 'none', stroke: '#7d93c4' }, g);
+      const t = svg('text', { x: x + w / 2, y: y + 30, 'text-anchor': 'middle', class: 'f-name' }, g); t.textContent = name;
+      const t2 = svg('text', { x: x + w / 2, y: y + 46, 'text-anchor': 'middle', class: 'f-sub' }, g); t2.textContent = sub;
+      g.sub = t2;
+      nodeEl[id] = g;
+      return g;
+    }
+    const pipe = (id, d, cls, marker) => { pipes[id] = svg('path', { d, class: cls, 'marker-end': 'url(#' + marker + ')' }, GP); return pipes[id]; };
+
+    function drawPipes() {
+      const lbl = (x, y, text, color) => { const t = svg('text', { x, y, class: 'row-lbl', fill: color }, GP); t.textContent = text; };
+      lbl(20, 40, 'COMMAND SIDE · WRITE / INGESTION PIPELINE', '#5fb3f9');
+      lbl(20, 400, 'QUERY SIDE · READ / RETRIEVAL PIPELINE', '#4ade80');
+      for (let i = 0; i < WRITE.length - 1; i++) pipe('w' + i + '-w' + (i + 1), `M${XS[i] + FW},${WY + FH / 2} L${XS[i + 1]},${WY + FH / 2}`, 'pipe-w', 'aw');
+      pipe('w4-db', `M${XS[4] + FW},${WY + FH / 2} L${XS[5] + 20},${WY + FH / 2}`, 'pipe-w', 'aw');
+      for (let i = 0; i < READ.length - 1; i++) pipe('r' + i + '-r' + (i + 1), `M${XS[i] + FW},${RY + FH / 2} L${XS[i + 1]},${RY + FH / 2}`, 'pipe-r', 'ar');
+      // CQRS: write store -> replica (replication), replica -> similarity search
+      pipe('repl', `M${XS[5] + 90},${WY + FH + 4} L${XS[5] + 90},${210} L${590},${210}`, 'pipe-db', 'ad');
+      pipe('replica-r2', `M${465},${240} L${465},${RY}`, 'pipe-db', 'ad');
+      // Monolith: shared DB -> similarity search
+      pipe('shared-r2', `M${XS[5] + 70},${WY + FH + 4} L${XS[5] + 70},${250} L${XS[2] + 110},${250} L${XS[2] + 110},${RY}`, 'pipe-db', 'ad');
+      const rl = svg('text', { x: 700, y: 202, class: 'f-sub', id: 'repl-lbl' }, GP); rl.textContent = 'async replication · eventually consistent';
+    }
+
+    drawPipes();
+    WRITE.forEach((f, i) => filterBox(f, XS[i], WY, 'w'));
+    READ.forEach((f, i) => filterBox(f, XS[i], RY, 'r'));
+    dbShape('wdb', XS[5] + 20, WY - 4, 180, 70, 'Vector DB', 'write store · 0 vectors');
+    dbShape('replica', 390, 180, 200, 60, 'Read Replica', '0 vectors');
+
+    /* ---------- Retrieval engine (demo scale) ---------- */
+    const STOP = new Set('the a an of to and or in on is are as by for with so be it its this that each one such which while when from at into only after than can far see called'.split(' '));
+    const tokens = (t) => t.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w)).map((w) => w.replace(/(ing|ed|es|s)$/, ''));
+    function hash(w) { let h = 2166136261; for (const ch of w) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return Math.abs(h); }
+    function embed(text) {
+      const v = new Array(64).fill(0);
+      tokens(text).forEach((w) => { v[hash(w) % 64] += 1; });
+      const n = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
+      return v.map((x) => x / n);
+    }
+    const cosine = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+    function chunk(text) {
+      const words = text.split(/\s+/);
+      const out = [];
+      for (let i = 0; i < words.length; i += 20) { out.push(words.slice(i, i + 25).join(' ')); if (i + 25 >= words.length) break; }
+      return out;
+    }
+
+    let mode = 'cqrs';
+    let docIdx = 0;
+    const store = []; // write store
+    let replica = []; // read replica (CQRS)
+    const runner = createRunner();
+    let wState = { step: -1, data: {} };
+    let rState = { step: -1, data: {} };
+    let busy = false;
+
+    $('#docs').innerHTML = DOCS.map((d, i) => `<button class="btn btn-sm ${i === 0 ? 'btn-primary' : ''}" data-i="${i}">${icon('fileText')}${d.title}</button>`).join('');
+    $$('#docs button').forEach((b) => b.addEventListener('click', () => { docIdx = +b.dataset.i; $$('#docs button').forEach((x) => x.classList.toggle('btn-primary', x === b)); wState = { step: -1, data: {} }; clearOn('w'); }));
+
+    function clearOn(side) { Object.keys(nodeEl).forEach((k) => { if (k[0] === side) nodeEl[k].classList.remove('on', 'done'); }); }
+    function setOn(id) { nodeEl[id].classList.add('on'); }
+    function setDone(id) { nodeEl[id].classList.remove('on'); nodeEl[id].classList.add('done'); }
+
+    function updateStores() {
+      nodeEl.wdb.sub.textContent = (mode === 'cqrs' ? 'write store · ' : 'shared store · ') + store.length + ' vectors';
+      nodeEl.replica.sub.textContent = replica.length + ' vectors';
+      $('#w-status').textContent = store.length + ' chunks indexed' + (mode === 'cqrs' && replica.length < store.length ? ' · replica catching up…' : '');
+      $('#m-idx').textContent = store.length;
+    }
+
+    function applyMode() {
+      const c = mode === 'cqrs';
+      nodeEl.replica.classList.toggle('hidden-el', !c);
+      pipes.repl.classList.toggle('hidden-el', !c);
+      pipes['replica-r2'].classList.toggle('hidden-el', !c);
+      $('#repl-lbl').classList.toggle('hidden-el', !c);
+      pipes['shared-r2'].classList.toggle('hidden-el', c);
+      nodeEl.wdb.querySelector('text').textContent = c ? 'Vector DB (write)' : 'Shared Vector DB';
+      if (!c) replica = store.slice();
+      $('#traffic-mode').textContent = 'mode: ' + (c ? 'CQRS (separate read replica)' : 'Monolith (single shared DB)');
+      updateStores();
+    }
+
+    /* ---------- Write pipeline steps ---------- */
+    const W_STEPS = [
+      async (d) => { setOn('w0'); d.raw = '%PDF-1.7 … ' + DOCS[docIdx].title; d.doc = DOCS[docIdx]; },
+      async (d, anim) => { if (anim) await packet(pipes['w0-w1'], { label: 'raw bytes', color: '#5fb3f9', runner, layer: GK }); setDone('w0'); setOn('w1'); d.text = d.doc.text; },
+      async (d, anim) => { if (anim) await packet(pipes['w1-w2'], { label: 'text', color: '#5fb3f9', runner, layer: GK }); setDone('w1'); setOn('w2'); d.chunks = chunk(d.text); },
+      async (d, anim) => { if (anim) await packet(pipes['w2-w3'], { label: d.chunks.length + ' chunks', color: '#5fb3f9', runner, layer: GK }); setDone('w2'); setOn('w3'); d.vectors = d.chunks.map(embed); },
+      async (d, anim) => { if (anim) await packet(pipes['w3-w4'], { label: 'vectors', color: '#5fb3f9', runner, layer: GK }); setDone('w3'); setOn('w4'); },
+      async (d, anim) => {
+        if (anim) await packet(pipes['w4-db'], { label: 'upsert', color: '#5fb3f9', runner, layer: GK });
+        setDone('w4');
+        d.chunks.forEach((c, i) => { if (!store.some((s) => s.text === c)) store.push({ id: d.doc.id + '#' + (i + 1), doc: d.doc.title, text: c, v: d.vectors[i] }); });
+        updateStores();
+        if (mode === 'cqrs') {
+          if (anim) await packet(pipes.repl, { label: 'replicate', color: '#7d93c4', runner, layer: GK, duration: 1300 });
+          replica = store.slice();
+        } else replica = store.slice();
+        updateStores();
+      },
+    ];
+    const W_INSPECT = ['w0', 'w1', 'w2', 'w3', 'w4', 'w4'];
+
+    async function wStep(anim) {
+      if (wState.step >= W_STEPS.length - 1) { wState = { step: -1, data: {} }; clearOn('w'); }
+      wState.step++;
+      await W_STEPS[wState.step](wState.data, anim);
+      inspect(W_INSPECT[wState.step]);
+    }
+
+    async function upload() {
+      if (busy) return;
+      busy = true;
+      wState = { step: -1, data: {} };
+      clearOn('w');
+      try { for (let i = 0; i < W_STEPS.length; i++) { await wStep(true); await runner.wait(250); } }
+      catch (e) { if (e !== CANCELLED) throw e; }
+      busy = false;
+      docIdx = (docIdx + 1) % DOCS.length;
+      $$('#docs button').forEach((x, i) => x.classList.toggle('btn-primary', i === docIdx));
+    }
+
+    /* ---------- Read pipeline steps ---------- */
+    const R_STEPS = [
+      async (d) => { setOn('r0'); d.q = $('#q').value.trim() || 'What is CQRS?'; },
+      async (d, anim) => { if (anim) await packet(pipes['r0-r1'], { label: 'query text', color: '#4ade80', runner, layer: GK }); setDone('r0'); setOn('r1'); d.qv = embed(d.q); },
+      async (d, anim) => {
+        if (anim) await packet(pipes['r1-r2'], { label: 'query vector', color: '#4ade80', runner, layer: GK });
+        setDone('r1'); setOn('r2');
+        const src = mode === 'cqrs' ? replica : store;
+        if (anim) await packet(mode === 'cqrs' ? pipes['replica-r2'] : pipes['shared-r2'], { label: 'read', color: '#7d93c4', runner, layer: GK, duration: 800 });
+        d.scored = src.map((c) => ({ c, s: cosine(d.qv, c.v) })).sort((a, b) => b.s - a.s);
+      },
+      async (d, anim) => { if (anim) await packet(pipes['r2-r3'], { label: 'ranked', color: '#4ade80', runner, layer: GK }); setDone('r2'); setOn('r3'); d.top = d.scored.slice(0, 3); },
+      async (d, anim) => {
+        if (anim) await packet(pipes['r3-r4'], { label: 'top-3', color: '#4ade80', runner, layer: GK }); setDone('r3'); setOn('r4');
+        d.prompt = 'SYSTEM: Answer only from the context. If unsure, say so.\n\nCONTEXT:\n' + d.top.map((t, i) => '[' + (i + 1) + '] ' + t.c.text).join('\n') + '\n\nQUESTION: ' + d.q;
+      },
+      async (d, anim) => {
+        if (anim) await packet(pipes['r4-r5'], { label: 'prompt', color: '#4ade80', runner, layer: GK }); setDone('r4'); setOn('r5');
+        if (anim) await runner.wait(500);
+        setDone('r5');
+        renderAnswer(d);
+      },
+    ];
+
+    async function rStep(anim) {
+      if (rState.step >= R_STEPS.length - 1) { rState = { step: -1, data: {} }; clearOn('r'); }
+      rState.step++;
+      await R_STEPS[rState.step](rState.data, anim);
+      inspect('r' + rState.step);
+    }
+
+    async function query() {
+      if (busy) return;
+      busy = true;
+      rState = { step: -1, data: {} };
+      clearOn('r');
+      try { for (let i = 0; i < R_STEPS.length; i++) { await rStep(true); await runner.wait(200); } }
+      catch (e) { if (e !== CANCELLED) throw e; }
+      busy = false;
+    }
+
+    function renderAnswer(d) {
+      const el = $('#answer');
+      if (!d.top || !d.top.length || d.top[0].s < 0.05) {
+        el.innerHTML = '<div class="callout amber">' + icon('alert') + '<div>No relevant context found' + (store.length ? '' : ' — the store is empty. Upload a document first') + '. A grounded RAG system should say “I don’t know” rather than hallucinate.</div></div>';
+        return;
+      }
+      const qt = new Set(tokens(d.q));
+      // Expand each retrieved chunk to the full sentences it overlaps in its source document.
+      const seen = new Set();
+      const sentences = [];
+      d.top.forEach((t, i) => {
+        const doc = DOCS.find((x) => x.title === t.c.doc);
+        doc.text.split(/(?<=\.)\s+/).forEach((sent) => {
+          const head = sent.split(/\s+/).slice(0, 4).join(' ');
+          const tail = sent.split(/\s+/).slice(-4).join(' ');
+          if ((t.c.text.includes(head) || t.c.text.includes(tail)) && !seen.has(sent)) {
+            seen.add(sent);
+            sentences.push({ s: sent, i, k: tokens(sent).filter((w) => qt.has(w)).length });
+          }
+        });
+      });
+      const best = sentences.filter((x) => x.k > 0).sort((a, b) => b.k - a.k).slice(0, 2);
+      const picked = best.length ? best : sentences.slice(0, 1);
+      el.innerHTML = '<p>' + picked.map((x) => esc(x.s) + ' <span class="chip green">[' + (x.i + 1) + ']</span>').join(' ') + '</p>' +
+        '<p class="small dim" style="margin-top:10px">Grounded in ' + d.top.length + ' retrieved chunks from ' + [...new Set(d.top.map((t) => t.c.doc))].join(', ') + '. Answer text is assembled from retrieved sentences to simulate an LLM.</p>';
+    }
+
+    /* ---------- Inspector ---------- */
+    function vecHTML(v) { return '<div class="vec">' + v.slice(0, 24).map((x) => `<span title="${x.toFixed(3)}" style="background:rgba(95,179,249,${Math.min(1, 0.08 + x * 1.6).toFixed(2)})"></span>`).join('') + '</div>'; }
+    function inspect(id) {
+      Object.values(nodeEl).forEach((n) => n.classList.remove('sel'));
+      if (nodeEl[id]) nodeEl[id].classList.add('sel');
+      const all = WRITE.concat(READ);
+      const f = all.find((x) => x.id === id);
+      $('#insp-tag').textContent = f ? f.name : id;
+      const d = id[0] === 'w' ? wState.data : rState.data;
+      const el = $('#insp');
+      const none = '<p class="muted small">No data has reached this filter yet — run or step the pipeline.</p>';
+      const H = {
+        w0: () => d.raw ? `<div class="label">Input</div><pre class="code">${esc(d.raw)}</pre><p class="small muted" style="margin-top:8px">Loader reads bytes from the uploaded file; it knows nothing about chunks or vectors.</p>` : none,
+        w1: () => d.text ? `<div class="label">Extracted plain text (${d.text.split(/\s+/).length} words)</div><pre class="code" style="white-space:pre-wrap">${esc(d.text)}</pre>` : none,
+        w2: () => d.chunks ? `<div class="label">Chunk array — ${d.chunks.length} chunks (25 words, 5-word overlap)</div>` + d.chunks.map((c, i) => `<div class="chunk"><b>#${i + 1}</b>${esc(c)}</div>`).join('') : none,
+        w3: () => d.vectors ? `<div class="label">Embeddings — ${d.vectors.length} × 64-d vectors (first 24 dims shown)</div>` + d.vectors.map((v, i) => `<div class="chunk"><b>#${i + 1}</b>${vecHTML(v)}</div>`).join('') : none,
+        w4: () => d.vectors ? `<div class="label">Index upsert</div><pre class="code">${json({ index: 'docs-hnsw', operation: 'upsert', vectors: d.vectors.length, totalInWriteStore: store.length, metric: 'cosine' })}</pre>${mode === 'cqrs' ? '<p class="small muted" style="margin-top:8px">CQRS: the write store is replicated asynchronously to the read replica — readers see new chunks shortly after (eventual consistency).</p>' : ''}` : none,
+        r0: () => d.q ? `<div class="label">Query</div><pre class="code">${esc(d.q)}</pre>` : none,
+        r1: () => d.qv ? `<div class="label">Query vector (same embedding model as ingestion)</div>${vecHTML(d.qv)}<p class="small muted" style="margin-top:8px">Using a different model for queries than for documents would make the similarity scores meaningless.</p>` : none,
+        r2: () => d.scored ? `<div class="label">Cosine similarity vs ${d.scored.length} vectors (${mode === 'cqrs' ? 'read replica' : 'shared DB'})</div>` + d.scored.slice(0, 6).map((x) => `<div class="hit"><span class="score">${x.s.toFixed(3)}</span><span>${esc(x.c.id)} — ${esc(x.c.text.slice(0, 90))}…</span></div>`).join('') : none,
+        r3: () => d.top ? '<div class="label">Top-k = 3 context chunks</div>' + d.top.map((x, i) => `<div class="hit"><span class="score">[${i + 1}] ${x.s.toFixed(2)}</span><span>${esc(x.c.text)}</span></div>`).join('') : none,
+        r4: () => d.prompt ? `<div class="label">Prompt sent to the LLM</div><pre class="code" style="white-space:pre-wrap">${esc(d.prompt)}</pre>` : none,
+        r5: () => d.top ? '<p class="small">See the generated answer panel →</p>' : none,
+      };
+      el.innerHTML = H[id] ? H[id]() : none;
+    }
+
+    /* ---------- Traffic simulator ---------- */
+    let timer = null;
+    const series = [];
+    function tick() {
+      const w = +$('#s-w').value, r = +$('#s-r').value;
+      const jitter = () => (Math.random() - 0.5) * 6;
+      let lat, locks, lag;
+      if (mode === 'cqrs') { lat = 22 + r * 0.008 + jitter(); locks = 0; lag = Math.round(80 + w * 6 + Math.random() * 40) + ' ms'; }
+      else { lat = 22 + r * 0.008 + w * (0.9 + r / 900) + jitter(); locks = Math.round((w * r) / 300 + Math.random() * 3); lag = 'n/a'; }
+      lat = Math.max(8, lat);
+      series.push({ lat, mode });
+      if (series.length > 60) series.shift();
+      $('#m-lat').textContent = Math.round(lat) + ' ms';
+      $('#m-lat').style.color = lat > 50 ? 'var(--red)' : 'var(--green)';
+      $('#m-lock').textContent = locks;
+      $('#m-lock').style.color = locks ? 'var(--red)' : 'var(--green)';
+      $('#m-lag').textContent = lag;
+      drawChart();
+      $('#traffic-note').innerHTML = mode === 'cqrs'
+        ? '<div class="callout green">' + icon('check') + '<div><b>CQRS:</b> bulk ingestion writes to the write store while queries hit the read replica — read latency stays flat. The cost is replica lag (eventual consistency).</div></div>'
+        : (lat > 50 ? '<div class="callout red">' + icon('alert') + '<div><b>Monolith under mixed load:</b> ingestion locks the shared store, so queries queue behind writes and latency blows past the SLO — the same failure mode as read/write contention during big flash sales.</div></div>' : '<div class="callout">' + icon('info') + '<div>Monolith looks fine at low write volume — increase docs/min to see contention.</div></div>');
+      nodeEl.wdb.classList.toggle('lock', mode === 'mono' && locks > 5);
+    }
+    function drawChart() {
+      const C = $('#chart');
+      C.innerHTML = '';
+      const maxY = Math.max(120, ...series.map((s) => s.lat)) * 1.1;
+      const y = (v) => 150 - (v / maxY) * 140;
+      svg('line', { x1: 0, x2: 600, y1: y(50), y2: y(50), stroke: '#f87171', 'stroke-dasharray': '5 4', 'stroke-width': 1 }, C);
+      if (series.length < 2) return;
+      const pts = series.map((s, i) => (i / 59) * 600 + ',' + y(s.lat)).join(' ');
+      svg('polyline', { points: pts, fill: 'none', stroke: mode === 'cqrs' ? '#4ade80' : '#fbbf24', 'stroke-width': 2.2, 'vector-effect': 'non-scaling-stroke' }, C);
+    }
+    $('#btn-traffic').addEventListener('click', () => {
+      if (timer) { clearInterval(timer); timer = null; $('#btn-traffic').innerHTML = icon('play') + 'Start traffic'; return; }
+      timer = setInterval(tick, 400); tick();
+      $('#btn-traffic').innerHTML = icon('pause') + 'Stop traffic';
+    });
+    ['s-w', 's-r'].forEach((id) => $('#' + id).addEventListener('input', (e) => { $('#v-' + id.slice(2)).textContent = e.target.value; if (timer) tick(); }));
+
+    /* ---------- Wiring ---------- */
+    $('#btn-upload').addEventListener('click', upload);
+    $('#btn-query').addEventListener('click', query);
+    $('#btn-wstep').addEventListener('click', async () => { if (!busy) { busy = true; try { await wStep(true); } catch (e) { if (e !== CANCELLED) throw e; } busy = false; } });
+    $('#btn-rstep').addEventListener('click', async () => { if (!busy) { busy = true; try { await rStep(true); } catch (e) { if (e !== CANCELLED) throw e; } busy = false; } });
+    $('#q').addEventListener('keydown', (e) => { if (e.key === 'Enter') query(); });
+    $('#btn-reset').addEventListener('click', () => {
+      runner.cancel(); busy = false; store.length = 0; replica = []; wState = { step: -1, data: {} }; rState = { step: -1, data: {} };
+      GK.innerHTML = ''; clearOn('w'); clearOn('r'); updateStores(); inspect('w0');
+      $('#answer').innerHTML = '<p class="muted small">Index at least one document, then submit a query.</p>';
+    });
+    $$('#mode button').forEach((b) => b.addEventListener('click', () => {
+      mode = b.dataset.m;
+      $$('#mode button').forEach((x) => x.classList.toggle('on', x === b));
+      applyMode();
+      series.length = 0;
+      if (timer) tick();
+    }));
+    applyMode();
+    drawChart();
+  })();
+  </script>
+</body>
+
+</html>

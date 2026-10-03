@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OOP for Agentic AI — Collaborative Crew Playground</title>
+  <meta name="description" content="Interactive UML and execution visualizer for OOP in agentic AI: classes, objects, inheritance, polymorphism, encapsulation, abstraction and composition, plus Python profiling with cProfile, line_profiler and memory_profiler.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="seml-lab.css?v=2026-10-03">
+  <style>
+    .concepts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .concepts button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+    .concepts button.on { background: rgba(95, 179, 249, 0.15); border-color: var(--blue); color: #fff; }
+    .split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    #uml { width: 100%; height: auto; }
+    .cls rect.body { fill: #0f1320; stroke: #2d3650; stroke-width: 1.4; transition: stroke 0.25s; }
+    .cls rect.head { fill: #151c2e; }
+    .cls.hl rect.body { stroke: #5fb3f9; stroke-width: 2.2; }
+    .cls.exec rect.body { stroke: #fbbf24; stroke-width: 2.6; filter: url(#glow); }
+    .cls .nm { fill: #eef2fb; font: 700 12.5px Inter, sans-serif; }
+    .cls .st { fill: #a78bfa; font: 600 10px 'JetBrains Mono', monospace; }
+    .cls .mb { fill: #c3c8d6; font: 500 10.5px 'JetBrains Mono', monospace; }
+    .cls .mb.priv { fill: #f9a8d4; }
+    .rel { stroke: #4a5778; stroke-width: 1.6; fill: none; transition: stroke 0.25s; }
+    .rel.hl { stroke: #5fb3f9; stroke-width: 2.4; }
+    .code-box { max-height: 560px; overflow: auto; }
+    pre.code .ln { display: block; padding: 0 6px; border-radius: 4px; }
+    pre.code .ln.hl { background: rgba(95, 179, 249, 0.14); box-shadow: inset 2px 0 0 var(--blue); }
+    pre.code .ln.exec { background: rgba(251, 191, 36, 0.16); box-shadow: inset 2px 0 0 #fbbf24; }
+    pre.code .no { display: inline-block; width: 26px; color: #475069; user-select: none; }
+    .explain { min-height: 0; }
+    .console { background: #06080d; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 12px/1.6 var(--font-mono); color: #bbf7d0; max-height: 220px; overflow-y: auto; white-space: pre-wrap; }
+    .console .c-dim { color: #64748b; }
+    .console .c-call { color: #93c5fd; }
+    #mem { width: 100%; height: 150px; }
+    @media (max-width: 1100px) { .split { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+
+<body>
+  <header class="lab-top">
+    <div class="wrap">
+      <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
+      <span class="lab-crumb">/ SEML / OOP for agentic AI</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="lab-hero">
+      <span class="badge">SEML • Sessions 9–10 • OOP · Agentic AI · Profiling</span>
+      <h1>OOP <span class="grad">“Collaborative Crew”</span> for Agentic AI</h1>
+      <p class="sub">Classes, inheritance, polymorphism, encapsulation, abstraction and composition — applied to LLM agents</p>
+      <p class="desc">Think of a film production crew: every <b>Crew Member</b> shares a base contract, specialists (Director, Writer, Cinematographer) do their own job when called, and the production company <b>has</b> a crew. Click a concept, add your own agent, then step through the workflow.</p>
+    </section>
+
+    <div class="card card-pad">
+      <div class="btn-row" style="justify-content:space-between">
+        <div class="concepts" id="concepts"></div>
+        <div class="btn-row">
+          <select class="input" id="new-agent" style="width:auto"></select>
+          <button class="btn" id="btn-add"><i data-icon="plus"></i>Add custom agent</button>
+          <button class="btn btn-primary" id="btn-step"><i data-icon="stepF"></i>Step through workflow</button>
+          <button class="btn" id="btn-reset"><i data-icon="reset"></i>Reset</button>
+        </div>
+      </div>
+      <div class="explain callout blue" id="explain" style="margin-top:12px"><i data-icon="info"></i><div>Select a concept chip to highlight it in the UML diagram and the code.</div></div>
+    </div>
+
+    <section class="split" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="layers"></i>UML class diagram</h3><span class="small muted">△ inheritance · ◆ composition</span></div>
+        <div class="card-pad" style="padding:8px"><svg id="uml" viewBox="0 0 760 520" role="img" aria-label="UML class diagram">
+          <defs>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <marker id="tri" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#0b0e17" stroke="#7d93c4" stroke-width="1.2"/></marker>
+            <marker id="dia" viewBox="0 0 14 10" refX="1" refY="5" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L7,0 L14,5 L7,10 z" fill="#7d93c4"/></marker>
+          </defs>
+          <g id="g-uml"></g>
+        </svg></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="fileText"></i>agents.py</h3><span class="chip">Python</span></div>
+        <div class="code-box"><pre class="code" id="code" style="border:0;border-radius:0"></pre></div>
+      </div>
+    </section>
+
+    <section class="grid-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="monitor"></i>Execution console</h3><span class="chip" id="step-chip">not started</span></div>
+        <div class="card-pad"><div class="console" id="console"><span class="c-dim">$ python agents.py   # press “Step through workflow”</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="cpu"></i>Profiler</h3><div class="seg" id="prof-tab"><button data-t="cprofile" class="on">cProfile</button><button data-t="line">line_profiler</button><button data-t="memory">memory_profiler</button></div></div>
+        <div class="card-pad" id="prof"></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Profiling tools<small>Find the bottleneck before optimising</small></h2>
+    <div class="grid-3">
+      <div class="card card-pad"><span class="chip blue">cProfile</span><p class="small" style="margin-top:8px">Deterministic profiler for the whole program: number of calls, total time inside each function (<code>tottime</code>) and including sub-calls (<code>cumtime</code>). Answers <i>which function</i> is slow.</p></div>
+      <div class="card card-pad"><span class="chip green">line_profiler</span><p class="small" style="margin-top:8px">Decorate a function with <code>@profile</code> and run <code>kernprof -l -v</code> to see time per line — answers <i>which line</i> inside the slow function is the problem.</p></div>
+      <div class="card card-pad"><span class="chip purple">memory_profiler</span><p class="small" style="margin-top:8px">Line-by-line memory usage and increments (<code>mprof</code> for plots). Finds leaks, e.g. an agent that appends every prompt to <code>_memory</code> forever.</p></div>
+    </div>
+
+    <p class="footer-note">LLM calls and profiler numbers are simulated for teaching.</p>
+  </main>
+
+  <script src="seml-lab.js?v=2026-10-03"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { $, $$, svg, esc, icon } = Lab;
+
+    const CONCEPTS = {
+      class: { name: 'Class', crew: 'The “Crew Member” job description everyone is hired under.', text: '<b>Class</b> — a blueprint that bundles data and behaviour. <code>Agent</code> defines what every agent has (<code>name</code>, <code>model</code>) and can do (<code>ask_llm</code>, <code>execute</code>).' },
+      object: { name: 'Object', crew: 'Alice the director and Bob the writer — actual people on set.', text: '<b>Object</b> — a concrete instance created from a class: <code>ValidationAgent("validator")</code> and <code>ResearchPaperWorkflow()</code> live in memory with their own state.' },
+      inheritance: { name: 'Inheritance', crew: 'Director and Writer are both Crew Members — they inherit the contract and add their speciality.', text: '<b>Inheritance</b> — <code>ValidationAgent(Agent)</code> reuses <code>__init__</code> and <code>ask_llm</code> from the base class (IS-A relationship).' },
+      polymorphism: { name: 'Polymorphism', crew: '“Action!” — every crew member responds to the same call in their own way.', text: '<b>Polymorphism</b> — every subclass overrides the same <code>execute(text)</code> interface; the workflow calls <code>agent.execute(paper)</code> without knowing the concrete type.' },
+      encapsulation: { name: 'Encapsulation', crew: 'Each crew member keeps their own notes and contacts private.', text: '<b>Encapsulation</b> — <code>_llm_client</code> and <code>_memory</code> are internal state (Python convention: leading underscore). Callers use methods, not the raw client or API key.' },
+      abstraction: { name: 'Abstraction', crew: 'The director says “roll camera” without knowing the camera internals.', text: '<b>Abstraction</b> — <code>ask_llm(prompt)</code> hides the HTTP request, retries and JSON parsing; <code>Agent</code> is an abstract base class (<code>ABC</code>) that cannot be instantiated directly.' },
+      composition: { name: 'Composition', crew: 'The production company HAS a crew — it coordinates them but isn’t one of them.', text: '<b>Composition</b> — <code>ResearchPaperWorkflow</code> HAS-A list of agents and coordinates them (HAS-A, not IS-A). Swap or add agents without changing the workflow.' },
+    };
+
+    const BASE_AGENTS = [
+      { cls: 'ValidationAgent', inst: 'validator', role: 'Director', prompt: 'Check this paper for missing sections', out: 'Valid ✓ — abstract, method, results present; “limitations” section missing.' },
+      { cls: 'SummaryAgent', inst: 'summarizer', role: 'Writer', prompt: 'Summarise in 3 bullet points', out: '• Proposes RAG for AUTOSAR specs • Cross-encoder re-ranking improves precision • Feedback loop for continuous quality' },
+    ];
+    const EXTRA = [
+      { cls: 'FormattingAgent', inst: 'formatter', role: 'Cinematographer', prompt: 'Format as IEEE citation style', out: 'Formatted 14 references in IEEE style.' },
+      { cls: 'GrammarCheckAgent', inst: 'grammar', role: 'Script editor', prompt: 'Fix grammar and passive voice', out: '7 grammar issues fixed; 3 passive sentences rewritten.' },
+      { cls: 'CitationAgent', inst: 'citer', role: 'Researcher', prompt: 'Verify every citation exists', out: '13/14 citations verified; 1 DOI not found.' },
+    ];
+    let agents = BASE_AGENTS.slice();
+    let concept = null;
+    let execStep = -1;
+    let execTarget = null;
+    let execLines = [];
+
+    /* ---------- Code model ---------- */
+    function codeLines() {
+      const L = [];
+      const add = (code, c, id) => L.push({ code, c: c || [], id });
+      add('from abc import ABC, abstractmethod', ['abstraction']);
+      add('');
+      add('class Agent(ABC):                      # abstract base class', ['class', 'abstraction'], 'agent');
+      add('    def __init__(self, name, model="gpt-4o-mini"):', ['class'], 'init');
+      add('        self.name = name', ['class']);
+      add('        self.model = model', ['class']);
+      add('        self._llm_client = LLMClient(model)   # internal', ['encapsulation'], 'client');
+      add('        self._memory = []                     # internal', ['encapsulation']);
+      add('');
+      add('    def ask_llm(self, prompt):          # hides the HTTP call', ['abstraction', 'encapsulation'], 'ask');
+      add('        self._memory.append(prompt)', ['encapsulation'], 'ask-mem');
+      add('        return self._llm_client.complete(prompt)', ['abstraction', 'encapsulation'], 'ask-call');
+      add('');
+      add('    @abstractmethod', ['abstraction', 'polymorphism']);
+      add('    def execute(self, text): ...        # each subclass overrides', ['polymorphism', 'abstraction']);
+      agents.forEach((a) => {
+        add('');
+        add(`class ${a.cls}(Agent):${' '.repeat(Math.max(1, 23 - a.cls.length))}# IS-A Agent (${a.role})`, ['inheritance', 'class'], 'cls-' + a.inst);
+        add('    def execute(self, text):', ['polymorphism'], 'exec-' + a.inst);
+        add(`        return self.ask_llm(f"${a.prompt}:\\n{text}")`, ['polymorphism', 'abstraction'], 'body-' + a.inst);
+      });
+      add('');
+      add('class ResearchPaperWorkflow:           # HAS-A agents', ['composition', 'class'], 'wf');
+      add('    def __init__(self):', ['composition'], 'wf-init');
+      add('        self.agents = [', ['composition', 'object'], 'wf-list');
+      agents.forEach((a) => add(`            ${a.cls}("${a.inst}"),`, ['composition', 'object'], 'new-' + a.inst));
+      add('        ]', ['composition']);
+      add('');
+      add('    def run(self, paper):', ['composition', 'polymorphism'], 'run');
+      add('        return [agent.execute(paper) for agent in self.agents]  # polymorphic dispatch', ['polymorphism', 'composition'], 'dispatch');
+      add('');
+      add('workflow = ResearchPaperWorkflow()     # an object', ['object', 'composition'], 'main-new');
+      add('results = workflow.run(paper)', ['object'], 'main-run');
+      return L;
+    }
+
+    // Single-pass tokenizer so inserted markup is never re-matched.
+    function hl(code) {
+      const re = /(#.*$)|(f?"[^"]*")|\b(class|def|return|from|import|for|in|self)\b|\b(Agent|ABC|ResearchPaperWorkflow|LLMClient|[A-Z][a-zA-Z]+Agent)\b/g;
+      let out = '';
+      let last = 0;
+      let m;
+      while ((m = re.exec(code))) {
+        out += esc(code.slice(last, m.index));
+        const cls = m[1] ? 'k-com' : m[2] ? 'k-str' : m[3] ? 'k-kw' : 'k-fn';
+        out += '<span class="' + cls + '">' + esc(m[0]) + '</span>';
+        last = re.lastIndex;
+      }
+      return out + esc(code.slice(last));
+    }
+
+    function renderCode() {
+      const lines = codeLines();
+      $('#code').innerHTML = lines.map((l, i) => {
+        const cls = execLines.includes(l.id) ? 'exec' : concept && l.c.includes(concept) ? 'hl' : '';
+        return `<span class="ln ${cls}" ${l.id ? 'data-id="' + l.id + '"' : ''}><span class="no">${i + 1}</span>${hl(l.code) || ' '}</span>`;
+      }).join('');
+      const t = $('#code .ln.exec') || $('#code .ln.hl');
+      if (t) t.scrollIntoView({ block: 'nearest' });
+    }
+
+    /* ---------- UML ---------- */
+    const U = $('#g-uml');
+    function clsBox(id, x, y, w, name, stereo, attrs, methods, concepts) {
+      const lineH = 15;
+      const h = 30 + (attrs.length ? attrs.length * lineH + 8 : 0) + methods.length * lineH + 10;
+      const on = concept && concepts.includes(concept);
+      const g = svg('g', { class: 'cls' + (on ? ' hl' : '') + (execTarget === id ? ' exec' : '') }, U);
+      svg('rect', { class: 'body', x, y, width: w, height: h, rx: 8 }, g);
+      svg('rect', { class: 'head', x: x + 1, y: y + 1, width: w - 2, height: 28, rx: 7 }, g);
+      if (stereo) { const s = svg('text', { class: 'st', x: x + w / 2, y: y + 11, 'text-anchor': 'middle' }, g); s.textContent = stereo; }
+      const n = svg('text', { class: 'nm', x: x + w / 2, y: y + (stereo ? 24 : 19), 'text-anchor': 'middle' }, g); n.textContent = name;
+      let yy = y + 30;
+      if (attrs.length) {
+        svg('line', { x1: x, x2: x + w, y1: yy, y2: yy, stroke: '#2d3650' }, g);
+        attrs.forEach((a, i) => { const t = svg('text', { class: 'mb' + (a[0] === '-' ? ' priv' : ''), x: x + 10, y: yy + 14 + i * lineH }, g); t.textContent = a; });
+        yy += attrs.length * lineH + 8;
+      }
+      svg('line', { x1: x, x2: x + w, y1: yy, y2: yy, stroke: '#2d3650' }, g);
+      methods.forEach((m, i) => { const t = svg('text', { class: 'mb', x: x + 10, y: yy + 14 + i * lineH }, g); t.textContent = m; });
+      return { x, y, w, h, cx: x + w / 2 };
+    }
+
+    function renderUML() {
+      U.innerHTML = '';
+      const rels = svg('g', {}, U);
+      const base = clsBox('agent', 250, 14, 260, 'Agent', '«abstract»', ['+ name: str', '+ model: str', '- _llm_client: LLMClient', '- _memory: list'], ['+ ask_llm(prompt) → str', '+ execute(text)*  «abstract»'], ['class', 'abstraction', 'encapsulation', 'inheritance', 'polymorphism']);
+      const n = agents.length;
+      const cw = Math.min(170, (740 - (n - 1) * 12) / n);
+      const total = n * cw + (n - 1) * 12;
+      const sx = (760 - total) / 2;
+      const subs = agents.map((a, i) => clsBox('cls-' + a.inst, sx + i * (cw + 12), 250, cw, a.cls, '', [], ['+ execute(text)'], ['inheritance', 'polymorphism', 'object']));
+      // inheritance arrows (hollow triangle at base)
+      const busY = 215;
+      subs.forEach((s) => {
+        const p = svg('path', { class: 'rel', d: `M${s.cx},${s.y} L${s.cx},${busY}` }, rels);
+        if (concept === 'inheritance' || concept === 'polymorphism') p.classList.add('hl');
+      });
+      const bus = svg('path', { class: 'rel', d: `M${subs[0].cx},${busY} L${subs[subs.length - 1].cx},${busY} M${base.cx},${busY} L${base.cx},${base.y + base.h}`, 'marker-end': 'url(#tri)' }, rels);
+      if (concept === 'inheritance' || concept === 'polymorphism') bus.classList.add('hl');
+      // workflow with composition diamonds
+      const wf = clsBox('wf', 250, 390, 260, 'ResearchPaperWorkflow', '', ['- agents: list[Agent]'], ['+ run(paper) → list'], ['composition', 'object']);
+      subs.forEach((s) => {
+        const p = svg('path', { class: 'rel', d: `M${Math.max(wf.x + 12, Math.min(wf.x + wf.w - 12, s.cx))},${wf.y} L${s.cx},${s.y + 64}`, 'marker-start': 'url(#dia)' }, rels);
+        if (concept === 'composition') p.classList.add('hl');
+      });
+      const lbl = svg('text', { x: 530, y: 410, class: 'mb', fill: '#7d93c4' }, U); lbl.textContent = '◆ has-a (composition)';
+      const lbl2 = svg('text', { x: base.x + base.w + 10, y: 200, class: 'mb', fill: '#7d93c4' }, U); lbl2.textContent = '△ is-a (inheritance)';
+    }
+
+    /* ---------- Concepts UI ---------- */
+    $('#concepts').innerHTML = Object.entries(CONCEPTS).map(([k, c]) => `<button data-c="${k}">${c.name}</button>`).join('');
+    $$('#concepts button').forEach((b) => b.addEventListener('click', () => {
+      concept = concept === b.dataset.c ? null : b.dataset.c;
+      $$('#concepts button').forEach((x) => x.classList.toggle('on', x.dataset.c === concept));
+      const c = CONCEPTS[concept];
+      $('#explain').innerHTML = icon('info') + (c ? `<div>${c.text}<br><span class="small muted">🎬 Crew analogy: ${c.crew}</span></div>` : '<div>Select a concept chip to highlight it in the UML diagram and the code.</div>');
+      renderAll();
+    }));
+
+    function fillAgentSelect() {
+      const left = EXTRA.filter((e) => !agents.some((a) => a.cls === e.cls));
+      $('#new-agent').innerHTML = left.map((e) => `<option value="${e.cls}">${e.cls} (${e.role})</option>`).join('') || '<option>All agents added</option>';
+      $('#btn-add').disabled = !left.length;
+    }
+    $('#btn-add').addEventListener('click', () => {
+      const e = EXTRA.find((x) => x.cls === $('#new-agent').value);
+      if (!e) return;
+      agents.push(e);
+      fillAgentSelect();
+      resetExec();
+      concept = 'inheritance';
+      $$('#concepts button').forEach((x) => x.classList.toggle('on', x.dataset.c === concept));
+      $('#explain').innerHTML = icon('plus') + `<div><b>${e.cls}</b> added: it <b>inherits</b> from <code>Agent</code> and overrides <code>execute()</code>. The workflow picks it up through composition — no change to <code>run()</code> needed (open/closed principle).</div>`;
+      renderAll();
+    });
+
+    /* ---------- Workflow execution ---------- */
+    function buildSteps() {
+      const S = [
+        { target: 'wf', lines: ['main-new', 'wf-init', 'wf-list'].concat(agents.map((a) => 'new-' + a.inst)), concept: 'composition', chip: 'Composition',
+          log: ['<span class="c-call">workflow = ResearchPaperWorkflow()</span>'].concat(agents.map((a) => `<span class="c-dim">  created ${a.cls}("${a.inst}") object  # ${a.role}</span>`)), prof: 'init' },
+        { target: 'wf', lines: ['main-run', 'run', 'dispatch'], concept: 'polymorphism', chip: 'Polymorphic dispatch', log: ['<span class="c-call">results = workflow.run(paper)</span>', '<span class="c-dim">  for agent in self.agents: agent.execute(paper)</span>'] },
+      ];
+      agents.forEach((a) => {
+        S.push({ target: 'cls-' + a.inst, lines: ['exec-' + a.inst, 'body-' + a.inst, 'dispatch'], concept: 'polymorphism', chip: a.cls + '.execute()', log: [`<span class="c-call">→ ${a.inst}.execute(paper)</span>   <span class="c-dim"># ${a.cls} override</span>`] });
+        S.push({ target: 'agent', lines: ['ask', 'ask-mem', 'ask-call'], concept: 'abstraction', chip: 'ask_llm() — inherited', log: [`<span class="c-dim">    ask_llm("${a.prompt}…")  # inherited from Agent, uses private _llm_client</span>`, `    ${esc(a.out)}`], llm: a.inst });
+      });
+      S.push({ target: null, lines: ['main-run'], concept: null, chip: 'Done', log: ['<span class="c-dim">✓ ' + agents.length + ' results returned · ' + agents.length + ' LLM calls</span>'] });
+      return S;
+    }
+    let steps = buildSteps();
+    let llmCalls = 0;
+
+    function resetExec() {
+      execStep = -1; execTarget = null; execLines = []; llmCalls = 0; steps = buildSteps();
+      $('#console').innerHTML = '<span class="c-dim">$ python agents.py   # press “Step through workflow”</span>';
+      $('#step-chip').textContent = 'not started';
+      $('#btn-step').disabled = false;
+      renderProf();
+    }
+
+    $('#btn-step').addEventListener('click', () => {
+      if (execStep >= steps.length - 1) resetExec();
+      execStep++;
+      const s = steps[execStep];
+      execTarget = s.target; execLines = s.lines;
+      if (s.llm) llmCalls++;
+      if (s.concept) { concept = s.concept; $$('#concepts button').forEach((x) => x.classList.toggle('on', x.dataset.c === concept)); $('#explain').innerHTML = icon('info') + '<div>' + CONCEPTS[s.concept].text + '</div>'; }
+      if (execStep === 0) $('#console').innerHTML = '<span class="c-dim">$ python agents.py</span>';
+      $('#console').innerHTML += '\n' + s.log.join('\n');
+      $('#console').scrollTop = $('#console').scrollHeight;
+      $('#step-chip').textContent = 'step ' + (execStep + 1) + '/' + steps.length + ' · ' + s.chip;
+      renderAll();
+      renderProf();
+    });
+
+    $('#btn-reset').addEventListener('click', () => { agents = BASE_AGENTS.slice(); concept = null; $$('#concepts button').forEach((x) => x.classList.remove('on')); fillAgentSelect(); resetExec(); renderAll(); });
+
+    /* ---------- Profiler (simulated) ---------- */
+    let profTab = 'cprofile';
+    $$('#prof-tab button').forEach((b) => b.addEventListener('click', () => { profTab = b.dataset.t; $$('#prof-tab button').forEach((x) => x.classList.toggle('on', x === b)); renderProf(); }));
+    function renderProf() {
+      const n = Math.max(llmCalls, 0);
+      const el = $('#prof');
+      if (profTab === 'cprofile') {
+        const rows = [
+          ['workflow.run', 1, 0.001, (n * 0.82 + 0.004)],
+          ['Agent.ask_llm', n, 0.002 * n, n * 0.81],
+          ['LLMClient.complete  (HTTP)', n, n * 0.78, n * 0.80],
+          ['json.loads', n, n * 0.012, n * 0.012],
+          ['*.execute', n, 0.001 * n, n * 0.815],
+        ];
+        el.innerHTML = `<table class="tbl"><thead><tr><th>function</th><th>ncalls</th><th>tottime (s)</th><th>cumtime (s)</th></tr></thead><tbody>${rows.map((r) => `<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td>${r[2].toFixed(3)}</td><td>${r[3].toFixed(3)}</td></tr>`).join('')}</tbody></table>
+          <p class="small muted" style="margin-top:8px">${n ? '<b>Bottleneck:</b> network time inside <code>LLMClient.complete</code> (~95% of cumtime). Fix: run independent agents concurrently (asyncio) or cache repeated prompts.' : 'Step through the workflow to collect calls.'}</p>`;
+      } else if (profTab === 'line') {
+        el.innerHTML = `<pre class="code">${esc('Line #  Hits   Time(ms)  % Time  Line contents\n')}${esc(`    10  ${String(n).padStart(4)}   ${(n * 0.01).toFixed(2).padStart(7)}     0.0      self._memory.append(prompt)\n    11  ${String(n).padStart(4)}   ${(n * 800).toFixed(0).padStart(7)}    99.9      return self._llm_client.complete(prompt)`)}</pre><p class="small muted" style="margin-top:8px">Run with <code>kernprof -l -v agents.py</code> after decorating <code>ask_llm</code> with <code>@profile</code>.</p>`;
+      } else {
+        const C = 'mem';
+        el.innerHTML = `<svg id="${C}" viewBox="0 0 400 150" preserveAspectRatio="none"></svg><p class="small muted">Peak during LLM response parsing; <code>_memory</code> grows with every prompt — cap it (e.g. keep last 20) to avoid a leak in long-running agents.</p>`;
+        const M = $('#' + C);
+        const pts = [];
+        let base = 52;
+        for (let i = 0; i <= Math.max(4, n * 4); i++) { const phase = i % 4; base += phase === 0 ? 0.6 : 0; pts.push(base + (phase === 2 ? 14 : phase === 1 ? 4 : 0)); }
+        const max = Math.max(...pts) + 10, min = 40;
+        const y = (v) => 140 - ((v - min) / (max - min)) * 125;
+        svg('polyline', { points: pts.map((v, i) => (i / (pts.length - 1)) * 400 + ',' + y(v)).join(' '), fill: 'none', stroke: '#b18cff', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }, M);
+        const t = svg('text', { x: 6, y: 14, fill: '#8c94a9', style: 'font:10px JetBrains Mono, monospace' }, M); t.textContent = 'MiB · peak ' + Math.max(...pts).toFixed(1);
+      }
+    }
+
+    function renderAll() { renderUML(); renderCode(); }
+    fillAgentSelect();
+    renderAll();
+    renderProf();
+  })();
+  </script>
+</body>
+
+</html>

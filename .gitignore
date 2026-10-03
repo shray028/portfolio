@@ -21,6 +21,8 @@ MFML_htmls/
 
 # Keep interactive HTMLs in the Subject directories
 !Subject_*/interactive/*.html
+!Subject_*/interactive/*.css
+!Subject_*/interactive/*.js
 
 # Keep the RAG illustration
 !Rag_illustration/index.html
