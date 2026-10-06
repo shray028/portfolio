@@ -40,6 +40,17 @@
     .resp.err { border-color: rgba(248, 113, 113, 0.5); }
     .resp .code-line { font: 700 13px var(--font-mono); }
 
+    /* ---------- Scenario brief ---------- */
+    .brief { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px 28px; margin-top: 18px; padding: 18px 20px; }
+    .brief-scenario p { margin-top: 6px; color: var(--text-2); }
+    .brief-key { display: flex; gap: 9px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }
+    .brief-key svg { flex-shrink: 0; margin-top: 2px; color: var(--amber); }
+    .brief-reqs { list-style: none; display: grid; gap: 6px; align-content: center; }
+    .brief-reqs li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }
+    .brief-reqs li svg { color: var(--muted); }
+    .brief-reqs em { font: 600 11px var(--font-mono); font-style: normal; color: var(--blue); text-align: right; }
+    @media (max-width: 900px) { .brief { grid-template-columns: minmax(0, 1fr); } .brief-reqs li { grid-template-columns: 18px minmax(0, 1fr); } .brief-reqs em { grid-column: 2; text-align: left; } }
+
     /* ---------- Step card ---------- */
     .stepcard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0; }
     .stepcard .left { padding: 16px 18px; border-right: 1px solid var(--line); }
@@ -222,8 +233,6 @@
     <div class="wrap">
       <a class="lab-back" href="../../index.html#subjects/seml"><span class="mark">SV</span>Portfolio</a>
       <span class="lab-crumb">/ SEML / Microservices</span>
-      <span class="spacer"></span>
-      <button class="btn btn-sm" id="btn-exam"><i data-icon="book"></i>Exam answer</button>
     </div>
   </header>
 
@@ -234,6 +243,24 @@
       <p class="sub">Interactive Microservices Architecture &amp; Communication Guide</p>
       <p class="desc">Follow one patient request from hospital application to ML prediction, alerting, auditing, logging and
         monitoring. Click any service or arrow to learn <b>what</b> it does, <b>how</b> it communicates and <b>why</b>.</p>
+      <div class="brief card">
+        <div class="brief-scenario">
+          <span class="label">The scenario</span>
+          <p>A hospital wants an <b>early-warning system</b>: a clinician enters a patient's vitals and immediately gets a
+            deterioration risk score. When risk is high the care team is alerted, and every request, prediction and alert is
+            recorded for audit and monitoring.</p>
+          <p class="brief-key"><i data-icon="zap"></i><span><b>Key design idea:</b> the gateway <b>routes</b>, the Prediction Service <b>orchestrates</b> a
+            <b style="color:var(--blue)">synchronous</b> workflow because a clinician is waiting, and alerts, audit and logs happen
+            <b style="color:var(--amber)">asynchronously</b> so they never slow that answer down.</span></p>
+        </div>
+        <ul class="brief-reqs">
+          <li><i data-icon="route"></i><span>One front door that routes each API</span><em>API Gateway</em></li>
+          <li><i data-icon="shield"></i><span>Capture &amp; validate patient vitals</span><em>Patient Service</em></li>
+          <li><i data-icon="brain"></i><span>Turn vitals into a risk score</span><em>Prediction Service → Feature · Inference</em></li>
+          <li><i data-icon="bell"></i><span>Alert the care team on high risk</span><em>Kafka → Notification</em></li>
+          <li><i data-icon="clipboard"></i><span>Record everything for audit &amp; monitoring</span><em>Audit · Logging · Monitoring</em></li>
+        </ul>
+      </div>
       <div class="disclaimer"><i data-icon="info"></i>Educational simulation only — synthetic patients, illustrative scores,
         thresholds and timings. Not a medical device and not clinically meaningful.</div>
     </section>
@@ -323,7 +350,7 @@
       <div class="diagram-wrap">
         <div class="callout-pill" id="callout"></div>
         <div class="svg-scroll">
-          <svg id="arch" viewBox="0 0 1400 664" role="img" aria-label="Microservices architecture diagram">
+          <svg id="arch" viewBox="0 0 1400 810" role="img" aria-label="Microservices architecture diagram">
             <defs>
               <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
                 <feGaussianBlur stdDeviation="4" result="b" />
@@ -380,14 +407,18 @@
     <h2 class="section-title">Synchronous vs asynchronous<small>Which communication fits which job?</small></h2>
     <div class="grid-2">
       <div class="card card-pad cmp">
-        <span class="chip blue" style="justify-self:start">SYNCHRONOUS · REST/HTTPS · gRPC</span>
-        <div class="flow-line"><span>Hospital App</span><em>⇄</em><span>API Gateway</span><em>⇄</em><span>Prediction services</span><em>⇄</em><span>Response</span></div>
-        <p><b>Caller waits.</b> Use when the result is needed immediately to continue.</p>
-        <p class="muted small">Examples: prediction request · validation · inference · risk scoring</p>
+        <span class="chip blue" style="justify-self:start">SYNCHRONOUS · REST (edge) · gRPC (internal)</span>
+        <div class="flow-line"><span>Hospital App</span><em>⇄</em><span>API Gateway</span><em>⇄</em><span>Prediction Service</span></div>
+        <div class="branch" style="border-left-color:rgba(103,232,249,.5)">
+          <div class="flow-line"><em>⇄ gRPC</em><span>Patient Service</span></div>
+          <div class="flow-line"><em>⇄ gRPC</em><span>Feature Service</span></div>
+          <div class="flow-line"><em>⇄ gRPC</em><span>ML Inference</span></div>
+        </div>
+        <p><b>Caller waits.</b> Use when the result is needed immediately to continue. gRPC suits internal, low-latency calls with a typed contract.</p>
       </div>
       <div class="card card-pad cmp">
         <span class="chip amber" style="justify-self:start">ASYNCHRONOUS · KAFKA PUB/SUB</span>
-        <div class="flow-line"><span>Risk Scoring</span><em>→</em><span>Kafka</span></div>
+        <div class="flow-line"><span>Prediction Service</span><em>→</em><span>Kafka</span></div>
         <div class="branch">
           <div class="flow-line"><em>↘</em><span>Notification / Alert</span></div>
           <div class="flow-line"><em>↘</em><span>Audit</span></div>
@@ -414,15 +445,39 @@
       </div>
     </div>
 
-    <h2 class="section-title">Design review — how I'd harden this architecture<small>Suggestions beyond the exam answer</small></h2>
+    <h2 class="section-title">Why an orchestrator instead of a call chain?<small>Gateway routes · orchestrator coordinates</small></h2>
+    <div class="grid-2">
+      <div class="card card-pad cmp">
+        <span class="chip red" style="justify-self:start">ANTI-PATTERN · SYNC CALL CHAIN</span>
+        <div class="flow-line"><span>Gateway</span><em>→</em><span>Intake</span><em>→</em><span>Validation</span><em>→</em><span>Preprocessing</span><em>→</em><span>Inference</span><em>→</em><span>Risk</span></div>
+        <ul class="suggest small" style="padding-left:18px;margin-top:6px">
+          <li>The gateway has nothing to route — every request goes to the same first service.</li>
+          <li>Each service knows who comes next: tight coupling dressed up as decoupling.</li>
+          <li>Five nested hops: a timeout anywhere unwinds the whole stack.</li>
+          <li>Too fine-grained: nobody deploys or scales “Validation” on its own.</li>
+        </ul>
+      </div>
+      <div class="card card-pad cmp">
+        <span class="chip green" style="justify-self:start">THIS DESIGN · ROUTE + ORCHESTRATE</span>
+        <div class="flow-line"><span>Gateway</span><em>→</em><span>Prediction Service</span><em>→</em><span>Patient · Feature · Inference</span></div>
+        <ul class="suggest small" style="padding-left:18px;margin-top:6px">
+          <li>The gateway routes four APIs to four owners: /patients, /predictions, /alerts, /audit.</li>
+          <li>One service owns the workflow; the others never call each other.</li>
+          <li>Timeouts, retries and fallbacks (e.g. cached features) live in one place.</li>
+          <li>Validation is a step <i>inside</i> Patient Service — pipe-and-filter belongs inside a service, not across service boundaries.</li>
+        </ul>
+        <p class="small muted">Honest caveat: the request still depends on every service it calls (≈ 0.99⁵ if each is 99% available) — the fallbacks are what actually improve availability.</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Design review — how I'd harden this architecture<small>What I'd add before running this in production</small></h2>
     <div class="card card-pad">
       <ol class="suggest" style="padding-left:18px">
-        <li><b>Prefer an orchestrator over a long synchronous chain.</b> A <i>Prediction Orchestrator</i> (behind the gateway) calling Validation → Preprocessing → Inference → Risk in turn keeps each service independent; in a pure chain every hop adds latency and one slow service blocks the rest.</li>
         <li><b>Timeouts, retries with back-off and circuit breakers</b> on every synchronous hop, with a safe fallback response (“prediction unavailable — use clinical judgement”) instead of a hanging request.</li>
         <li><b>Transactional outbox</b>: write the prediction and the outgoing <code>risk.high</code> event in the same DB transaction and relay it to Kafka, so an alert is never lost (or sent for a prediction that was never saved).</li>
         <li><b>Idempotency</b>: the gateway's <code>X-Request-ID</code> doubles as an idempotency key; consumers de-duplicate so a redelivered <code>risk.high</code> doesn't page the team twice. Failed messages go to a <b>dead-letter queue</b>.</li>
         <li><b>Minimise patient data (PHI)</b>: replace the name with a pseudonymous <code>patientRef</code> before the ML path — inference never needs a name. Encrypt in transit (mTLS) and at rest; enforce RBAC at the gateway.</li>
-        <li><b>Alert acknowledgement &amp; escalation</b>: Notification tracks whether a clinician acknowledged the alert and escalates if not — delivery alone isn't enough.</li>
+        <li><b>Escalation policy</b>: the demo shows acknowledgement via <code>/alerts</code>; in production, unacknowledged alerts should escalate to the next on-call clinician after a few minutes.</li>
         <li><b>Model monitoring &amp; feedback loop</b>: add a model-monitoring service for data/concept drift and calibration, fed by real outcomes, to trigger retraining and registry promotion.</li>
         <li><b>Observability via telemetry pipelines</b>: metrics are usually scraped (Prometheus) or pushed through an OpenTelemetry collector rather than sent over Kafka; logs are shipped by agents.</li>
         <li><b>Append-only audit store</b> (write-once, tamper-evident) to meet compliance requirements.</li>
@@ -433,7 +488,7 @@
     <details class="card" style="margin-top:16px">
       <summary>Architecture summary</summary>
       <div class="card-pad">
-        <p>The hospital application sends patient demographics and vital signs through an API Gateway. The gateway routes the request through patient intake, validation and preprocessing services. The ML Inference Service retrieves the approved model and generates a deterioration probability. The Risk Scoring Service converts this probability into a risk level, persists the prediction, and returns the result synchronously to the hospital application.</p>
+        <p>The hospital application calls an API Gateway, which authenticates requests and routes each API to the service that owns it: <code>/patients</code> to the Patient Service, <code>/predictions</code> to the Prediction Service, <code>/alerts</code> to the Notification Service and <code>/audit</code> to the Audit Service. For a prediction, the Prediction Service orchestrates the workflow over gRPC: the Patient Service validates and stores the vitals, the Feature Service builds model features (cached in Redis), and the ML Inference Service scores them with the approved model from the Model Registry. The Prediction Service then applies the risk thresholds, persists the result and returns it synchronously.</p>
         <p style="margin-top:10px">Events generated throughout the flow are published asynchronously to Kafka. Notification, audit and logging components consume relevant events independently, and monitoring collects telemetry, ensuring that non-critical background work does not delay the patient prediction response. Redis provides low-latency temporary data access, while databases maintain durable patient, prediction and audit records.</p>
       </div>
     </details>
@@ -453,181 +508,159 @@
   <script>
   (function () {
     'use strict';
-    const { $, $$, svg, icon, iconPaths, json, esc, clock, packet, createRunner, CANCELLED, modal } = Lab;
+    const { $, $$, svg, icon, iconPaths, json, esc, clock, packet, createRunner, CANCELLED } = Lab;
 
     /* ==========================================================
        ARCHITECTURE CONFIG — services, stores, connections, events
+       Gateway ROUTES (4 APIs) · Prediction Service ORCHESTRATES
        ========================================================== */
-    const W = 162, H = 78;
+    const W = 170, H = 78;
     const NODES = [
-      { id: 'hosp', kind: 'actor', icon: 'monitor', lines: ['Hospital', 'Application'], x: 18, y: 150, cat: ['request'],
-        role: 'Client that submits patient demographics and vitals and displays the risk result.',
-        input: 'Clinician / EHR data entry', output: 'HTTP POST /api/v1/patients/predict', comm: 'REST/HTTPS to the API Gateway — synchronous, two-way.',
-        why: 'The clinician needs the prediction now, so the app waits for a response.' },
-      { id: 'gw', icon: 'route', lines: ['API Gateway /', 'Central Routing'], x: 218, y: 150, cat: ['request'],
-        role: 'Single entry point for requests from hospital applications.',
-        input: 'POST /api/v1/patients/predict (JSON)', processing: 'Authenticate & authorise, rate-limit, basic request checks, generate X-Request-ID (correlation ID), route to Patient Intake.',
-        output: 'Routed request with correlation ID', comm: 'Hospital ⇄ Gateway: REST/HTTPS, synchronous. Gateway ⇄ Intake: REST or gRPC.',
-        deps: ['Patient Intake Service'], produces: [], consumes: [],
-        what: 'One controlled front door for every backend service.', how: 'Synchronous REST/HTTPS in, REST/gRPC out.',
-        whyShort: 'Avoids exposing every microservice; centralises auth, rate limiting and routing.',
-        example: 'POST /api/v1/patients/predict\nContent-Type: application/json\nAuthorization: Bearer <token>\nX-Request-ID: req-4812' },
-      { id: 'intake', icon: 'fileInput', lines: ['Patient Intake', 'Service'], x: 418, y: 150, cat: ['request', 'events'],
-        role: 'Receives and structures patient information submitted by the hospital application.',
-        input: 'Patient demographics + vital signs', processing: 'Normalise request structure, attach request metadata, persist the request record, forward for validation.',
-        output: 'Structured patient payload', comm: 'Synchronous from Gateway; DB read/write to Patient Data DB; publishes request.received to Kafka (async).',
-        deps: ['Patient Data DB', 'Validation Service'], produces: ['request.received'], consumes: [], storage: ['Patient Data DB'],
-        what: 'Turns the raw request into a structured, persisted patient payload.', how: 'Sync REST/gRPC in and out; DB write; async event.',
-        whyShort: 'Keeps request handling separate from validation and ML logic.' },
-      { id: 'val', icon: 'shield', lines: ['Validation', 'Service'], x: 618, y: 150, cat: ['request', 'events'],
-        role: 'Checks whether patient data is valid before ML processing.',
-        input: 'Structured patient payload', processing: 'Required fields, types, ranges, missing/invalid values, schema checks.',
-        output: 'Validated data — or HTTP 400 that stops the pipeline early', comm: 'Synchronous; publishes validation.completed / validation.failed (async).',
-        deps: ['Preprocessing Service'], produces: ['validation.completed', 'validation.failed'], consumes: [],
-        what: 'Rejects bad data before it reaches the model.', how: 'Synchronous step in the request path.',
-        whyShort: 'Garbage in → garbage out: an SpO₂ of 140% must never reach inference.' },
-      { id: 'pre', icon: 'sliders', lines: ['Preprocessing /', 'Feature Eng.'], x: 818, y: 150, cat: ['request', 'stores'],
-        role: 'Transforms raw patient information into model-ready numerical features.',
+      { id: 'hosp', kind: 'actor', icon: 'monitor', lines: ['Hospital', 'Application'], x: 18, y: 250, w: 150, cat: ['request'],
+        role: 'Client used by clinicians: submits patient vitals, shows the risk result and lets nurses acknowledge alerts.',
+        input: 'Clinician / EHR data entry', output: 'HTTPS calls to the API Gateway (/predictions, /alerts …)', comm: 'REST/HTTPS to the API Gateway — synchronous, two-way.',
+        whyShort: 'The clinician needs the prediction now, so the app waits for a response.' },
+      { id: 'gw', icon: 'route', lines: ['API Gateway'], tag: 'central routing', x: 210, y: 160, h: 250, cat: ['request'],
+        routes: [['/patients', 374, 224, 'end'], ['/predictions', 374, 294, 'end'], ['/alerts', 238, 400, 'start'], ['/audit', 344, 400, 'end']],
+        role: 'Single entry point that routes each API to the service that owns it.',
+        input: 'All HTTPS requests from hospital applications', processing: 'TLS termination, authentication & authorisation, rate limiting, X-Request-ID (correlation ID), then route by path: /patients → Patient Service, /predictions → Prediction Service, /alerts → Notification Service, /audit → Audit Service.',
+        output: 'Routed request with correlation ID', comm: 'Hospital ⇄ Gateway: REST/HTTPS. Gateway ⇄ backend services: REST, synchronous.',
+        deps: ['Patient Service', 'Prediction Service', 'Notification Service', 'Audit Service'], produces: [], consumes: [],
+        what: 'One controlled front door that routes four business APIs to four services.', how: 'Synchronous REST/HTTPS in, REST out to the owning service.',
+        whyShort: 'Clients see one stable URL with central auth (patient data!) and rate limiting; internal services can change freely behind it.',
+        example: 'POST /api/v1/predictions\nContent-Type: application/json\nAuthorization: Bearer <token>\nX-Request-ID: req-4812' },
+      { id: 'patient', icon: 'fileInput', lines: ['Patient Service'], tag: 'validates + stores', x: 470, y: 40, cat: ['request', 'events'],
+        role: 'Owns patient records and vital signs, including validating them.',
+        input: 'Demographics + vitals (gRPC RecordVitals from the orchestrator, or REST /patients via the gateway)', processing: 'Validates required fields, types and ranges (validation is a step inside this service, not a separate microservice), then stores the record.',
+        output: 'Stored vitals — or INVALID_ARGUMENT, which becomes HTTP 400', comm: 'Sync gRPC / REST in; DB read/write to Patient DB; publishes patient.vitals.recorded or validation.failed (async).',
+        deps: ['Patient DB'], produces: ['patient.vitals.recorded', 'validation.failed'], consumes: [], storage: ['Patient DB'],
+        what: 'The single owner of patient data.', how: 'Synchronous gRPC/REST; publishes events to Kafka.',
+        whyShort: 'Validation and storage of vitals are one business capability — splitting them into separate services adds network hops without independent scaling.' },
+      { id: 'pred', icon: 'gauge', lines: ['Prediction Service'], tag: 'ORCHESTRATOR', x: 470, y: 250, w: 200, h: 100, cat: ['request', 'events', 'stores'],
+        role: 'Owns the prediction workflow: coordinates Patient, Feature and Inference services, then turns the probability into a risk level.',
+        input: 'POST /predictions (patient + vitals)', processing: '1) RecordVitals on Patient Service · 2) BuildFeatures on Feature Service · 3) Predict on ML Inference · 4) apply risk thresholds · 5) persist · 6) publish events.',
+        output: 'Risk score + level + summary', comm: 'REST from the gateway; gRPC to Patient, Feature and Inference services; DB write; publishes prediction.generated and risk.high (async).',
+        deps: ['Patient Service', 'Feature Service', 'ML Inference Service', 'Prediction DB', 'Kafka'], produces: ['prediction.generated', 'risk.high'], consumes: [], storage: ['Prediction DB'],
+        what: 'One service owns the end-to-end prediction workflow.', how: 'Calls each downstream service over gRPC and composes the result (orchestration).',
+        whyShort: 'Downstream services no longer call each other; timeouts, retries and fallbacks live in one place instead of a five-deep call chain.' },
+      { id: 'feat', icon: 'sliders', lines: ['Feature Service'], tag: 'preprocessing', x: 760, y: 170, cat: ['request', 'stores'],
+        role: 'Transforms raw vitals into model-ready numerical features.',
         input: 'Validated vitals', processing: 'Cleaning → missing-value handling → normalisation → feature engineering (e.g. mean arterial pressure) → feature vector.',
-        output: 'Feature vector', comm: 'Synchronous; cache read/write with Redis.', deps: ['Redis Cache', 'ML Inference Service'], storage: ['Redis Cache'],
-        produces: [], consumes: [],
-        what: 'Builds the exact features the model was trained on.', how: 'Sync call to inference; Redis cache-aside.',
-        whyShort: 'Training/serving consistency — the same transformations must run at inference time.' },
-      { id: 'inf', icon: 'brain', lines: ['ML Inference', 'Service'], x: 1018, y: 150, cat: ['request', 'events', 'stores'],
+        output: 'Feature vector', comm: 'gRPC from the orchestrator; Redis cache read/write.', deps: ['Redis Cache'], storage: ['Redis Cache'], produces: [], consumes: [],
+        what: 'Builds exactly the features the model was trained on.', how: 'gRPC request/response; cache-aside with Redis.',
+        whyShort: 'Feature logic is shared by training and serving, so it is versioned and deployed on its own.' },
+      { id: 'inf', icon: 'brain', lines: ['ML Inference', 'Service'], x: 760, y: 330, cat: ['request', 'stores'],
         role: 'Runs the patient deterioration prediction model.',
-        input: 'Preprocessed numerical feature vector', processing: 'Loads the approved model version from the Model Registry and performs inference.',
-        output: 'Deterioration probability (0–1)', comm: 'Synchronous request from Preprocessing; reads model artifacts; Redis read/write; publishes prediction.generated.',
-        deps: ['Redis Cache', 'Model Registry'], produces: ['prediction.generated'], consumes: [], storage: ['Redis Cache', 'Model Registry (read)'],
-        what: 'Scores the patient with PatientDeteriorationModel v3.2.', how: 'Synchronous — Risk Scoring needs the probability before it can respond.',
-        whyShort: 'Isolating inference lets it scale on its own (CPU/GPU) and swap model versions independently.' },
-      { id: 'risk', icon: 'gauge', lines: ['Risk Scoring &', 'Decision'], x: 1218, y: 150, cat: ['request', 'events', 'stores'],
-        role: 'Converts the raw ML probability into an actionable risk level.',
-        input: 'Deterioration probability', processing: 'Applies illustrative thresholds (LOW < 0.40 ≤ MEDIUM < 0.70 ≤ HIGH), builds the prediction object, persists it.',
-        output: 'Risk score + level + summary', comm: 'Synchronous response back to the hospital; DB write; publishes risk.high (async) when HIGH.',
-        deps: ['Prediction & Request DB', 'Kafka'], produces: ['risk.high'], consumes: [], storage: ['Prediction & Request DB'],
-        what: 'Turns a probability into a decision clinicians can act on.', how: 'Sync response; async risk.high event.',
-        whyShort: 'Business rules (thresholds) change separately from the model.' },
+        input: 'Feature vector', processing: 'Loads the approved model version from the Model Registry and performs inference.',
+        output: 'Deterioration probability (0–1)', comm: 'gRPC from the orchestrator; reads model artifacts from the registry.',
+        deps: ['Model Registry'], produces: [], consumes: [], storage: ['Model Registry (read)'],
+        what: 'Scores the patient with PatientDeteriorationModel v3.2.', how: 'Synchronous gRPC — the orchestrator needs the probability before it can respond.',
+        whyShort: 'Inference scales on its own hardware (CPU/GPU) and swaps model versions independently.' },
 
-      { id: 'pdb', kind: 'store', icon: 'database', lines: ['Patient Data DB'], sub: 'durable records', x: 418, y: 22, h: 62, cat: ['stores'],
-        role: 'Persistent patient/request records (system of record).', comm: 'Database read/write from Patient Intake.', whyShort: 'Patient records must survive restarts — durable storage, not a cache.' },
-      { id: 'registry', kind: 'store', icon: 'package', lines: ['Model Registry'], sub: 'v3.2 · Production', x: 1018, y: 22, h: 62, cat: ['stores'],
+      { id: 'pdb', kind: 'store', icon: 'database', lines: ['Patient DB'], sub: 'durable records', x: 720, y: 48, w: 150, h: 62, cat: ['stores'],
+        role: 'Persistent patient records and vitals — owned only by Patient Service (database per service).', comm: 'Database read/write from Patient Service.', whyShort: 'Patient records must survive restarts — durable storage, not a cache.' },
+      { id: 'redis', kind: 'store', icon: 'zap', lines: ['Redis Cache'], sub: 'fast · temporary', x: 990, y: 178, w: 140, h: 62, cat: ['stores'],
+        role: 'In-memory cache for recently computed features (with TTL).', comm: 'Cache read/write from Feature Service.', whyShort: 'Low-latency reuse of features — and a fallback if feature computation is slow — but never the authoritative record.' },
+      { id: 'registry', kind: 'store', icon: 'package', lines: ['Model Registry'], sub: 'v3.2 · Production', x: 990, y: 338, w: 150, h: 62, cat: ['stores'],
         role: 'Stores model versions, artifacts and metadata; marks the approved production model (PatientDeteriorationModel v3.2).',
-        comm: 'Read by ML Inference (model artifact read). Not part of the user request path.', whyShort: 'Inference code and model artifacts evolve independently; enables versioning, rollback and reproducibility.' },
-      { id: 'preddb', kind: 'store', icon: 'database', lines: ['Prediction DB'], sub: 'durable predictions', x: 1218, y: 22, h: 62, cat: ['stores'],
-        role: 'Stores request ID, timestamp, prediction, risk score, risk level and model version.', comm: 'Read/write from Risk Scoring.', whyShort: 'Predictions must be traceable later — durable storage.' },
-      { id: 'redis', kind: 'store', icon: 'zap', lines: ['Redis Cache'], sub: 'fast · temporary', x: 920, y: 262, w: 128, h: 56, cat: ['stores'],
-        role: 'In-memory cache for recent vitals, computed features and prediction context (with TTL).', comm: 'Cache read/write from Preprocessing and Inference.', whyShort: 'Low-latency reuse of features — but never the authoritative record.' },
-
-      { id: 'notif', icon: 'bell', lines: ['Notification /', 'Alert Service'], x: 110, y: 470, h: 72, cat: ['events'],
-        role: 'Sends urgent alerts to the medical team for high-risk patients.', input: 'risk.high events', processing: 'Builds the alert and fans out to channels (app notification, pager, SMS, email).',
-        output: 'Alert to doctors / nurses', comm: 'Consumes risk.high from Kafka (async).', deps: ['Kafka', 'Medical team channels'], produces: [], consumes: ['risk.high'],
-        what: 'Sends urgent alerts.', how: 'Consumes risk.high from Kafka.', whyShort: 'Alert delivery may involve slow external providers and must not block the prediction response.' },
-      { id: 'audit', icon: 'clipboard', lines: ['Audit Service'], x: 480, y: 470, h: 72, cat: ['events'],
-        role: 'Maintains traceable compliance/audit records: who/what/when happened to a patient operation.', input: 'request.received, validation.*, prediction.generated, risk.high',
-        processing: 'Records request ID, timestamp, patient reference, service, action, model version, alert generated.', output: 'Append-only audit entries',
-        comm: 'Kafka → Audit (async); Audit → Audit Log Store (DB write).', deps: ['Kafka', 'Audit Log Store'], produces: [], consumes: ['request.received', 'validation.completed', 'validation.failed', 'prediction.generated', 'risk.high'],
-        what: 'Business/compliance trail.', how: 'Async Kafka consumer.', whyShort: 'Audit = business events for compliance — different from technical debug logs.' },
-      { id: 'logging', icon: 'fileText', lines: ['Activity Logging', 'Service'], x: 850, y: 470, h: 72, cat: ['events', 'observability'],
-        role: 'Stores operational logs useful for debugging and investigation.', input: 'Application/Kafka events and service logs', processing: 'Structures and indexes logs (e.g. ELK / OpenSearch).',
-        output: 'Searchable technical logs', comm: 'Kafka → Logging (async); writes to Central Log Storage.', deps: ['Kafka', 'Central Log Storage'], produces: [], consumes: ['request.received', 'validation.*', 'prediction.generated', 'risk.high'],
-        what: 'Technical diagnostics.', how: 'Async consumer / log shipping.', whyShort: 'Engineers need searchable logs to debug failures across services.' },
-      { id: 'mon', icon: 'activity', lines: ['Monitoring /', 'Observability'], x: 1218, y: 470, h: 72, cat: ['observability'],
-        role: 'Tracks whether the system itself is healthy (latency, error rate, throughput, CPU, memory, Kafka consumer lag).', input: 'Metrics, logs and traces from every service',
-        processing: 'Aggregates telemetry and evaluates alert rules (e.g. Prometheus, Grafana, OpenTelemetry).', output: 'Dashboards and on-call alerts',
-        comm: 'Telemetry (metrics/traces) — outside the business flow.', deps: ['Monitoring Stack'], produces: [], consumes: ['metrics', 'traces'],
+        comm: 'Read by ML Inference (model artifact read). Not on the user request path.', whyShort: 'Model artifacts evolve independently of inference code; enables versioning, rollback and reproducibility.' },
+      { id: 'preddb', kind: 'store', icon: 'database', lines: ['Prediction DB'], sub: 'durable predictions', x: 540, y: 415, w: 140, h: 58, cat: ['stores'],
+        role: 'Stores request ID, timestamp, risk score, risk level and model version.', comm: 'Read/write from Prediction Service.', whyShort: 'Predictions must be traceable later — durable storage.' },
+      { id: 'mon', icon: 'activity', lines: ['Monitoring /', 'Observability'], x: 1210, y: 60, cat: ['observability'],
+        role: 'Tracks whether the system itself is healthy (latency, error rate, throughput, CPU, memory, Kafka consumer lag).', input: 'Metrics and traces from every service',
+        processing: 'Scrapes / receives telemetry and evaluates alert rules (e.g. Prometheus, Grafana, OpenTelemetry).', output: 'Dashboards and on-call alerts',
+        comm: 'Telemetry channel (scrape / OTel push) — separate from Kafka and outside the business flow.', deps: ['Monitoring Stack'], produces: [], consumes: ['metrics', 'traces'],
         what: 'System health.', how: 'Telemetry pipelines (scrape / OTel).', whyShort: 'Business logs alone cannot tell you whether the infrastructure is healthy.' },
+      { id: 'mstack', kind: 'store', icon: 'chart', lines: ['Monitoring Stack'], sub: 'Prometheus · Grafana', x: 1210, y: 200, h: 58, cat: ['observability'],
+        role: 'Time-series metrics, traces, dashboards and alert rules.', comm: 'Receives telemetry from the Monitoring service / collectors.' },
 
-      { id: 'team', kind: 'actor', icon: 'users', lines: ['Medical Team'], sub: 'doctors · nurses', x: 110, y: 590, h: 56, cat: ['events'],
-        role: 'Receives high-risk alerts on app, pager, SMS or email (simulated channels).', comm: 'Push notification from the Notification Service.' },
-      { id: 'astore', kind: 'store', icon: 'database', lines: ['Audit Log Store'], sub: 'append-only', x: 480, y: 590, h: 56, cat: ['stores', 'events'],
+      { id: 'notif', icon: 'bell', lines: ['Notification /', 'Alert Service'], x: 200, y: 620, w: 180, h: 72, cat: ['events', 'request'],
+        role: 'Sends urgent alerts to the medical team and tracks acknowledgement.', input: 'risk.high events; PATCH /alerts/{id} acknowledgements via the gateway',
+        processing: 'Builds the alert, fans out to channels (app notification, pager, SMS, email) and escalates if nobody acknowledges.', output: 'Alert to doctors / nurses',
+        comm: 'Consumes risk.high from Kafka (async); serves /alerts through the gateway (sync); publishes alert.acknowledged.', deps: ['Kafka', 'Medical team channels'], produces: ['alert.acknowledged'], consumes: ['risk.high'],
+        what: 'Sends and tracks urgent alerts.', how: 'Consumes risk.high from Kafka; REST /alerts for acknowledgements.', whyShort: 'Alert delivery involves slow external providers and must never block the prediction response.' },
+      { id: 'audit', icon: 'clipboard', lines: ['Audit Service'], x: 560, y: 620, w: 180, h: 72, cat: ['events', 'request'],
+        role: 'Maintains traceable compliance records: who/what/when happened to a patient operation.', input: 'All business events from Kafka; GET /audit queries via the gateway',
+        processing: 'Records request ID, timestamp, patient reference, service, action, model version and alert status.', output: 'Append-only audit entries',
+        comm: 'Kafka → Audit (async); Audit → Audit DB (write); /audit queries through the gateway (sync).', deps: ['Kafka', 'Audit DB'], produces: [], consumes: ['patient.vitals.recorded', 'validation.failed', 'prediction.generated', 'risk.high', 'alert.acknowledged'],
+        what: 'Business/compliance trail.', how: 'Async Kafka consumer, queried via the gateway.', whyShort: 'Audit = business events for compliance — different from technical debug logs.' },
+      { id: 'logging', icon: 'fileText', lines: ['Activity Logging', 'Service'], x: 920, y: 620, w: 180, h: 72, cat: ['events', 'observability'],
+        role: 'Stores operational logs useful for debugging and investigation.', input: 'Service events and logs', processing: 'Structures and indexes logs (e.g. ELK / OpenSearch).',
+        output: 'Searchable technical logs', comm: 'Kafka → Logging (async); writes to Central Log Storage.', deps: ['Kafka', 'Central Log Storage'], produces: [], consumes: ['all events', 'service.error'],
+        what: 'Technical diagnostics.', how: 'Async consumer / log shipping.', whyShort: 'Engineers need searchable logs to debug failures across services.' },
+
+      { id: 'team', kind: 'actor', icon: 'users', lines: ['Medical Team'], sub: 'doctors · nurses', x: 200, y: 740, w: 180, h: 56, cat: ['events'],
+        role: 'Receives high-risk alerts on app, pager, SMS or email (simulated channels) and acknowledges them.', comm: 'Push notification from the Notification Service.' },
+      { id: 'astore', kind: 'store', icon: 'database', lines: ['Audit DB'], sub: 'append-only', x: 560, y: 740, w: 180, h: 56, cat: ['stores', 'events'],
         role: 'Durable, append-only audit records.', comm: 'Written by the Audit Service.' },
-      { id: 'logs', kind: 'store', icon: 'database', lines: ['Central Logs'], sub: 'ELK / OpenSearch', x: 850, y: 590, h: 56, cat: ['stores', 'observability'],
+      { id: 'logs', kind: 'store', icon: 'database', lines: ['Central Logs'], sub: 'ELK / OpenSearch', x: 920, y: 740, w: 180, h: 56, cat: ['stores', 'observability'],
         role: 'Searchable store of technical logs.', comm: 'Written by the Activity Logging Service.' },
-      { id: 'mstack', kind: 'store', icon: 'chart', lines: ['Monitoring Stack'], sub: 'Prometheus · Grafana', x: 1218, y: 590, h: 56, cat: ['observability'],
-        role: 'Time-series metrics, dashboards and alert rules.', comm: 'Receives telemetry from the Monitoring service / collectors.' },
     ];
     const NODE = Object.fromEntries(NODES.map((n) => [n.id, Object.assign({ w: W, h: H, kind: 'service' }, n)]));
-    Object.values(NODE).forEach((n) => { n.cx = n.x + n.w / 2; n.cy = n.y + n.h / 2; n.name = n.lines.join(' ').replace('/ ', '/ ').replace(/\s+/g, ' '); });
-    NODE.gw.name = 'API Gateway / Central Routing Service';
-    NODE.pre.name = 'Preprocessing / Feature Engineering Service';
-    NODE.risk.name = 'Risk Scoring & Decision Service';
+    Object.values(NODE).forEach((n) => { n.cx = n.x + n.w / 2; n.cy = n.y + n.h / 2; n.name = n.lines.join(' ').replace(/\s+/g, ' '); });
+    NODE.gw.name = 'API Gateway / Central Routing';
+    NODE.pred.name = 'Prediction Service (orchestrator)';
+    NODE.feat.name = 'Feature / Preprocessing Service';
     NODE.mon.name = 'Monitoring / Observability Service';
     NODE.notif.name = 'Notification / Alert Service';
-    NODE.preddb.name = 'Prediction & Request DB';
     NODE.logs.name = 'Central Log Storage';
     NODE.logging.name = 'Activity Logging Service';
 
-    const KAFKA = { id: 'kafka', x: 18, y: 350, w: 1362, h: 64 };
-    const TOPICS = ['request.received', 'validation.completed', 'validation.failed', 'prediction.generated', 'risk.high', 'audit.event', 'service.error', 'system.metric'];
+    const KAFKA = { id: 'kafka', x: 18, y: 500, w: 1362, h: 64 };
+    const TOPICS = ['patient.vitals.recorded', 'validation.failed', 'prediction.generated', 'risk.high', 'alert.acknowledged', 'service.error'];
 
     const TYPES = {
-      sync: { color: '#5fb3f9', dash: '', label: 'Synchronous request / response', two: true },
+      sync: { color: '#5fb3f9', dash: '', label: 'Synchronous REST (gateway routes)', two: true },
+      grpc: { color: '#67e8f9', dash: '', label: 'Synchronous gRPC (orchestrator → service)', two: true },
       async: { color: '#fb923c', dash: '6 5', label: 'Asynchronous event (Kafka)' },
       db: { color: '#7d93c4', dash: '', label: 'Database read / write', two: true },
       cache: { color: '#4ade80', dash: '', label: 'Redis cache read / write', two: true },
       model: { color: '#7d93c4', dash: '2 4', label: 'Model artifact read' },
-      tel: { color: '#b18cff', dash: '2 5', label: 'Logs / metrics / traces (telemetry)' },
+      tel: { color: '#b18cff', dash: '2 5', label: 'Metrics / traces (telemetry)' },
       alert: { color: '#f87171', dash: '6 4', label: 'Alert push' },
     };
 
-    const B = (n) => n.y + n.h; // bottom y
     const E = [
-      // synchronous request path
-      ['hosp-gw', 'hosp', 'gw', 'sync', 'REST/HTTPS', ['request'], 'The hospital needs an immediate prediction, so it sends an HTTPS request and waits for the response.'],
-      ['gw-intake', 'gw', 'intake', 'sync', 'REST/gRPC', ['request'], 'The gateway forwards the authenticated request and waits — the result must flow back to the same caller.'],
-      ['intake-val', 'intake', 'val', 'sync', 'REST/gRPC', ['request'], 'Validation must finish before any processing can continue.'],
-      ['val-pre', 'val', 'pre', 'sync', 'REST/gRPC', ['request'], 'The next processing stage requires validated data before continuing.'],
-      ['pre-inf', 'pre', 'inf', 'sync', 'REST/gRPC', ['request'], 'Inference cannot run without the feature vector.'],
-      ['inf-risk', 'inf', 'risk', 'sync', 'REST/gRPC', ['request'], 'Risk Scoring needs the probability before it can respond to the hospital.'],
+      // client + gateway routes (REST)
+      ['hosp-gw', 'hosp', 'gw', 'sync', 'REST/HTTPS', ['request'], 'The hospital app needs an immediate answer, so it sends an HTTPS request and waits.', [[168, 289], [210, 289]]],
+      ['gw-pred', 'gw', 'pred', 'sync', '/predictions', ['request'], 'The gateway routes prediction requests to the service that owns the prediction workflow.', [[380, 300], [470, 300]]],
+      ['gw-patient', 'gw', 'patient', 'sync', '/patients', ['request'], 'Patient record operations (register, view history) go straight to the Patient Service.', [[380, 230], [425, 230], [425, 79], [470, 79]]],
+      ['gw-alerts', 'gw', 'notif', 'sync', '/alerts', ['request', 'events'], 'Clinicians view and acknowledge alerts through the gateway; it routes /alerts to the Notification Service.', [[232, 410], [232, 620]]],
+      ['gw-audit', 'gw', 'audit', 'sync', '/audit', ['request', 'events'], 'Compliance officers query the audit trail; the gateway routes /audit to the Audit Service.', [[350, 410], [350, 592], [600, 592], [600, 620]]],
+      // orchestration (gRPC)
+      ['pred-patient', 'pred', 'patient', 'grpc', 'RecordVitals', ['request'], 'The orchestrator asks the Patient Service to validate and store the vitals; nothing else can start until they are valid.', [[560, 250], [560, 118]]],
+      ['pred-feat', 'pred', 'feat', 'grpc', 'BuildFeatures', ['request'], 'Internal, low-latency call with a typed contract (protobuf) — a good fit for gRPC.', [[670, 280], [712, 280], [712, 209], [760, 209]]],
+      ['pred-inf', 'pred', 'inf', 'grpc', 'Predict', ['request'], 'The orchestrator needs the probability before it can respond, so this call is synchronous.', [[670, 325], [728, 325], [728, 369], [760, 369]]],
       // storage
-      ['intake-pdb', 'intake', 'pdb', 'db', 'read/write', ['stores'], 'Patient/request records must be durable.'],
-      ['risk-preddb', 'risk', 'preddb', 'db', 'read/write', ['stores'], 'Predictions are persisted for traceability and later review.'],
-      ['pre-redis', 'pre', 'redis', 'cache', 'GET/SET', ['stores'], 'Recently computed features are cached for low-latency reuse.'],
-      ['inf-redis', 'inf', 'redis', 'cache', 'GET/SET', ['stores'], 'Prediction context is cached for fast follow-up requests.'],
-      ['reg-inf', 'registry', 'inf', 'model', 'read model', ['stores'], 'Inference loads the approved model artifact; the registry is not on the user request path.'],
+      ['patient-pdb', 'patient', 'pdb', 'db', 'read/write', ['stores'], 'Only the Patient Service touches the Patient DB (database per service).', [[650, 79], [720, 79]]],
+      ['pred-preddb', 'pred', 'preddb', 'db', 'read/write', ['stores'], 'Predictions are persisted for traceability and later review.', [[610, 350], [610, 415]]],
+      ['feat-redis', 'feat', 'redis', 'cache', 'GET/SET', ['stores'], 'Recently computed features are cached for low-latency reuse.', [[930, 209], [990, 209]]],
+      ['reg-inf', 'registry', 'inf', 'model', 'read model', ['stores'], 'Inference loads the approved model artifact; the registry is not on the user request path.', [[990, 369], [930, 369]]],
       // async producers
-      ['intake-k', 'intake', 'kafka', 'async', 'request.received', ['events'], 'Recording that a request arrived must not slow the request down.'],
-      ['val-k', 'val', 'kafka', 'async', 'validation.*', ['events'], 'Validation outcomes (including failures) are recorded in the background.'],
-      ['inf-k', 'inf', 'kafka', 'async', 'prediction.generated', ['events'], 'Downstream consumers learn about predictions without being called directly.'],
-      ['risk-k', 'risk', 'kafka', 'async', 'risk.high', ['events'], 'Risk prediction does not need to wait for downstream notification delivery.'],
+      ['patient-k', 'patient', 'kafka', 'async', 'patient.vitals.*', ['events'], 'Recording that vitals arrived (or were rejected) must not slow the request down.', [[470, 104], [446, 104], [446, 500]]],
+      ['pred-k', 'pred', 'kafka', 'async', 'prediction · risk.high', ['events'], 'The orchestrator publishes outcomes and moves on — it never waits for alert delivery.', [[505, 350], [505, 500]]],
+      ['notif-k', 'notif', 'kafka', 'async', 'alert.acknowledged', ['events'], 'Acknowledgements are recorded in the audit trail without coupling Notification to Audit.', [[262, 620], [262, 564]]],
       // async consumers
-      ['k-notif', 'kafka', 'notif', 'async', 'risk.high', ['events'], 'Alerting is an asynchronous side effect — a slow SMS provider must not delay the prediction.'],
-      ['k-audit', 'kafka', 'audit', 'async', 'audit events', ['events'], 'Audit consumes events independently; it can catch up even if it was briefly down.'],
-      ['k-log', 'kafka', 'logging', 'async', 'app events', ['events', 'observability'], 'Logging consumes events independently of the request.'],
-      ['notif-team', 'notif', 'team', 'alert', 'app · pager · SMS', ['events'], 'Alerts are pushed to clinicians over multiple channels.'],
-      ['audit-astore', 'audit', 'astore', 'db', 'append', ['stores', 'events'], 'Audit entries are written to durable, append-only storage.'],
-      ['log-logs', 'logging', 'logs', 'db', 'index', ['stores', 'observability'], 'Logs are indexed for search.'],
-      ['tel-mon', 'risk', 'mon', 'tel', 'metrics · traces', ['observability'], 'Every service emits telemetry; monitoring observes the system from outside the business flow.'],
-      ['mon-mstack', 'mon', 'mstack', 'tel', 'store', ['observability'], 'Metrics are stored for dashboards and alert rules.'],
+      ['k-notif', 'kafka', 'notif', 'async', 'risk.high', ['events'], 'Alerting is an asynchronous side effect — a slow SMS provider must not delay the prediction.', [[322, 564], [322, 620]]],
+      ['k-audit', 'kafka', 'audit', 'async', 'all events', ['events'], 'Audit consumes events independently; it can catch up even if it was briefly down.', [[710, 564], [710, 620]]],
+      ['k-log', 'kafka', 'logging', 'async', 'all events', ['events', 'observability'], 'Logging consumes events independently of the request.', [[1010, 564], [1010, 620]]],
+      ['notif-team', 'notif', 'team', 'alert', 'app · pager · SMS', ['events'], 'Alerts are pushed to clinicians over multiple channels.', [[290, 692], [290, 740]]],
+      ['audit-astore', 'audit', 'astore', 'db', 'append', ['stores', 'events'], 'Audit entries are written to durable, append-only storage.', [[650, 692], [650, 740]]],
+      ['log-logs', 'logging', 'logs', 'db', 'index', ['stores', 'observability'], 'Logs are indexed for search.', [[1010, 692], [1010, 740]]],
+      // telemetry (separate channel)
+      ['tel-mon', 'feat', 'mon', 'tel', 'metrics · traces', ['observability'], 'Every service emits metrics and traces on a separate telemetry channel; monitoring observes the system from outside the business flow.', [[900, 170], [900, 22], [1295, 22], [1295, 60]]],
+      ['mon-mstack', 'mon', 'mstack', 'tel', 'store', ['observability'], 'Metrics are stored for dashboards and alert rules.', [[1295, 138], [1295, 200]]],
     ];
-
-    function edgePoints(id, a, b) {
-      const n1 = NODE[a], n2 = NODE[b];
-      switch (id) {
-        case 'intake-pdb': return [[n1.cx, n1.y], [n2.cx, B(n2)]];
-        case 'risk-preddb': return [[n1.cx, n1.y], [n2.cx, B(n2)]];
-        case 'reg-inf': return [[n1.cx, B(n1)], [n2.cx, n2.y]];
-        case 'pre-redis': return [[n1.x + 52, B(n1)], [n1.x + 52, n2.cy], [n2.x, n2.cy]];
-        case 'inf-redis': return [[n1.x + 50, B(n1)], [n1.x + 50, n2.cy], [n2.x + n2.w, n2.cy]];
-        case 'intake-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
-        case 'val-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
-        case 'inf-k': return [[n1.x + 132, B(n1)], [n1.x + 132, KAFKA.y]];
-        case 'risk-k': return [[n1.cx, B(n1)], [n1.cx, KAFKA.y]];
-        case 'k-notif': case 'k-audit': case 'k-log': return [[n2.cx, KAFKA.y + KAFKA.h], [n2.cx, n2.y]];
-        case 'notif-team': case 'audit-astore': case 'log-logs': case 'mon-mstack': return [[n1.cx, B(n1)], [n2.cx, n2.y]];
-        case 'tel-mon': return [[n1.x + n1.w, n1.cy + 18], [1392, n1.cy + 18], [1392, n2.cy], [n2.x + n2.w, n2.cy]];
-        default: return [[n1.x + n1.w, n1.cy], [n2.x, n2.cy]]; // horizontal sync hop
-      }
-    }
-    const EDGES = E.map(([id, from, to, type, label, cat, why]) => ({ id, from, to, type, label, cat, why, pts: edgePoints(id, from, to) }));
+    const EDGES = E.map(([id, from, to, type, label, cat, why, pts]) => ({ id, from, to, type, label, cat, why, pts }));
     const EDGE = Object.fromEntries(EDGES.map((e) => [e.id, e]));
+    const EDGE_LABELS = { 'hosp-gw': [189, 282, 'middle'], 'pred-patient': [566, 190, 'start'], 'pred-feat': [674, 272, 'start'], 'pred-inf': [674, 340, 'start'], 'patient-k': [452, 232, 'start'], 'pred-k': [511, 488, 'start'], 'reg-inf': [960, 392, 'middle'], 'tel-mon': [1100, 16, 'middle'] };
 
     const EVENT_INFO = {
-      'request.received': { producer: 'Patient Intake', consumers: ['Audit', 'Logging'] },
-      'validation.completed': { producer: 'Validation', consumers: ['Audit', 'Logging'] },
-      'validation.failed': { producer: 'Validation', consumers: ['Audit', 'Logging'] },
-      'prediction.generated': { producer: 'ML Inference', consumers: ['Audit', 'Logging'] },
-      'risk.high': { producer: 'Risk Scoring', consumers: ['Notification', 'Audit', 'Logging'] },
+      'patient.vitals.recorded': { producer: 'Patient Service', consumers: ['Audit', 'Logging'] },
+      'validation.failed': { producer: 'Patient Service', consumers: ['Audit', 'Logging'] },
+      'prediction.generated': { producer: 'Prediction Service', consumers: ['Audit', 'Logging'] },
+      'risk.high': { producer: 'Prediction Service', consumers: ['Notification', 'Audit', 'Logging'] },
+      'alert.acknowledged': { producer: 'Notification Service', consumers: ['Audit'] },
     };
 
     /* ==========================================================
@@ -725,19 +758,20 @@
       if (t.two) ln.setAttribute('marker-start', 'url(#m-' + e.type + '-start)');
       e.path = ln;
       // labels for producer/consumer edges & a few key ones
-      const lbl = { 'hosp-gw': [118 + 81, 138], 'intake-k': [NODE.intake.cx + 6, 290], 'val-k': [NODE.val.cx + 6, 290], 'inf-k': [NODE.inf.x + 138, 336], 'risk-k': [NODE.risk.cx + 6, 290], 'reg-inf': [NODE.inf.cx + 6, 120], 'tel-mon': [1386, 448] }[e.id];
+      const lbl = EDGE_LABELS[e.id];
       if (lbl) {
-        const tx = svg('text', { class: 'edge-lbl', x: lbl[0], y: lbl[1], fill: t.color, 'text-anchor': e.id === 'hosp-gw' ? 'middle' : e.id === 'tel-mon' ? 'end' : 'start' }, g);
-        tx.textContent = e.id === 'tel-mon' ? 'telemetry' : e.label;
+        const tx = svg('text', { class: 'edge-lbl', x: lbl[0], y: lbl[1], fill: t.color, 'text-anchor': lbl[2] }, g);
+        tx.textContent = e.id === 'tel-mon' ? 'telemetry (OTel / scrape) — every service' : e.id === 'hosp-gw' ? 'HTTPS' : e.label;
       }
       g.addEventListener('click', () => inspectEdge(e.id));
       g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); inspectEdge(e.id); } });
       edgeEls[e.id] = g;
     });
 
-    // band label for sync path
-    const bl = svg('text', { x: 318, y: 138, fill: '#5fb3f9', class: 'edge-lbl' }, LE);
-    bl.textContent = 'SYNC REQUEST PATH · REST/gRPC · caller waits';
+    // Prediction workflow boundary (orchestrated by the Prediction Service)
+    svg('rect', { x: 456, y: 150, width: 700, height: 282, rx: 18, fill: 'none', stroke: '#2a3a52', 'stroke-dasharray': '4 6' }, LB);
+    const bl = svg('text', { x: 1146, y: 426, 'text-anchor': 'end', fill: '#67e8f9', class: 'edge-lbl' }, LB);
+    bl.textContent = 'PREDICTION WORKFLOW · orchestrated over gRPC';
 
     // Kafka bus
     const busG = svg('g', { class: 'node kind-bus', 'data-id': 'kafka', tabindex: 0, role: 'button', 'aria-label': 'Kafka Event Bus' }, LB);
@@ -778,7 +812,19 @@
         const t = svg('text', { class: 'nm', x: lx, y: n.y + (n.h > 60 ? 26 : 24) + i * 15 }, g);
         t.textContent = ln;
       });
-      const stY = n.y + n.h - 11;
+      if (n.tag) {
+        const tg = svg('text', { class: 'st', x: lx, y: n.y + 26 + n.lines.length * 15, fill: n.id === 'pred' ? '#67e8f9' : '#8c94a9' }, g);
+        tg.textContent = n.tag;
+      }
+      (n.routes || []).forEach(([r, rx, ry, anchor]) => {
+        const rt = svg('text', { class: 'edge-lbl', x: rx, y: ry, 'text-anchor': anchor, fill: '#5fb3f9' }, g);
+        rt.textContent = r;
+      });
+      if (n.routes) {
+        const rh = svg('text', { class: 'st', x: n.x + 12, y: n.y + 120 }, g);
+        rh.textContent = 'routes by path →';
+      }
+      const stY = n.routes ? n.y + 70 : n.y + n.h - 11;
       const st = svg('text', { class: 'st', x: n.x + 12, y: stY }, g);
       st.textContent = n.sub || (n.kind === 'service' ? 'idle' : '');
       n.subDefault = st.textContent;
@@ -809,11 +855,12 @@
       `<span><svg viewBox="0 0 34 10"><line x1="2" y1="5" x2="30" y2="5" stroke="${t.color}" stroke-width="2.4" stroke-dasharray="${t.dash}"/><path d="M27,1 L33,5 L27,9 z" fill="${t.color}"/>${t.two ? `<path d="M7,1 L1,5 L7,9 z" fill="${t.color}"/>` : ''}</svg>${t.label}</span>`).join('');
 
     // Mobile vertical list
-    const MOBILE = [['hosp', 'gw', 'intake', 'val', 'pre', 'inf', 'risk'], ['kafka', 'notif', 'team', 'audit', 'logging', 'mon']];
+    const MOBILE = [['hosp', 'gw', 'pred'], ['patient', 'feat', 'inf'], ['kafka', 'notif', 'team', 'audit', 'logging', 'mon']];
     $('#mobile-flow').innerHTML =
-      '<div class="mf-sep">SYNCHRONOUS REQUEST PATH</div>' +
-      MOBILE[0].map((id, i) => (i ? '<div class="mf-arrow">⇅ REST/gRPC</div>' : '') + mfItem(id)).join('') +
-      '<div class="mf-sep">ASYNCHRONOUS BACKGROUND (KAFKA / TELEMETRY)</div>' + MOBILE[1].map(mfItem).join('');
+      '<div class="mf-sep">SYNCHRONOUS — GATEWAY ROUTES /predictions</div>' +
+      MOBILE[0].map((id, i) => (i ? '<div class="mf-arrow">⇅ REST</div>' : '') + mfItem(id)).join('') +
+      '<div class="mf-sep">ORCHESTRATOR CALLS EACH SERVICE (gRPC)</div>' + MOBILE[1].map(mfItem).join('') +
+      '<div class="mf-sep">ASYNCHRONOUS BACKGROUND (KAFKA / TELEMETRY)</div>' + MOBILE[2].map(mfItem).join('');
     function mfItem(id) {
       const n = NODE[id] || { name: 'Kafka Event Bus', icon: 'network' };
       return `<button class="mf-item" data-id="${id}">${icon(n.icon)}<span>${esc(n.name)}</span><span class="s"></span></button>`;
@@ -914,7 +961,10 @@
       const st = S.stage;
       if (!st) return;
       if (st.type === 'gateway') {
-        el.innerHTML = `<pre class="code">${esc(NODE.gw.example.replace('req-4812', S.reqId))}</pre><div class="checklist" style="margin-top:8px">${['Authenticated (bearer token)', 'Authorised for /predict', 'Rate limit OK', 'Correlation ID ' + S.reqId + ' attached'].map((c) => `<div class="ok">${icon('check')}${c}</div>`).join('')}</div>`;
+        const routes = [['/api/v1/predictions', 'prediction-service', true], ['/api/v1/patients/**', 'patient-service'], ['/api/v1/alerts/**', 'notification-service'], ['/api/v1/audit/**', 'audit-service']];
+        el.innerHTML = `<div class="checklist">${['TLS terminated · bearer token valid', 'Rate limit OK', 'Correlation ID ' + S.reqId + ' attached'].map((c) => `<div class="ok">${icon('check')}${c}</div>`).join('')}</div>
+          <div class="label" style="margin:10px 0 6px">Routing table</div>
+          <table class="tbl">${routes.map(([r, svc, on]) => `<tr${on ? ' class="sel"' : ''}><td><code>${r}</code></td><td>→ ${svc}${on ? ' <span class="chip blue">this request</span>' : ''}</td></tr>`).join('')}</table>`;
       } else if (st.type === 'payload') {
         el.innerHTML = '<div class="label" style="margin-bottom:6px">Structured payload</div><pre class="code">' + json(st.payload) + '</pre>';
       } else if (st.type === 'validation') {
@@ -1026,127 +1076,133 @@
       const lvl = level(score);
       const high = lvl === 'HIGH';
       const f = valid ? features(p) : null;
-      const payload = { patientName: p.patientName, age: p.age, gender: p.gender, heartRate: p.heartRate, bloodPressure: p.bloodPressure, temperature: p.temperature, oxygenSaturation: p.oxygenSaturation };
       const summary = high ? 'Elevated deterioration risk detected.' : lvl === 'MEDIUM' ? 'Moderate risk — continue close observation.' : 'No elevated deterioration risk detected.';
       const prediction = { riskScore: score, riskLevel: lvl, modelVersion: 'v3.2', summary };
       const failed = checks.filter((c) => !c.ok);
+      const alertId = 'alert-' + S.reqId.slice(4);
+      const orchPlan = (done) => '<div class="label" style="margin-bottom:6px">Prediction Service — orchestration plan</div><div class="checklist">' +
+        ['RecordVitals → Patient Service', 'BuildFeatures → Feature Service', 'Predict → ML Inference', 'Apply risk thresholds', 'Persist + publish events'].map((s, i) =>
+          i < done ? `<div class="ok">${icon('check')}${s}</div>` : `<div class="dim">${icon('clock')}${s}</div>`).join('') + '</div>';
 
       const common = [
-        { t: 0, title: 'Hospital sends patient data', focus: ['hosp', 'gw'], comm: 'REST/HTTPS · synchronous', why: 'The clinician needs a result now, so the app waits for the response.',
-          text: 'The hospital application POSTs patient demographics and vitals to the API Gateway and <b>waits</b>.',
-          run: async (c) => { c.set('hosp', 'active', 'sending…'); c.trace('Hospital App', 'POST /api/v1/patients/predict', 'info', { tl: 'Hospital request' }); c.callout('sync', 'SYNC — caller is waiting'); await c.anim('hosp-gw', 'HTTP POST'); c.set('hosp', 'active', 'waiting for response…'); } },
-        { t: 4, title: 'API Gateway routes the request', focus: ['gw', 'intake'], comm: 'Gateway ⇄ Intake · REST/gRPC · synchronous', why: 'One controlled entry point handles auth, rate limiting and correlation IDs instead of exposing every service.',
-          text: 'The gateway authenticates, rate-limits, attaches <code>X-Request-ID</code> and forwards the request.',
-          run: async (c) => { c.set('gw', 'active', 'auth · rate limit'); c.stage({ type: 'gateway' }); c.trace('API Gateway', 'Request received · ' + S.reqId + ' assigned', 'info', { tl: 'API Gateway' }); await c.wait(500); await c.anim('gw-intake', 'Patient JSON'); c.set('gw', 'success', 'routed'); } },
-        { t: 10, title: 'Intake Service receives the request', focus: ['intake', 'kafka'], comm: 'Synchronous in · async request.received out', why: 'Publishing request.received lets audit and logging react without slowing the request.',
-          text: 'Patient Intake normalises the payload and attaches metadata. It publishes <code>request.received</code> to Kafka and <b>continues immediately</b>.',
-          run: async (c) => { c.set('intake', 'active', 'payload accepted'); c.stage({ type: 'payload', payload }); c.trace('Patient Intake', 'Patient payload accepted', 'info', { tl: 'Patient Intake' }); c.publish('request.received', 'intake', 'intake-k', { source: 'hospital-app' }); await c.wait(600); } },
-        { t: 14, title: 'Patient record is stored', focus: ['intake', 'pdb'], comm: 'Database read/write', why: 'Patient and request data must be durable — it has to survive restarts.',
-          text: 'Intake persists the request/patient record in the <b>Patient Data DB</b>.',
-          run: async (c) => { c.callout('db', 'DURABLE STORAGE'); await c.anim('intake-pdb', 'INSERT'); c.set('pdb', 'success', 'record stored'); c.trace('Patient Data DB', 'Patient/request record stored', 'ok', { tl: 'Patient DB write' }); } },
+        { t: 0, title: 'Hospital requests a prediction', focus: ['hosp', 'gw'], comm: 'REST/HTTPS · synchronous', why: 'The clinician needs a result now, so the app waits for the response.',
+          text: 'The hospital app sends <code>POST /api/v1/predictions</code> with the patient\'s demographics and vitals, then <b>waits</b>.',
+          run: async (c) => { c.set('hosp', 'active', 'sending…'); c.trace('Hospital App', 'POST /api/v1/predictions', 'info', { tl: 'Hospital request' }); c.callout('sync', 'SYNC — caller is waiting'); await c.anim('hosp-gw', 'HTTP POST'); c.set('hosp', 'active', 'waiting for response…'); } },
+        { t: 4, title: 'API Gateway routes /predictions', focus: ['gw', 'pred', 'patient', 'notif', 'audit'], comm: 'REST · synchronous', why: 'The gateway owns cross-cutting concerns (auth, rate limits, correlation IDs) and routes each API to the service that owns it.',
+          text: 'The gateway authenticates the caller, attaches <code>X-Request-ID</code> and matches the path: <code>/predictions</code> goes to the <b>Prediction Service</b>. (<code>/patients</code>, <code>/alerts</code> and <code>/audit</code> would go to other services.)',
+          run: async (c) => { c.set('gw', 'active', 'auth · route'); c.stage({ type: 'gateway' }); c.trace('API Gateway', 'Authenticated · route /predictions → prediction-service · ' + S.reqId, 'info', { tl: 'API Gateway' }); await c.wait(500); await c.anim('gw-pred', 'Patient JSON'); c.set('gw', 'success', 'routed'); } },
+        { t: 8, title: 'Orchestrator asks Patient Service to validate', focus: ['pred', 'patient'], comm: 'gRPC RecordVitals · synchronous', why: 'Validation belongs to the service that owns patient data; nothing else may start until the vitals are valid.',
+          text: 'The <b>Prediction Service</b> starts its workflow and calls <code>PatientService.RecordVitals</code>. Patient Service validates every field and range.',
+          run: async (c) => {
+            c.set('pred', 'active', 'orchestrating…');
+            c.stage({ type: 'html', html: orchPlan(0) });
+            await c.anim('pred-patient', 'RecordVitals');
+            c.set('patient', 'active', 'validating…');
+            c.stage({ type: 'validation', checks, failed: !valid });
+            await c.wait(900);
+            if (valid) { c.set('patient', 'active', '✓ valid'); c.trace('Patient Service', 'Validation passed — all checks OK', 'ok', { tl: 'Patient validation' }); }
+            else {
+              c.set('patient', 'error', 'INVALID_ARGUMENT');
+              c.callout('err', 'VALIDATION FAILED — workflow stops');
+              c.trace('Patient Service', 'Validation failed: ' + failed.map((x) => x.field).join(', '), 'err', { tl: 'Patient validation (failed)' });
+            }
+          } },
       ];
 
       if (!valid) {
         return common.concat([
-          { t: 18, title: 'Validation detects invalid data', focus: ['intake', 'val'], comm: 'Synchronous', why: 'Invalid values must never reach the model — and the caller deserves a clear error immediately.',
-            text: 'The Validation Service checks fields and ranges and finds: <b>' + failed.map((x) => x.field + ' ' + esc(x.bad)).join('; ') + '</b>.',
+          { t: 14, title: 'Workflow stops — HTTP 400 returned', focus: ['hosp', 'gw', 'pred', 'patient', 'feat', 'inf'], comm: 'gRPC error → REST 400 (right → left)', why: 'The orchestrator decides what happens on failure: no feature building or inference is wasted on bad data.',
+            text: 'Patient Service returns <code>INVALID_ARGUMENT</code>; the orchestrator maps it to <b>HTTP 400</b>. Feature building and inference <b>never run</b>.',
             run: async (c) => {
-              c.set('intake', 'success', 'forwarded');
-              await c.anim('intake-val', 'Patient JSON');
-              c.set('val', 'active', 'validating…');
-              c.stage({ type: 'validation', checks, failed: true });
-              await c.wait(900);
-              c.set('val', 'error', 'VALIDATION FAILED');
-              c.callout('err', 'VALIDATION FAILED — pipeline stops');
-              ['pre', 'inf', 'risk'].forEach((id) => c.set(id, 'skipped', 'skipped'));
-              c.trace('Validation', 'Validation failed: ' + failed.map((x) => x.field).join(', '), 'err', { tl: 'Validation (failed)' });
-            } },
-          { t: 26, title: 'HTTP 400 returned — no prediction', focus: ['hosp', 'gw', 'intake', 'val'], comm: 'Synchronous response (right → left)', why: 'The synchronous pipeline can terminate early; the caller gets an actionable error instead of waiting.',
-            text: 'The error travels back through Intake and the Gateway. <b>Preprocessing, inference and risk scoring never run.</b>',
-            run: async (c) => {
-              c.callout('sync', 'SYNC — response to the waiting caller');
-              await c.anim('intake-val', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
-              await c.anim('gw-intake', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
+              ['feat', 'inf'].forEach((id) => c.set(id, 'skipped', 'skipped'));
+              await c.anim('pred-patient', 'INVALID_ARGUMENT', { reverse: true, duration: 600, color: '#f87171' });
+              c.set('pred', 'error', 'aborted');
+              c.callout('sync', 'SYNC — error back to the waiting caller');
+              await c.anim('gw-pred', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
               await c.anim('hosp-gw', 'HTTP 400', { reverse: true, duration: 600, color: '#f87171' });
               c.set('hosp', 'error', 'HTTP 400 received');
               c.respond(400, { error: failed[0].field + ' ' + (failed[0].field === 'oxygenSaturation' ? 'must be between 0 and 100' : 'is invalid'), requestId: S.reqId, details: failed.map((x) => x.field) });
               c.trace('Hospital App', 'HTTP 400 Bad Request received', 'err', { tl: 'Response returned (400)', respDone: true });
             } },
-          { t: 28, title: 'validation.failed published to Kafka', focus: ['val', 'kafka'], comm: 'Asynchronous event', why: 'Failures are still recorded for audit and debugging — without delaying the error response.',
-            text: 'Validation publishes <code>validation.failed</code>. Audit and logging will record the failure in the background.',
-            run: async (c) => { await c.publish('validation.failed', 'val', 'val-k', { errors: failed.map((x) => ({ field: x.field, problem: x.bad })) }); c.trace('Kafka', 'validation.failed stored on topic', 'evt', { tl: 'Kafka validation.failed', async: true }); } },
-          { t: 34, title: 'Audit records the failed request', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → store (DB write)', why: 'Compliance needs a trail of every request, including rejected ones.',
-            text: 'The Audit Service consumes <code>request.received</code> and <code>validation.failed</code> and appends audit entries.',
-            run: async (c) => { await c.anim('k-audit', 'validation.failed'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', '2 entries'); c.deliver(['request.received', 'validation.failed']); c.trace('Audit Service', 'Audit entries persisted', 'ok', { tl: 'Audit persisted', async: true }); } },
-          { t: 38, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Engineers can search why requests were rejected.',
+          { t: 16, title: 'validation.failed published to Kafka', focus: ['patient', 'kafka'], comm: 'Asynchronous event', why: 'Failures are still recorded for audit and debugging — without delaying the error response.',
+            text: 'Patient Service publishes <code>validation.failed</code>. Audit and logging record it in the background.',
+            run: async (c) => { await c.publish('validation.failed', 'patient', 'patient-k', { errors: failed.map((x) => ({ field: x.field, problem: x.bad })) }); c.trace('Kafka', 'validation.failed stored on topic', 'evt', { tl: 'Kafka validation.failed', async: true }); } },
+          { t: 22, title: 'Audit records the rejected request', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → Audit DB', why: 'Compliance needs a trail of every request, including rejected ones.',
+            text: 'The Audit Service consumes <code>validation.failed</code> and appends an audit entry.',
+            run: async (c) => { await c.anim('k-audit', 'validation.failed'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', '1 entry'); c.deliver(['validation.failed']); c.trace('Audit Service', 'Audit entry persisted', 'ok', { tl: 'Audit persisted', async: true }); } },
+          { t: 26, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Engineers can search why requests were rejected.',
             text: 'The Activity Logging Service stores a technical log line for the rejected request.',
-            run: async (c) => { await c.anim('k-log', 'app events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'status=REJECTED'); c.trace('Activity Logging', 'service=validation requestId=' + S.reqId + ' status=REJECTED', 'ok', { tl: 'Logs processed', async: true }); } },
-          { t: 44, title: 'Monitoring sees the error-rate change', focus: ['risk', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'Observability tracks system health — a spike in 4xx responses may reveal an integration bug upstream.',
-            text: 'Services emit telemetry; Monitoring records a 4xx response and the request latency.',
-            run: async (c) => { c.callout('obs', 'OBSERVABILITY — outside business flow'); await c.anim('tel-mon', 'metrics'); c.set('mon', 'active', 'collecting'); await c.anim('mon-mstack', 'store'); c.set('mon', 'success', 'metrics stored'); c.set('mstack', 'success', '4xx +1'); c.stage({ type: 'metrics', metrics: [['API latency', '26 ms'], ['4xx rate', '↑ 1 request'], ['Requests/sec', '41'], ['Kafka lag', '0']] }); c.trace('Monitoring', 'http_4xx_total +1 · latency 26 ms', 'info', { tl: 'Metrics collected', async: true }); } },
+            run: async (c) => { await c.anim('k-log', 'events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'status=REJECTED'); c.trace('Activity Logging', 'service=patient requestId=' + S.reqId + ' status=REJECTED', 'ok', { tl: 'Logs processed', async: true }); } },
+          { t: 30, title: 'Monitoring sees the 4xx', focus: ['feat', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'A spike in 4xx responses may reveal an integration bug in the hospital app.',
+            text: 'Services emit telemetry on a separate channel; Monitoring records the 4xx response and its latency.',
+            run: async (c) => { c.callout('obs', 'OBSERVABILITY — outside business flow'); await c.anim('tel-mon', 'metrics'); c.set('mon', 'active', 'collecting'); await c.anim('mon-mstack', 'store'); c.set('mon', 'success', 'metrics stored'); c.set('mstack', 'success', '4xx +1'); c.stage({ type: 'metrics', metrics: [['API latency', '16 ms'], ['4xx rate', '↑ 1 request'], ['Requests/sec', '41'], ['Kafka lag', '0']] }); c.trace('Monitoring', 'http_4xx_total +1 · latency 16 ms', 'info', { tl: 'Metrics collected', async: true }); } },
         ]);
       }
 
       return common.concat([
-        { t: 18, title: 'Validation checks fields', focus: ['intake', 'val', 'kafka'], comm: 'Synchronous · async validation.completed', why: 'Only valid data may reach the model.',
-          text: 'Required fields, types and ranges all pass. Validation publishes <code>validation.completed</code> and forwards the data.',
-          run: async (c) => { c.set('intake', 'success', 'forwarded'); await c.anim('intake-val', 'Patient JSON'); c.set('val', 'active', 'validating…'); c.stage({ type: 'validation', checks }); await c.wait(900); c.set('val', 'success', '✓ valid'); c.trace('Validation', 'Validation completed — all checks passed', 'ok', { tl: 'Validation' }); c.publish('validation.completed', 'val', 'val-k', { checks: checks.length, passed: checks.length }); } },
-        { t: 27, title: 'Preprocessing creates model features', focus: ['val', 'pre'], comm: 'Synchronous', why: 'The model expects exactly the engineered features it was trained on.',
-          text: 'Raw vitals are cleaned, normalised and engineered into a feature vector (e.g. mean arterial pressure).',
-          run: async (c) => { await c.anim('val-pre', 'Validated data'); c.set('pre', 'active', 'engineering…'); c.stage({ type: 'features', f }); await c.wait(900); c.set('pre', 'active', '6 features'); c.trace('Preprocessing', f.feats.length + ' features generated', 'info', { tl: 'Preprocessing' }); } },
-        { t: 31, title: 'Redis cache checked / updated', focus: ['pre', 'redis'], comm: 'Cache read/write', why: 'Fast temporary access to recent features — the databases stay the system of record.',
-          text: 'Preprocessing checks <code>GET patient:123:features</code> (miss) and writes the new vector with <code>SET … EX 900</code>.',
-          run: async (c) => { c.callout('cache', 'CACHE — fast temporary state'); await c.anim('pre-redis', 'GET → miss'); await c.anim('pre-redis', 'SET features', { duration: 700 }); c.set('redis', 'success', 'features cached'); c.set('pre', 'success', 'vector ready'); c.trace('Redis', 'SET patient:123:features (TTL 15 min)', 'ok', { tl: 'Redis cache' }); } },
-        { t: 39, title: 'ML model loaded from the Model Registry', focus: ['pre', 'inf', 'registry'], comm: 'Model artifact read', why: 'Separating model storage from inference lets model versions be updated (and rolled back) independently.',
-          text: 'Preprocessing calls ML Inference with the feature vector. Inference loads the approved <b>PatientDeteriorationModel v3.2</b>.',
-          run: async (c) => { await c.anim('pre-inf', 'Feature vector'); c.set('inf', 'active', 'loading model…'); c.stage({ type: 'inference', lines: ['Feature vector received', 'Loading model v3.2…'] }); c.callout('model', 'MODEL ARTIFACT'); await c.anim('reg-inf', 'GET model:v3.2'); c.set('registry', 'success', 'v3.2 served'); c.trace('ML Inference', 'Model v3.2 loaded from registry', 'info', { tl: 'Model load' }); } },
-        { t: 55, title: 'Inference runs', focus: ['inf', 'redis', 'kafka'], comm: 'Synchronous · async prediction.generated', why: 'Risk Scoring needs this probability before it can respond.',
-          text: 'The model outputs a deterioration probability of <b>' + score.toFixed(2) + '</b>. Inference publishes <code>prediction.generated</code>.',
-          run: async (c) => { c.set('inf', 'active', 'running inference…'); await c.wait(700); c.stage({ type: 'inference', lines: ['Feature vector received', 'Model v3.2 loaded', 'Inference complete'], score }); c.set('inf', 'success', 'p = ' + score.toFixed(2)); c.trace('ML Inference', 'Prediction = ' + score.toFixed(2), 'ok', { tl: 'Model inference' }); c.anim('inf-redis', 'SET context', { duration: 700 }).catch(() => { }); c.publish('prediction.generated', 'inf', 'inf-k', { riskScore: score, modelVersion: 'v3.2' }); await c.wait(400); } },
-        { t: 72, title: 'Risk score generated', focus: ['inf', 'risk'], comm: 'Synchronous', why: 'Thresholds are business rules that can change independently of the model.',
-          text: 'Risk Scoring applies the illustrative threshold: ' + score.toFixed(2) + (high ? ' ≥ 0.70 → <b style="color:var(--red)">HIGH RISK</b>.' : ' → <b>' + lvl + '</b> risk.'),
-          run: async (c) => { await c.anim('inf-risk', 'p = ' + score.toFixed(2)); c.set('risk', 'active', 'deciding…'); c.stage({ type: 'risk', score }); await c.wait(700); c.set('risk', high ? 'error' : 'success', lvl + ' risk'); c.trace('Risk Scoring', 'Risk = ' + lvl + ' (' + score.toFixed(2) + ')', high ? 'err' : 'ok', { tl: 'Risk scoring' }); } },
-        { t: 80, title: 'Prediction persisted', focus: ['risk', 'preddb'], comm: 'Database read/write', why: 'Predictions must be traceable later: request ID, score, level, timestamp, model version.',
-          text: 'The final prediction object is written to the <b>Prediction &amp; Request DB</b>.',
-          run: async (c) => { c.callout('db', 'DURABLE STORAGE'); c.stage({ type: 'payload', payload: Object.assign({ requestId: S.reqId }, prediction) }); await c.anim('risk-preddb', 'INSERT'); c.set('preddb', 'success', 'prediction stored'); c.trace('Prediction DB', 'Prediction stored for ' + S.reqId, 'ok', { tl: 'Prediction DB write' }); } },
-        { t: 88, title: 'Response returned to the hospital', overlap: true, focus: ['hosp', 'gw', 'intake', 'val', 'pre', 'inf', 'risk'], comm: 'Synchronous response (right → left)', why: 'This is the two-way request/response: the result travels back to the waiting caller.',
-          text: 'HTTP 200 with the risk result flows back through every hop to the hospital app.',
+        { t: 12, title: 'Vitals stored; event published', focus: ['patient', 'pdb', 'kafka', 'pred'], comm: 'DB write · async patient.vitals.recorded · gRPC reply', why: 'Patient data must be durable, and other services learn about it via an event instead of being called.',
+          text: 'Patient Service writes the vitals to <b>its own</b> Patient DB, publishes <code>patient.vitals.recorded</code> and replies OK to the orchestrator.',
+          run: async (c) => { c.callout('db', 'DURABLE STORAGE — database per service'); await c.anim('patient-pdb', 'INSERT'); c.set('pdb', 'success', 'vitals stored'); c.publish('patient.vitals.recorded', 'patient', 'patient-k', { source: 'hospital-app' }); await c.anim('pred-patient', 'OK', { reverse: true, duration: 700 }); c.set('patient', 'success', 'recorded'); c.stage({ type: 'html', html: orchPlan(1) }); c.trace('Patient Service', 'Vitals stored · patient.vitals.recorded', 'ok', { tl: 'Patient DB write' }); } },
+        { t: 18, title: 'Orchestrator calls Feature Service', focus: ['pred', 'feat'], comm: 'gRPC BuildFeatures · synchronous', why: 'Internal, low-latency calls with a typed contract — a good fit for gRPC.',
+          text: 'The orchestrator calls <code>FeatureService.BuildFeatures</code>: vitals are cleaned, normalised and engineered into a feature vector.',
+          run: async (c) => { await c.anim('pred-feat', 'BuildFeatures'); c.set('feat', 'active', 'engineering…'); c.stage({ type: 'features', f }); await c.wait(900); c.set('feat', 'active', f.feats.length + ' features'); c.trace('Feature Service', f.feats.length + ' features generated', 'info', { tl: 'Feature building' }); } },
+        { t: 22, title: 'Redis cache checked / updated', focus: ['feat', 'redis', 'pred'], comm: 'Cache read/write · gRPC reply', why: 'Fast temporary access to recent features — the databases stay the system of record.',
+          text: 'Feature Service checks <code>GET patient:123:features</code> (miss), caches the new vector with a TTL and returns it to the orchestrator.',
+          run: async (c) => { c.callout('cache', 'CACHE — fast temporary state'); await c.anim('feat-redis', 'GET → miss'); await c.anim('feat-redis', 'SET features', { duration: 700 }); c.set('redis', 'success', 'features cached'); await c.anim('pred-feat', 'feature vector', { reverse: true, duration: 700 }); c.set('feat', 'success', 'vector returned'); c.stage({ type: 'html', html: orchPlan(2) }); c.trace('Redis', 'SET patient:123:features (TTL 15 min)', 'ok', { tl: 'Redis cache' }); } },
+        { t: 28, title: 'Inference loads the model', focus: ['pred', 'inf', 'registry'], comm: 'gRPC Predict · model artifact read', why: 'Separating model storage from inference lets model versions be updated (and rolled back) independently.',
+          text: 'The orchestrator calls <code>InferenceService.Predict</code>. Inference loads the approved <b>PatientDeteriorationModel v3.2</b> from the Model Registry.',
+          run: async (c) => { await c.anim('pred-inf', 'Predict'); c.set('inf', 'active', 'loading model…'); c.stage({ type: 'inference', lines: ['Feature vector received', 'Loading model v3.2…'] }); c.callout('model', 'MODEL ARTIFACT'); await c.anim('reg-inf', 'model:v3.2'); c.set('registry', 'success', 'v3.2 served'); c.trace('ML Inference', 'Model v3.2 loaded from registry', 'info', { tl: 'Model load' }); } },
+        { t: 44, title: 'Inference returns a probability', focus: ['pred', 'inf'], comm: 'gRPC reply', why: 'The orchestrator needs the probability before it can decide the risk level.',
+          text: 'The model outputs a deterioration probability of <b>' + score.toFixed(2) + '</b> and returns it to the orchestrator.',
+          run: async (c) => { c.set('inf', 'active', 'running inference…'); await c.wait(700); c.stage({ type: 'inference', lines: ['Feature vector received', 'Model v3.2 loaded', 'Inference complete'], score }); await c.anim('pred-inf', 'p = ' + score.toFixed(2), { reverse: true, duration: 700 }); c.set('inf', 'success', 'p = ' + score.toFixed(2)); c.trace('ML Inference', 'Prediction = ' + score.toFixed(2), 'ok', { tl: 'Model inference' }); } },
+        { t: 58, title: 'Orchestrator scores the risk', focus: ['pred'], comm: 'In-process business rules', why: 'Thresholds are business rules owned by the Prediction Service — they change independently of the model.',
+          text: 'Prediction Service applies the illustrative threshold: ' + score.toFixed(2) + (high ? ' ≥ 0.70 → <b style="color:var(--red)">HIGH RISK</b>.' : ' → <b>' + lvl + '</b> risk.'),
+          run: async (c) => { c.set('pred', 'active', 'scoring risk…'); c.stage({ type: 'risk', score }); await c.wait(800); c.set('pred', high ? 'error' : 'active', lvl + ' risk'); c.trace('Prediction Service', 'Risk = ' + lvl + ' (' + score.toFixed(2) + ')', high ? 'err' : 'ok', { tl: 'Risk scoring' }); } },
+        { t: 64, title: 'Prediction persisted', focus: ['pred', 'preddb'], comm: 'Database read/write', why: 'Predictions must be traceable later: request ID, score, level, timestamp, model version.',
+          text: 'The prediction is written to the <b>Prediction DB</b>, which only the Prediction Service owns.',
+          run: async (c) => { c.callout('db', 'DURABLE STORAGE'); c.stage({ type: 'payload', payload: Object.assign({ requestId: S.reqId }, prediction) }); await c.anim('pred-preddb', 'INSERT'); c.set('preddb', 'success', 'prediction stored'); c.trace('Prediction DB', 'Prediction stored for ' + S.reqId, 'ok', { tl: 'Prediction DB write' }); } },
+        { t: 72, title: 'Response returned to the hospital', overlap: true, focus: ['hosp', 'gw', 'pred'], comm: 'Synchronous response (right → left)', why: 'Only two hops back — the orchestrator answers for the whole workflow.',
+          text: '<b>HTTP 200</b> with the risk result travels back through the gateway to the waiting hospital app.',
           run: async (c) => {
             c.callout('sync', 'SYNC — response to the waiting caller');
-            for (const id of ['inf-risk', 'pre-inf', 'val-pre', 'intake-val', 'gw-intake', 'hosp-gw']) await c.anim(id, 'HTTP 200', { reverse: true, duration: 420 });
+            c.set('pred', high ? 'error' : 'success', 'responded · ' + lvl);
+            for (const id of ['gw-pred', 'hosp-gw']) await c.anim(id, 'HTTP 200', { reverse: true, duration: 520 });
             c.set('hosp', 'success', 'HTTP 200 · ' + lvl);
             c.respond(200, prediction);
             c.trace('Hospital App', 'Response returned · HTTP 200 · ' + lvl, 'ok', { tl: 'Response returned (200)', respDone: true });
           } },
+        { t: 74, title: high ? 'Events published: prediction.generated + risk.high' : 'Event published: prediction.generated', focus: ['pred', 'kafka'], comm: 'Asynchronous · publish/subscribe', why: 'The orchestrator publishes outcomes and moves on — it never calls Notification, Audit or Logging directly.',
+          text: high ? 'Prediction Service publishes <code>prediction.generated</code> and <code>risk.high</code> to Kafka.' : 'Prediction Service publishes <code>prediction.generated</code>. Risk is <b>' + lvl + '</b>, so <code>risk.high</code> is <b>not</b> published.',
+          run: async (c) => { c.publish('prediction.generated', 'pred', 'pred-k', { riskScore: score, riskLevel: lvl, modelVersion: 'v3.2' }); if (high) { await c.wait(250); await c.publish('risk.high', 'pred', 'pred-k', { riskScore: score, riskLevel: 'HIGH', modelVersion: 'v3.2', alertId }); } else await c.wait(700); c.trace('Kafka', high ? 'prediction.generated + risk.high stored' : 'prediction.generated stored', 'evt', { tl: 'Kafka events', async: true }); } },
         high
-          ? { t: 90, title: 'Kafka event published: risk.high', focus: ['risk', 'kafka'], comm: 'Asynchronous · publish/subscribe', why: 'Risk Scoring does not wait for alert delivery — it publishes and moves on.',
-            text: 'Risk Scoring publishes <code>risk.high</code>. It doesn’t call the Notification Service directly.',
-            run: async (c) => { await c.publish('risk.high', 'risk', 'risk-k', { riskScore: score, riskLevel: 'HIGH', modelVersion: 'v3.2' }); c.trace('Kafka', 'risk.high stored on topic', 'evt', { tl: 'Kafka risk.high', async: true }); } }
-          : { t: 90, title: 'No urgent event needed', focus: ['risk', 'kafka'], comm: 'Asynchronous', why: 'prediction.generated was already published for audit/logging; risk.high is only for HIGH risk.',
-            text: 'Risk is <b>' + lvl + '</b>, so <code>risk.high</code> is <b>not</b> published. Background consumers still process the events already on the bus.',
-            run: async (c) => { c.trace('Risk Scoring', 'Risk ' + lvl + ' — no risk.high event', 'info'); await c.wait(500); } },
-        high
-          ? { t: 96, title: 'High-risk event consumed by Alert Service', focus: ['kafka', 'notif'], comm: 'Kafka → Notification (async)', why: 'A slow SMS/pager provider must never delay the prediction response.',
+          ? { t: 82, title: 'Notification Service consumes risk.high', focus: ['kafka', 'notif'], comm: 'Kafka → Notification (async)', why: 'A slow SMS/pager provider must never delay the prediction response.',
             text: 'The Notification Service consumes <code>risk.high</code> and builds a high-risk alert.',
-            run: async (c) => { await c.anim('k-notif', 'risk.high'); c.set('notif', 'active', 'alert processing'); c.trace('Notification', 'risk.high consumed — alert processing', 'evt', { tl: 'Notification processing', async: true }); await c.wait(500); } }
-          : { t: 96, title: 'Alert Service stays idle', focus: ['notif'], comm: '—', why: 'Alerting is event-driven: no event, no alert.',
+            run: async (c) => { await c.anim('k-notif', 'risk.high'); c.set('notif', 'active', 'alert processing'); c.trace('Notification', 'risk.high consumed — alert ' + alertId, 'evt', { tl: 'Notification processing', async: true }); await c.wait(400); } }
+          : { t: 82, title: 'Notification Service stays idle', focus: ['notif'], comm: '—', why: 'Alerting is event-driven: no event, no alert (and no alert fatigue).',
             text: 'No <code>risk.high</code> event → the Notification Service has nothing to do.',
             run: async (c) => { c.set('notif', 'idle', 'no alert needed'); await c.wait(400); } },
         high
-          ? { t: 104, title: 'Medical team alerted', focus: ['notif', 'team'], comm: 'Alert push (simulated channels)', why: 'Clinicians act on high risk — via app notification, pager, SMS or email.',
+          ? { t: 88, title: 'Medical team alerted', focus: ['notif', 'team'], comm: 'Alert push (simulated channels)', why: 'Clinicians act on high risk — via app notification, pager, SMS or email.',
             text: '“High-risk alert generated” — pushed to doctors and nurses (simulated channels, no real integrations).',
-            run: async (c) => { c.stage({ type: 'alert', html: '<div class="callout red">' + icon('bell') + '<div><b>High-risk alert generated</b><br>' + esc(p.patientName) + ' · risk ' + score.toFixed(2) + ' · ' + S.reqId + '</div></div><div class="btn-row" style="margin-top:10px">' + ['App notification', 'Pager', 'SMS', 'Email'].map((ch) => '<span class="chip red">' + ch + '</span>').join('') + '</div><p class="small dim" style="margin-top:8px">Simulated delivery — not real integrations.</p>' }); await c.anim('notif-team', 'ALERT'); c.set('notif', 'success', 'alert sent'); c.set('team', 'error', 'alert received'); c.deliver(['risk.high']); c.trace('Medical Team', 'High-risk alert delivered (pager · app)', 'err', { tl: 'Medical team alerted', async: true }); } }
-          : { t: 104, title: 'Medical team not paged', focus: ['team'], comm: '—', why: 'Avoids alert fatigue — only HIGH risk pages clinicians.',
-            text: 'The patient is shown as <b>' + lvl + '</b> risk in the app; nobody is paged.',
+            run: async (c) => { c.stage({ type: 'alert', html: '<div class="callout red">' + icon('bell') + '<div><b>High-risk alert ' + alertId + '</b><br>' + esc(p.patientName) + ' · risk ' + score.toFixed(2) + ' · ' + S.reqId + '</div></div><div class="btn-row" style="margin-top:10px">' + ['App notification', 'Pager', 'SMS', 'Email'].map((ch) => '<span class="chip red">' + ch + '</span>').join('') + '</div><p class="small dim" style="margin-top:8px">Simulated delivery — not real integrations. Unacknowledged alerts escalate.</p>' }); await c.anim('notif-team', 'ALERT'); c.set('notif', 'active', 'awaiting ack'); c.set('team', 'error', 'alert received'); c.deliver(['risk.high']); c.trace('Medical Team', 'High-risk alert delivered (pager · app)', 'err', { tl: 'Medical team alerted', async: true }); } }
+          : { t: 88, title: 'Medical team not paged', focus: ['team'], comm: '—', why: 'Only HIGH risk pages clinicians.',
+            text: 'The patient shows as <b>' + lvl + '</b> risk in the app; nobody is paged.',
             run: async (c) => { c.set('team', 'idle', 'no page'); await c.wait(300); } },
-        { t: 100, title: 'Audit event recorded', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → store (DB write)', why: 'Audit = who/what/when for compliance; separate from technical logs.',
-          text: 'The Audit Service consumes the request, validation, prediction' + (high ? ' and alert' : '') + ' events and appends audit entries.',
-          run: async (c) => { await c.anim('k-audit', 'audit events'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', S.events.length + ' entries'); c.deliver(['request.received', 'validation.completed', 'prediction.generated']); c.trace('Audit Service', 'Audit entries persisted (' + S.events.length + ')', 'ok', { tl: 'Audit persisted', async: true }); } },
-        { t: 106, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Technical diagnostics for debugging (latency, status, model version).',
+        high
+          ? { t: 120, title: 'Nurse acknowledges — gateway routes /alerts', focus: ['hosp', 'gw', 'notif', 'kafka'], comm: 'REST PATCH /alerts/{id} · async alert.acknowledged', why: 'This is why the gateway is more than a pass-through: a different API, routed to a different service.',
+            text: 'A nurse taps “Acknowledge”. The app sends <code>PATCH /api/v1/alerts/' + alertId + '</code>; the gateway routes <code>/alerts</code> to the <b>Notification Service</b>, which stops escalation and publishes <code>alert.acknowledged</code>.',
+            run: async (c) => { c.callout('sync', 'SYNC — a second API, a different route'); c.set('gw', 'active', 'route /alerts'); await c.anim('hosp-gw', 'PATCH /alerts'); await c.anim('gw-alerts', 'acknowledge'); c.set('notif', 'success', 'acknowledged'); c.set('team', 'success', 'acknowledged'); c.publish('alert.acknowledged', 'notif', 'notif-k', { alertId, by: 'nurse-ward-4' }); await c.anim('gw-alerts', '200 OK', { reverse: true, duration: 500 }); await c.anim('hosp-gw', '200 OK', { reverse: true, duration: 500 }); c.set('gw', 'success', 'routed'); c.trace('API Gateway', 'PATCH /alerts/' + alertId + ' → notification-service · 200', 'ok', { tl: 'Alert acknowledged (later request)' }); } }
+          : { t: 120, title: 'No acknowledgement needed', focus: ['gw', 'notif'], comm: '—', why: 'The /alerts route is only used when there is an alert.',
+            text: 'With no alert, the <code>/alerts</code> route isn\'t used in this run — but the gateway is ready to route it to the Notification Service.',
+            run: async (c) => { await c.wait(300); } },
+        { t: 94, title: 'Audit events recorded', focus: ['kafka', 'audit', 'astore'], comm: 'Kafka → Audit (async) · Audit → Audit DB', why: 'Audit = who/what/when for compliance; separate from technical logs. It is queried via /audit on the gateway.',
+          text: 'The Audit Service consumes the vitals, prediction' + (high ? ', alert and acknowledgement' : '') + ' events and appends audit entries.',
+          run: async (c) => { await c.anim('k-audit', 'events'); c.set('audit', 'active', 'recording'); await c.anim('audit-astore', 'append'); c.set('audit', 'success', 'recorded'); c.set('astore', 'success', S.events.length + ' entries'); c.deliver(['patient.vitals.recorded', 'prediction.generated', 'alert.acknowledged']); c.trace('Audit Service', 'Audit entries persisted (' + S.events.length + ')', 'ok', { tl: 'Audit persisted', async: true }); } },
+        { t: 98, title: 'Activity log stored', focus: ['kafka', 'logging', 'logs'], comm: 'Async consumer · log index write', why: 'Technical diagnostics for debugging (latency, status, model version).',
           text: 'The Activity Logging Service stores structured operational logs.',
-          run: async (c) => { await c.anim('k-log', 'app events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'indexed'); c.stage({ type: 'html', html: '<div class="label" style="margin-bottom:6px">Example log line</div><pre class="code">' + esc(new Date(baseTime + 55).toISOString() + '\nservice=ml-inference\nrequestId=' + S.reqId + '\nmodel=v3.2\nlatencyMs=16\nstatus=SUCCESS') + '</pre>' }); c.trace('Activity Logging', 'service=ml-inference requestId=' + S.reqId + ' status=SUCCESS', 'ok', { tl: 'Logs processed', async: true }); } },
-        { t: 112, title: 'Monitoring metrics collected', focus: ['risk', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'Monitoring is not part of the medical prediction logic — it observes system health.',
-          text: 'Services emit metrics and traces; Monitoring stores them for dashboards and alert rules.',
+          run: async (c) => { await c.anim('k-log', 'events'); c.set('logging', 'active', 'indexing'); await c.anim('log-logs', 'log'); c.set('logging', 'success', 'stored'); c.set('logs', 'success', 'indexed'); c.stage({ type: 'html', html: '<div class="label" style="margin-bottom:6px">Example log line</div><pre class="code">' + esc(new Date(baseTime + 44).toISOString() + '\nservice=ml-inference\nrequestId=' + S.reqId + '\nmodel=v3.2\nlatencyMs=16\nstatus=SUCCESS') + '</pre>' }); c.trace('Activity Logging', 'service=ml-inference requestId=' + S.reqId + ' status=SUCCESS', 'ok', { tl: 'Logs processed', async: true }); } },
+        { t: 104, title: 'Monitoring metrics collected', focus: ['feat', 'mon', 'mstack'], comm: 'Telemetry (metrics/traces)', why: 'Monitoring is not part of the prediction logic — it observes system health on its own channel.',
+          text: 'Every service emits metrics and traces (OpenTelemetry / Prometheus scrape); Monitoring stores them for dashboards and alert rules.',
           run: async (c) => { c.callout('obs', 'OBSERVABILITY — outside business flow'); await c.anim('tel-mon', 'metrics'); c.set('mon', 'active', 'collecting'); await c.anim('mon-mstack', 'store'); c.set('mon', 'success', 'healthy'); c.set('mstack', 'success', 'p95 68 ms'); c.stage({ type: 'metrics', metrics: [['API latency', '42 ms'], ['Inference p95', '68 ms'], ['Error rate', '0.2%'], ['Requests/sec', '41'], ['Kafka lag', '0'], ['CPU (inference)', '38%']] }); c.trace('Monitoring', 'latency p95=68ms · errors=0.2% · lag=0', 'info', { tl: 'Metrics collected', async: true }); } },
       ]);
     }
@@ -1323,11 +1379,13 @@
         ${sec('Events consumed', chips(n.consumes, 'amber'))}
         ${sec('Storage used', chips(n.storage, 'navy'))}
         ${!n.what && n.whyShort ? sec('Why this component exists', `<p>${esc(n.whyShort)}</p>`) : ''}
-        ${id === 'inf' ? sec('Why synchronous?', '<p>The Risk Scoring service requires the prediction before it can return a response.</p>') : ''}
+        ${id === 'inf' ? sec('Why synchronous?', '<p>The Prediction Service needs the probability before it can score the risk and respond.</p>') : ''}
+        ${id === 'pred' ? '<div class="callout blue">' + icon('route') + '<div><b>Orchestration, not a call chain.</b> Downstream services never call each other, so each can change, scale or be mocked independently, and timeouts, retries and fallbacks (e.g. cached features) live in one place. It still needs every service it calls — fallbacks are what actually protect availability.</div></div>' : ''}
+        ${id === 'gw' ? sec('Routes', chips(['/patients → Patient Service', '/predictions → Prediction Service', '/alerts → Notification Service', '/audit → Audit Service'], 'blue')) : ''}
         ${id === 'redis' ? '<div class="callout green">' + icon('zap') + '<div><b>DATABASE = persistent · REDIS = temporary / fast.</b> If Redis is flushed, nothing authoritative is lost.</div></div>' : ''}
         ${id === 'audit' ? '<div class="callout">' + icon('info') + '<div><b>Audit vs application logs:</b> audit records who/what/when happened to business or patient operations; application logs are technical diagnostics produced by services.</div></div>' : ''}
         ${n.example ? sec('Example request', `<pre class="code">${esc(n.example)}</pre>`) : ''}
-        ${id === 'intake' ? sec('Example payload', `<pre class="code">${json(readPatient())}</pre>`) : ''}
+        ${id === 'patient' ? sec('Example gRPC request (RecordVitals)', `<pre class="code">${json(readPatient())}</pre>`) : ''}
         ${id === 'registry' ? sec('Registry entry', `<pre class="code">${json({ model: 'PatientDeteriorationModel', productionVersion: 'v3.2', status: 'Production', created: 'demo' })}</pre>`) : ''}
       `);
     }
@@ -1354,10 +1412,12 @@
     }
 
     /* ==========================================================
-       WHY MODE & EXAM ANSWER
+       WHY MODE
        ========================================================== */
     const WHY = [
-      ['API Gateway', 'Provides one controlled entry point instead of exposing every microservice.'],
+      ['API Gateway', 'Routes four business APIs (/patients, /predictions, /alerts, /audit) through one front door with central auth.'],
+      ['Prediction Service (orchestrator)', 'Owns the workflow, so Patient, Feature and Inference services never call each other.'],
+      ['Validation inside Patient Service', 'Validating and storing vitals is one capability — a separate service would add a hop without independent scaling.'],
       ['Kafka', 'Prevents notification/audit/logging work from blocking the prediction request.'],
       ['Redis', 'Provides fast temporary access without replacing durable databases.'],
       ['Model Registry', 'Inference code and model artifacts can evolve independently.'],
@@ -1372,24 +1432,6 @@
       $('#btn-why').setAttribute('aria-pressed', on);
       $('#btn-why').classList.toggle('btn-primary', on);
     });
-
-    $('#btn-exam').addEventListener('click', () => modal('Exam answer — for a 6-mark question', `
-      <table class="tbl">
-        <thead><tr><th>Microservice</th><th>Responsibility</th><th>Communication</th></tr></thead>
-        <tbody>
-          <tr><td><b>API Gateway / Central Routing</b></td><td>Single entry point; routing, auth, rate limiting, correlation ID</td><td>REST/HTTPS · synchronous</td></tr>
-          <tr><td><b>Patient Intake</b></td><td>Receives demographics + vitals; persists request</td><td>REST/gRPC · synchronous</td></tr>
-          <tr><td><b>Validation</b></td><td>Required fields, types, ranges; rejects invalid data (HTTP 400)</td><td>REST/gRPC · synchronous</td></tr>
-          <tr><td><b>Preprocessing / Feature Eng.</b></td><td>Cleans, normalises, builds features</td><td>REST/gRPC · synchronous</td></tr>
-          <tr><td><b>ML Inference</b></td><td>Runs the deterioration model (from Model Registry)</td><td>REST/gRPC · synchronous</td></tr>
-          <tr><td><b>Risk Scoring &amp; Decision</b></td><td>Probability → risk level; persists prediction; responds</td><td>REST/gRPC · synchronous</td></tr>
-          <tr><td><b>Notification / Alert</b></td><td>Alerts medical team on high risk</td><td>Kafka event (risk.high) · asynchronous</td></tr>
-          <tr><td><b>Audit · Activity Logging · Monitoring</b></td><td>Record requests/predictions/alerts; logs; system health</td><td>Kafka events + telemetry · asynchronous</td></tr>
-        </tbody>
-      </table>
-      <p class="small muted" style="margin-top:10px"><b>Supporting components</b> (not microservices): Kafka event bus, Redis cache, Patient DB, Prediction DB, Audit Log Store, Central Log Storage, Monitoring Stack, Model Registry.</p>
-      <div class="callout blue" style="margin-top:12px">${icon('info')}<div><b>KEY COMMUNICATION IDEA</b><br><b>REST/gRPC</b>: use when the next component immediately needs the answer.<br><b>Kafka</b>: use when work can happen independently without delaying the prediction response.</div></div>
-    `));
 
     /* ==========================================================
        INIT

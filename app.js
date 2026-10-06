@@ -547,7 +547,7 @@
           formulas: [
             '\\(\\text{fit}(a) = \\frac{\\sum_i w_i\\, s_{a,i}}{\\sum_i w_i}\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-gr4ml-quality-attributes.html', label: 'GR4ML Trade-off Visualizer' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-gr4ml-quality-attributes.html?v=2026-10-06', label: 'GR4ML Trade-off Visualizer' },
           tags: ['GR4ML', 'Soft Goals', 'NFRs'],
         },
       ],
@@ -579,7 +579,7 @@
           formulas: [
             '\\(\\text{sim}(\\mathbf{q}, \\mathbf{d}) = \\frac{\\mathbf{q}^T\\mathbf{d}}{\\|\\mathbf{q}\\|\\,\\|\\mathbf{d}\\|}\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-cqrs-pipe-filter.html', label: 'CQRS & Pipe-and-Filter Simulator' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-cqrs-pipe-filter.html?v=2026-10-06', label: 'CQRS & Pipe-and-Filter Simulator' },
           tags: ['CQRS', 'Pipe-and-Filter', 'RAG'],
         },
       ],
@@ -591,12 +591,12 @@
       topics: [
         {
           title: 'Patient Deterioration System — Sync vs Async Microservices',
-          notes: 'Exam case study: an API Gateway routes hospital requests through Patient Intake \u2192 Validation \u2192 Preprocessing \u2192 ML Inference \u2192 Risk Scoring using synchronous REST/gRPC, because the caller needs an immediate answer. Alerts, audit and logging consume Kafka events asynchronously so a slow pager or SMS provider never delays the prediction; monitoring collects telemetry outside the business flow. Redis is a fast cache, databases are the system of record, and the Model Registry serves versioned model artifacts.',
+          notes: 'Case study: an API Gateway routes each API to the service that owns it (/patients, /predictions, /alerts, /audit). For a prediction, the Prediction Service orchestrates the workflow over gRPC \u2014 Patient Service validates and stores the vitals, Feature Service builds features (cached in Redis), ML Inference scores them with the model from the registry \u2014 then applies risk thresholds and responds synchronously. Alerts, audit and logging consume Kafka events asynchronously, and monitoring uses a separate telemetry channel.',
           formulas: [
             '\\(T_{\\text{response}} = \\sum_{i\\,\\in\\,\\text{sync path}} t_i\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-microservices-patient-system.html', label: 'Microservices Architecture Explainer' },
-          tags: ['API Gateway', 'Kafka', 'REST/gRPC', 'Exam'],
+          interactive: { file: 'Subject_2_SEML/interactive/seml-microservices-patient-system.html?v=2026-10-06', label: 'Microservices Architecture Explainer' },
+          tags: ['API Gateway', 'Kafka', 'REST/gRPC', 'Event-driven'],
         },
       ],
     },
@@ -611,7 +611,7 @@
           formulas: [
             '\\(T_1, \\dots, T_k \\text{ fails} \;\\Rightarrow\; C_{k-1}, \\dots, C_1\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-saga-transactions.html', label: 'SAGA Compensation Simulator' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-saga-transactions.html?v=2026-10-06', label: 'SAGA Compensation Simulator' },
           tags: ['SAGA', 'Compensation', 'Event-driven'],
         },
       ],
@@ -625,7 +625,7 @@
           title: 'OOP for Agentic AI — the Collaborative Crew',
           notes: 'Structure LLM agents with OOP: an abstract Agent base class (abstraction) hides the HTTP call behind ask_llm() and keeps the client and memory private (encapsulation). ValidationAgent and SummaryAgent inherit from it and override execute() (inheritance, polymorphism), while ResearchPaperWorkflow has-a list of agents (composition). Profile before optimising: cProfile finds the slow function, line_profiler the slow line, memory_profiler the leak.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-oop-agentic-crew.html', label: 'OOP Crew Playground' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-oop-agentic-crew.html?v=2026-10-06', label: 'OOP Crew Playground' },
           tags: ['OOP', 'Agents', 'cProfile'],
         },
       ],
@@ -639,7 +639,7 @@
           title: 'Data Quality Gates & Quarantine',
           notes: 'ML behaviour comes from data, so test the data like code. Records pass through schema, value-range, uniqueness and label-health gates; failures are routed to a quarantine branch for human triage instead of silently entering the feature store. Track the data-quality dimensions: completeness, accuracy/validity, consistency, uniqueness and timeliness.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#gates', label: 'Data Quality Gates' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html?v=2026-10-06#gates', label: 'Data Quality Gates' },
           tags: ['Data Quality', 'Quarantine'],
         },
         {
@@ -648,7 +648,7 @@
           formulas: [
             '\\(\\text{PSI} = \\sum_i (a_i - e_i)\\ln\\frac{a_i}{e_i}\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#drift', label: 'Drift Detector' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html?v=2026-10-06#drift', label: 'Drift Detector' },
           tags: ['Drift', 'PSI', 'Retraining'],
         },
         {
@@ -657,7 +657,7 @@
           formulas: [
             '\\(\\text{faithfulness} = \\frac{|\\text{supported claims}|}{|\\text{claims in answer}|}\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html#ragas', label: 'RAGAS Evaluator' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-mlops-quality-ragas.html?v=2026-10-06#ragas', label: 'RAGAS Evaluator' },
           tags: ['RAGAS', 'LLM Evaluation'],
         },
       ],
@@ -671,21 +671,21 @@
           title: 'Docker Images, Layer Caching & Port Mapping',
           notes: 'The docker client sends commands to the daemon, which builds images as immutable layers and pulls base images from a registry. Order the Dockerfile from least to most frequently changing: copy requirements.txt and pip install before copying the source code, so a code edit reuses the cached 1 GB dependency layer. -p 8080:5000 maps a host port to the container port.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#docker', label: 'Dockerfile Cache Optimizer' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html?v=2026-10-06#docker', label: 'Dockerfile Cache Optimizer' },
           tags: ['Docker', 'Layer Cache'],
         },
         {
           title: 'Kubernetes Architecture & Self-Healing',
           notes: 'The control plane (API server, etcd, scheduler, controller manager) stores the desired state; worker nodes run the kubelet, kube-proxy and pods. A Deployment manages a ReplicaSet, which manages pods (typically one container per pod). When a pod crashes or a node fails, the reconcile loop sees desired \u2260 actual and schedules replacements \u2014 self-healing.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#k8s', label: 'Kubernetes Self-Healing Lab' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html?v=2026-10-06#k8s', label: 'Kubernetes Self-Healing Lab' },
           tags: ['Kubernetes', 'Self-healing'],
         },
         {
           title: 'Rolling vs Blue-Green Deployments',
           notes: 'A rolling update (the Kubernetes default) replaces pods gradually (4:0 \u2192 3:1 \u2192 \u2026 \u2192 0:4) without extra capacity, but v1 and v2 serve traffic at once and rollback is another rollout. Blue-green keeps two identical environments and flips the router: instant switch and instant rollback, at the cost of double capacity during a release.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html#deploy', label: 'Deployment Strategy Visualizer' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-docker-kubernetes.html?v=2026-10-06#deploy', label: 'Deployment Strategy Visualizer' },
           tags: ['Deployment', 'Blue-Green'],
         },
       ],
@@ -701,14 +701,14 @@
           formulas: [
             '\\(f(x) = \\phi_0 + \\sum_{j=1}^{M} \\phi_j\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#xai', label: 'Explainability Inspector' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html?v=2026-10-06#xai', label: 'Explainability Inspector' },
           tags: ['XAI', 'SHAP', 'LIME'],
         },
         {
           title: 'Provenance, Lineage, Versioning & Reproducibility',
           notes: 'Provenance records where data came from (source, owner, consent, checksum); lineage records every transformation that produced an artifact. Version code with Git, data with DVC, models in the MLflow registry and environments with Docker. Pin random seeds and dependency versions so the same inputs reproduce the same model \u2014 the basis for audits.',
           formulas: [],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#lineage', label: 'Lineage & Reproducibility Lab' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html?v=2026-10-06#lineage', label: 'Lineage & Reproducibility Lab' },
           tags: ['Lineage', 'DVC', 'MLflow'],
         },
         {
@@ -718,7 +718,7 @@
             '\\(\\text{cost} = \\frac{n_{in}\\,p_{in} + n_{out}\\,p_{out}}{10^6}\\)',
             '\\(p_i = \\frac{e^{z_i/T}}{\\sum_j e^{z_j/T}}\\)',
           ],
-          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html#llmops', label: 'LLMOps Telemetry Tracker' },
+          interactive: { file: 'Subject_2_SEML/interactive/seml-responsible-ai-llmops.html?v=2026-10-06#llmops', label: 'LLMOps Telemetry Tracker' },
           tags: ['LLMOps', 'Tokens', 'Cost'],
         },
       ],
