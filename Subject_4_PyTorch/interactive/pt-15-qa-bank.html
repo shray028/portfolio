@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTorch Q&amp;A Bank &amp; Cheat Sheet</title>
+  <meta name="description" content="Every PyTorch question from the learning hub in one searchable place with must-know filters and a flashcard mode, plus a cheat sheet of the functions you use daily and a course map.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .toolbar .input { max-width: 340px; }
+    .toolbar select.input { max-width: 260px; }
+    .tog { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font-size: 13px; cursor: pointer; }
+    .tog input { accent-color: var(--amber); }
+    .grp-h { margin: 22px 0 8px; font: 700 13px var(--font-mono); color: var(--ember); letter-spacing: .04em; }
+    .flash { padding: 22px; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--panel-2); }
+    .flash .q { font-size: 18px; font-weight: 700; line-height: 1.45; }
+    .flash .a { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); color: var(--text-2); font-size: 14.5px; line-height: 1.7; }
+    .flash .a ul, .flash .a ol { padding-left: 18px; }
+    .cheat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .cheat h4 { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+    .cheat h4 svg { width: 16px; height: 16px; color: var(--ember); }
+    .cheat table { width: 100%; border-collapse: collapse; }
+    .cheat td { padding: 7px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 12.8px; color: var(--text-2); }
+    .cheat td:first-child { width: 48%; font: 12px var(--font-mono); color: #ffd2c2; word-break: break-word; }
+    .cheat tr:last-child td { border-bottom: 0; }
+    .cheat tr.star td:first-child::before { content: '★ '; color: var(--amber); }
+    @media (max-width: 900px) { .cheat-grid { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 15 · REVISION</span>
+      <h1>Q&amp;A bank &amp; <span class="grad">cheat sheet</span></h1>
+      <p class="desc">Every question from the fourteen modules in one place — search it, filter to the must-know set, or drill yourself with flashcards. The cheat sheet collects the functions you reach for every day, with the essentials starred.</p>
+      <div class="hero-meta"><span class="chip ember" id="h-count"></span><span class="imp" id="h-imp"></span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="all"><span class="n">1</span>All questions</button>
+      <button class="tab" data-tab="flash"><span class="n">2</span>Flashcards</button>
+      <button class="tab" data-tab="cheat"><span class="n">3</span>Cheat sheet</button>
+      <button class="tab" data-tab="map"><span class="n">4</span>Course map</button>
+    </div></div>
+
+    <!-- ============ ALL ============ -->
+    <section class="tab-panel" data-panel="all">
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <input class="input" id="q-search" type="search" placeholder="Search questions and answers… e.g. zero_grad, view, BatchNorm">
+          <select class="input" id="q-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="q-imp"> ★ Must-know only</label>
+          <button class="btn btn-sm" id="q-open">Expand all</button>
+          <button class="btn btn-sm" id="q-close">Collapse all</button>
+          <span class="small muted" id="q-n"></span>
+        </div>
+      </div>
+      <div id="q-list"></div>
+    </section>
+
+    <!-- ============ FLASH ============ -->
+    <section class="tab-panel" data-panel="flash" hidden>
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <select class="input" id="f-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="f-imp" checked> ★ Must-know only</label>
+          <span class="small muted" id="f-pos"></span>
+        </div>
+      </div>
+      <div class="flash mt" id="f-card"></div>
+      <div class="btn-row mt"><button class="btn" id="f-prev">← Previous</button><button class="btn btn-primary" id="f-show">Show answer</button><button class="btn" id="f-next">Next →</button><button class="btn" id="f-shuf"><i data-icon="reset"></i>Shuffle</button></div>
+      <p class="small muted mt">Keyboard: ← / → to move, space to reveal.</p>
+    </section>
+
+    <!-- ============ CHEAT ============ -->
+    <section class="tab-panel" data-panel="cheat" hidden>
+      <div class="card card-pad mt"><div class="toolbar"><input class="input" id="c-search" type="search" placeholder="Filter functions… e.g. permute, CrossEntropy, state_dict"><span class="small muted">★ = use it constantly</span></div></div>
+      <div class="cheat-grid mt" id="c-grid"></div>
+      <div class="block-title"><i data-icon="code"></i>The whole workflow on one screen</div>
+      <textarea class="py" data-title="pytorch_template.py" data-imp>
+import torch, torch.nn as nn
+from torch.utils.data import DataLoader
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+torch.manual_seed(42)
+
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2, pin_memory=True)
+val_loader = DataLoader(val_ds, batch_size=256)
+
+model = MyModel().to(device)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+
+best = 0.0
+for epoch in range(EPOCHS):
+    model.train()
+    for xb, yb in train_loader:
+        xb, yb = xb.to(device), yb.to(device)
+        loss = loss_fn(model(xb), yb)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    scheduler.step()
+
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for xb, yb in val_loader:
+            xb, yb = xb.to(device), yb.to(device)
+            correct += (model(xb).argmax(1) == yb).sum().item()
+            total += yb.size(0)
+    acc = correct / total
+    if acc > best:
+        best = acc
+        torch.save(model.state_dict(), "best.pt")
+    print(f"epoch {epoch+1}: val acc {acc:.4f}")
+      </textarea>
+    </section>
+
+    <!-- ============ MAP ============ -->
+    <section class="tab-panel" data-panel="map" hidden>
+      <div class="block-title"><i data-icon="book"></i>How this hub is organised</div>
+      <div class="card lesson">
+        <p>Modules 01–13 follow the arc of CampusX's <a href="https://www.youtube.com/playlist?list=PLKnIA16_Rmvboy8bmDCjwNHgTaYH2puK7" target="_blank" rel="noopener">Practical Deep Learning using PyTorch</a> playlist by Nitish Singh — from tensors to an LSTM next-word predictor — rewritten with interactive labs, extra theory and interview questions. Module 14 adds production topics the playlist doesn't cover; module 15 is revision.</p>
+      </div>
+      <div class="mod-grid mt" id="m-grid"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, MODULES, qaItem } = PT;
+  const QA = window.PT_QA;
+  const modName = (id) => { const m = MODULES.find((x) => x.id === id); return m ? m.num + ' · ' + m.title : id; };
+  $('#h-count').textContent = QA.length + ' questions';
+  $('#h-imp').textContent = 'Must-know: ' + QA.filter((q) => q.imp).length;
+  const opts = MODULES.filter((m) => QA.some((q) => q.m === m.id)).map((m) => '<option value="' + m.id + '">' + m.num + ' · ' + esc(m.title) + '</option>').join('');
+  $('#q-mod').insertAdjacentHTML('beforeend', opts); $('#f-mod').insertAdjacentHTML('beforeend', opts);
+  const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').toLowerCase();
+
+  /* ===== All questions ===== */
+  function list() {
+    const q = $('#q-search').value.trim().toLowerCase(), mod = $('#q-mod').value, imp = $('#q-imp').checked;
+    const items = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp) && (!q || strip(x.q + ' ' + x.a + ' ' + (x.code || '')).includes(q)));
+    const host = $('#q-list'); host.innerHTML = '';
+    let n = 0;
+    MODULES.forEach((m) => {
+      const group = items.filter((x) => x.m === m.id); if (!group.length) return;
+      host.insertAdjacentHTML('beforeend', '<div class="grp-h">' + esc(modName(m.id)) + '</div>');
+      const box = document.createElement('div'); box.className = 'qa-list';
+      group.forEach((it) => box.appendChild(qaItem(it, ++n, true)));
+      host.appendChild(box);
+    });
+    if (!items.length) host.innerHTML = '<p class="muted mt">No questions match.</p>';
+    if (q) $$('#q-list details').forEach((d) => { d.open = true; });
+    $('#q-n').textContent = items.length + ' shown';
+  }
+  ['q-search', 'q-mod', 'q-imp'].forEach((id) => $('#' + id).addEventListener('input', list));
+  $('#q-open').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = true; }));
+  $('#q-close').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = false; }));
+  list();
+
+  /* ===== Flashcards ===== */
+  let deck = [], pos = 0, shown = false;
+  function buildDeck(shuffle) {
+    const mod = $('#f-mod').value, imp = $('#f-imp').checked;
+    deck = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp));
+    if (shuffle) for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    pos = 0; shown = false; card();
+  }
+  function card() {
+    const host = $('#f-card');
+    if (!deck.length) { host.innerHTML = '<p class="muted">No cards.</p>'; return; }
+    const it = deck[pos];
+    host.innerHTML = '<div class="label" style="margin-bottom:8px">' + esc(modName(it.m)) + (it.imp ? ' &nbsp;<span class="imp">Must-know</span>' : '') + '</div><div class="q">' + it.q + '</div>' + (shown ? '<div class="a">' + it.a + '</div>' : '');
+    if (shown && it.code) host.querySelector('.a').appendChild(PT.codeBlock(it.code, { title: 'python' }));
+    $('#f-pos').textContent = 'card ' + (pos + 1) + ' / ' + deck.length;
+    $('#f-show').textContent = shown ? 'Hide answer' : 'Show answer';
+  }
+  $('#f-show').addEventListener('click', () => { shown = !shown; card(); });
+  $('#f-next').addEventListener('click', () => { pos = (pos + 1) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-prev').addEventListener('click', () => { pos = (pos - 1 + deck.length) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-shuf').addEventListener('click', () => buildDeck(true));
+  ['f-mod', 'f-imp'].forEach((id) => $('#' + id).addEventListener('input', () => buildDeck(false)));
+  document.addEventListener('keydown', (e) => {
+    if (location.hash !== '#flash' || e.target.matches('input, select, textarea')) return;
+    if (e.key === 'ArrowRight') $('#f-next').click(); else if (e.key === 'ArrowLeft') $('#f-prev').click(); else if (e.key === ' ') { e.preventDefault(); $('#f-show').click(); }
+  });
+  buildDeck(false);
+
+  /* ===== Cheat sheet ===== */
+  const CHEAT = [
+    ['Create tensors', 'grid', [
+      ['*torch.tensor(data, dtype=, device=)', 'From Python data; copies; infers dtype'],
+      ['torch.zeros / ones / full(shape, v)', 'Constant tensors'],
+      ['*torch.randn(shape) · torch.rand · randint', 'Normal / uniform / integer random'],
+      ['torch.arange(a, b, step) · linspace(a, b, n)', 'Ranges (end excluded / included)'],
+      ['torch.zeros_like(x) · randn_like(x)', 'Same shape, dtype, device as x'],
+      ['torch.from_numpy(arr) · x.numpy()', 'Share memory with NumPy (CPU)'],
+      ['torch.manual_seed(42)', 'Reproducible random numbers'],
+    ]],
+    ['Inspect & convert', 'search', [
+      ['*x.shape · x.dtype · x.device', 'Check these first when debugging'],
+      ['x.ndim · x.numel() · x.size(0)', 'Rank, total elements, one dimension'],
+      ['*x.float() · x.long() · x.to(torch.float16)', 'Change dtype'],
+      ['*x.item() · x.tolist()', 'To Python number / lists'],
+      ['x.detach().cpu().numpy()', 'Safe conversion from any tensor'],
+      ['x.clone()', 'Independent copy (keeps graph)'],
+    ]],
+    ['Shape manipulation', 'layers', [
+      ['*x.view(a, -1) · x.reshape(a, -1)', 'New shape; view needs contiguous'],
+      ['*x.unsqueeze(d) · x.squeeze(d)', 'Add / remove a size-1 dim'],
+      ['*x.permute(2, 0, 1) · x.transpose(0, 1) · x.T', 'Reorder dims (strides only)'],
+      ['x.flatten(start_dim=1)', 'Flatten all but batch'],
+      ['x.contiguous()', 'Copy into ordered memory'],
+      ['*torch.cat([a, b], dim) · torch.stack([a, b], dim)', 'Join along existing / new dim'],
+      ['x.split(n, dim) · x.chunk(k, dim)', 'Split into pieces'],
+      ['x.expand(shape) · x.repeat(r)', 'Broadcast view / real copy'],
+    ]],
+    ['Maths & reductions', 'sliders', [
+      ['*a @ b · torch.matmul · torch.bmm', 'Matrix multiply (batched)'],
+      ['a * b · a + b · x ** 2', 'Element-wise with broadcasting'],
+      ['*x.sum(dim, keepdim) · x.mean(dim)', 'Reduce; dim is the axis that disappears'],
+      ['*x.argmax(dim) · x.max(dim).values', 'Predicted class / max values'],
+      ['torch.softmax(x, dim) · torch.sigmoid(x)', 'Probabilities'],
+      ['x.clamp(min, max) · torch.where(c, a, b)', 'Clip / element-wise if-else'],
+      ['x[mask] · x.gather(dim, idx)', 'Boolean / per-row selection'],
+    ]],
+    ['Autograd', 'git', [
+      ['*torch.tensor(..., requires_grad=True)', 'Track operations'],
+      ['*loss.backward()', 'Compute gradients into .grad'],
+      ['*x.grad · optimizer.zero_grad()', 'Read / reset gradients'],
+      ['*with torch.no_grad():', 'Disable tracking (eval, updates)'],
+      ['x.detach() · p.requires_grad_(False)', 'Cut from graph / freeze'],
+      ['torch.inference_mode()', 'Fastest no-grad for serving'],
+      ['torch.autograd.grad(y, x)', 'Gradient without touching .grad'],
+    ]],
+    ['Building models (torch.nn)', 'box', [
+      ['*class Net(nn.Module): __init__ + forward', 'Custom model'],
+      ['*nn.Linear(in, out) · nn.Conv2d(c_in, c_out, k, padding=)', 'Core layers'],
+      ['*nn.ReLU() · nn.GELU() · nn.Sigmoid() · nn.Tanh()', 'Activations'],
+      ['*nn.Sequential(...) · nn.ModuleList([...])', 'Containers'],
+      ['nn.Dropout(p) · nn.BatchNorm1d/2d(n) · nn.LayerNorm(d)', 'Regularise / normalise'],
+      ['nn.MaxPool2d(2) · nn.AdaptiveAvgPool2d(1) · nn.Flatten()', 'CNN plumbing'],
+      ['nn.Embedding(V, d, padding_idx=0)', 'Token ids → vectors'],
+      ['nn.RNN / nn.LSTM / nn.GRU(in, hidden, batch_first=True)', 'Sequence layers'],
+      ['*model.parameters() · named_parameters()', 'Pass to optimizer / inspect'],
+      ['*model.train() · model.eval()', 'Toggle dropout & batch norm'],
+    ]],
+    ['Losses', 'target', [
+      ['*nn.CrossEntropyLoss()', 'Multi-class: logits (N,C), long targets (N,)'],
+      ['*nn.BCEWithLogitsLoss(pos_weight=)', 'Binary / multi-label: logits, float targets'],
+      ['*nn.MSELoss() · nn.L1Loss() · nn.HuberLoss()', 'Regression'],
+      ['nn.NLLLoss()', 'After log_softmax'],
+    ]],
+    ['Optimisation', 'zap', [
+      ['*torch.optim.Adam(params, lr=1e-3)', 'Default choice'],
+      ['*torch.optim.AdamW(params, lr, weight_decay)', 'Adam + decoupled weight decay'],
+      ['torch.optim.SGD(params, lr, momentum=0.9)', 'Classic, strong with schedules'],
+      ['*optimizer.step() · optimizer.zero_grad()', 'Update / reset'],
+      ['lr_scheduler.StepLR · CosineAnnealingLR · OneCycleLR', 'Learning-rate schedules'],
+      ['nn.utils.clip_grad_norm_(params, 1.0)', 'Gradient clipping'],
+    ]],
+    ['Data', 'grid', [
+      ['*class DS(Dataset): __len__ + __getitem__', 'Custom dataset'],
+      ['*DataLoader(ds, batch_size, shuffle, num_workers)', 'Batches, shuffling, workers'],
+      ['TensorDataset(X, y) · random_split(ds, [0.8, 0.2])', 'Quick datasets / splits'],
+      ['collate_fn · nn.utils.rnn.pad_sequence', 'Variable-length batches'],
+      ['WeightedRandomSampler(weights, n)', 'Imbalanced classes'],
+      ['torchvision.datasets.ImageFolder(root, transform)', 'Images in class folders'],
+      ['transforms.Compose([ToTensor(), Normalize(m, s)])', 'Image preprocessing'],
+    ]],
+    ['Devices, saving & speed', 'cpu', [
+      ['*device = "cuda" if torch.cuda.is_available() else "cpu"', 'Pick device'],
+      ['*model.to(device) · x = x.to(device)', 'Move model (in place) / tensors (reassign)'],
+      ['*torch.save(model.state_dict(), path)', 'Save weights'],
+      ['*model.load_state_dict(torch.load(path, map_location=))', 'Load weights'],
+      ['torch.autocast("cuda", dtype=torch.bfloat16)', 'Mixed precision'],
+      ['torch.compile(model)', 'Faster kernels (PyTorch 2.x)'],
+      ['torch.cuda.memory_allocated() · empty_cache()', 'GPU memory'],
+    ]],
+  ];
+  function cheat() {
+    const q = $('#c-search').value.trim().toLowerCase();
+    $('#c-grid').innerHTML = CHEAT.map(([title, ic, rows]) => {
+      const r = rows.filter(([f, d]) => !q || (f + ' ' + d).toLowerCase().includes(q));
+      if (!r.length) return '';
+      return '<div class="card cheat"><h4>' + PT.icon(ic) + esc(title) + '</h4><table>' + r.map(([f, d]) => '<tr class="' + (f.startsWith('*') ? 'star' : '') + '"><td>' + esc(f.replace(/^\*/, '')) + '</td><td>' + esc(d) + '</td></tr>').join('') + '</table></div>';
+    }).join('') || '<p class="muted">Nothing matches.</p>';
+  }
+  $('#c-search').addEventListener('input', cheat); cheat();
+
+  /* ===== Map ===== */
+  const VIDEO = { intro: 'Video 1', tensors: 'Video 2', autograd: 'Video 3', pipeline: 'Video 4', nn: 'Video 5', data: 'Video 6', ann: 'Video 7 + 8', optimize: 'Video 9', optuna: 'Video 10', cnn: 'Video 11', transfer: 'Video 12', rnn: 'Video 13', lstm: 'Video 14', essentials: 'Extra', qa: 'Revision' };
+  $('#m-grid').innerHTML = MODULES.map((m) => '<a class="mod-card" href="' + m.file + '"><span class="num">' + m.num + ' · ' + VIDEO[m.id] + '</span><h4>' + esc(m.title) + '</h4><p>' + esc(m.short) + '</p><span class="small muted">' + QA.filter((q) => q.m === m.id).length + ' questions</span></a>').join('');
+
+  PT.init('qa');
+})();
+</script>
+</body>
+</html>

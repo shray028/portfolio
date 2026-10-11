@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tensors in PyTorch — Creation, Ops, Broadcasting &amp; Memory</title>
+  <meta name="description" content="Interactive guide to PyTorch tensors: creation functions, dtypes, reductions and dim, matmul, broadcasting, indexing, view vs reshape, strides and memory sharing.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .playground { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; }
+    .out-area { min-height: 180px; display: grid; gap: 14px; align-content: start; }
+    .stats-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bc-table { border-collapse: separate; border-spacing: 6px 4px; font: 600 13px var(--font-mono); }
+    .bc-table td { padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); text-align: center; min-width: 46px; }
+    .bc-table td.lab { background: none; border: 0; color: var(--dim); text-align: right; font-size: 11px; }
+    .bc-table td.ok { border-color: rgba(74,222,128,.45); color: #bbf7d0; }
+    .bc-table td.st { border-color: rgba(95,179,249,.5); color: #bfdbfe; }
+    .bc-table td.bad { border-color: rgba(248,113,113,.6); color: #fecaca; background: rgba(248,113,113,.08); }
+    .bc-table td.miss { opacity: .45; border-style: dashed; }
+    .mem-strip { display: flex; flex-wrap: wrap; gap: 3px; }
+    .mem-strip .tcell { min-width: 34px; position: relative; }
+    .mem-strip .tcell small { position: absolute; top: -13px; left: 0; right: 0; text-align: center; font-size: 9px; color: var(--dim); }
+    .mm-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font: 700 18px var(--font-mono); color: var(--dim); }
+    .alias-row { display: grid; grid-template-columns: 170px 1fr 120px; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); transition: border-color .3s, background .3s; }
+    .alias-row.changed { border-color: rgba(255,122,89,.65); background: rgba(255,122,89,.07); }
+    .alias-row .nm { font: 600 12.5px var(--font-mono); }
+    .alias-row .why { font-size: 11.5px; color: var(--muted); text-align: right; }
+    .slabs { display: flex; flex-wrap: wrap; gap: 14px; }
+    @media (max-width: 900px) { .playground { grid-template-columns: minmax(0, 1fr); } .alias-row { grid-template-columns: 1fr; } .alias-row .why { text-align: left; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 02 · FOUNDATIONS</span>
+      <h1>Tensors — <span class="grad">the data structure of deep learning</span></h1>
+      <p class="desc">Every input, weight, activation and gradient in PyTorch is a tensor. Most bugs you will ever debug are shape, dtype or device bugs — so this module goes deep: create, compute, broadcast, index, reshape, and understand exactly when memory is shared.</p>
+      <div class="hero-meta"><span class="chip ember">7 sections</span><span class="chip">Playgrounds for every operation</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="create"><span class="n">1</span>Creating tensors</button>
+      <button class="tab" data-tab="dtypes"><span class="n">2</span>dtypes</button>
+      <button class="tab" data-tab="ops"><span class="n">3</span>Maths &amp; reductions</button>
+      <button class="tab" data-tab="broadcast"><span class="n">4</span>Broadcasting</button>
+      <button class="tab" data-tab="index"><span class="n">5</span>Indexing</button>
+      <button class="tab" data-tab="reshape"><span class="n">6</span>Reshaping &amp; strides</button>
+      <button class="tab" data-tab="memory"><span class="n">7</span>Memory, copies &amp; devices</button>
+    </div></div>
+
+    <!-- ============ CREATE ============ -->
+    <section class="tab-panel" data-panel="create">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>What is a tensor? <span class="imp">Must-know</span></h3>
+        <p class="lead">A tensor is an n-dimensional grid of numbers of one dtype, living on one device.</p>
+        <dl class="kv">
+          <dt>0-D scalar</dt><dd>a loss value — <code>torch.tensor(3.14)</code>, shape <code>()</code></dd>
+          <dt>1-D vector</dt><dd>a bias, one sample's features — shape <code>(784,)</code></dd>
+          <dt>2-D matrix</dt><dd>a batch of tabular samples, a Linear weight — shape <code>(64, 784)</code></dd>
+          <dt>3-D</dt><dd>a batch of sequences — <code>(batch, seq_len, features)</code></dd>
+          <dt>4-D</dt><dd>a batch of images — <code>(N, C, H, W)</code>, e.g. <code>(32, 3, 224, 224)</code></dd>
+        </dl>
+        <p class="mt">Four attributes describe any tensor, and you should check them constantly: <code>x.shape</code>, <code>x.dtype</code>, <code>x.device</code>, <code>x.requires_grad</code>.</p>
+      </div>
+
+      <div class="block-title"><i data-icon="flask"></i>Try it · tensor factory</div>
+      <div class="card card-pad playground">
+        <div class="controls">
+          <div class="field"><label for="c-fn">Function</label>
+            <select class="input" id="c-fn">
+              <option value="zeros">torch.zeros</option><option value="ones">torch.ones</option><option value="full">torch.full (7)</option>
+              <option value="eye">torch.eye</option><option value="rand">torch.rand</option><option value="randn" selected>torch.randn</option>
+              <option value="randint">torch.randint(0, 10)</option><option value="arange">torch.arange</option><option value="linspace">torch.linspace(0, 1)</option>
+              <option value="empty">torch.empty</option>
+            </select></div>
+          <div class="grid-2">
+            <div class="field"><label for="c-r">rows</label><input class="input mono" id="c-r" type="number" min="1" max="6" value="3"></div>
+            <div class="field"><label for="c-c">cols</label><input class="input mono" id="c-c" type="number" min="1" max="8" value="4"></div>
+          </div>
+          <div class="field"><label for="c-seed">torch.manual_seed</label><input class="input mono" id="c-seed" type="number" value="42"></div>
+          <p class="small muted">Same seed → same "random" numbers. That is how experiments are made reproducible.</p>
+        </div>
+        <div class="out-area">
+          <div id="c-code"></div>
+          <div id="c-grid"></div>
+          <div class="stats-row" id="c-stats"></div>
+          <div id="c-note" class="small muted"></div>
+        </div>
+      </div>
+
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="creating_tensors.py" data-imp>
+import torch, numpy as np
+
+a = torch.tensor([[1, 2], [3, 4]])          # from data (copies) -> int64
+b = torch.tensor([1., 2.], dtype=torch.float32, device="cpu", requires_grad=True)
+
+torch.zeros(2, 3); torch.ones(2, 3); torch.full((2, 3), 7.0)
+torch.eye(3)                                  # identity
+torch.arange(0, 10, 2)                        # 0 2 4 6 8  (step, end excluded)
+torch.linspace(0, 1, 5)                       # 5 points, end included
+torch.manual_seed(42)
+torch.rand(2, 3)                              # uniform [0, 1)
+torch.randn(2, 3)                             # normal(0, 1)
+torch.randint(0, 10, (2, 3))                  # ints in [0, 10)
+
+x = torch.randn(4, 5)
+torch.zeros_like(x); torch.ones_like(x); torch.rand_like(x)   # same shape/dtype/device
+
+arr = np.array([1.0, 2.0])
+t = torch.from_numpy(arr)                     # shares memory, dtype float64!
+print(x.shape, x.dtype, x.device, x.ndim, x.numel())
+      </textarea>
+      <textarea class="py-out">
+torch.Size([4, 5]) torch.float32 cpu 2 20
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:create"></div>
+    </section>
+
+    <!-- ============ DTYPES ============ -->
+    <section class="tab-panel" data-panel="dtypes" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Every element has the same dtype</h3>
+        <p>The dtype decides precision, memory and which operations are allowed. Most deep-learning bugs here come from two places: NumPy defaulting to <code>float64</code>, and losses that insist on <code>long</code> class labels.</p>
+        <div class="tbl-wrap mt"><table class="tbl">
+          <thead><tr><th>dtype</th><th>bytes</th><th>Typical use</th></tr></thead>
+          <tbody>
+            <tr><td><code>torch.float32</code> (float)</td><td>4</td><td>Default for weights, activations and inputs <span class="imp">Must-know</span></td></tr>
+            <tr><td><code>torch.float16</code> (half)</td><td>2</td><td>Mixed-precision training on GPUs</td></tr>
+            <tr><td><code>torch.bfloat16</code></td><td>2</td><td>Mixed precision with float32's range (A100/H100, TPUs)</td></tr>
+            <tr><td><code>torch.float64</code> (double)</td><td>8</td><td>NumPy default; rarely needed in DL</td></tr>
+            <tr><td><code>torch.int64</code> (long)</td><td>8</td><td>Class labels for CrossEntropyLoss, Embedding indices <span class="imp">Must-know</span></td></tr>
+            <tr><td><code>torch.int32</code>, <code>uint8</code></td><td>4, 1</td><td>Raw image bytes (0–255), quantised models</td></tr>
+            <tr><td><code>torch.bool</code></td><td>1</td><td>Masks</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · memory calculator &amp; type promotion</div>
+      <div class="grid-2">
+        <div class="card card-pad controls">
+          <h3 style="font-size:14.5px">How much memory do the weights need?</h3>
+          <div class="field"><label for="d-n">Parameters (millions)</label>
+            <div class="range-row"><input type="range" id="d-n" min="1" max="70000" step="1" value="7000"><span class="val" id="d-n-v"></span></div></div>
+          <div id="d-mem" class="grid-2"></div>
+          <p class="small muted">Training with Adam needs roughly 4× the weight memory in float32 (weights + gradients + two optimizer moments) — before activations.</p>
+        </div>
+        <div class="card card-pad controls">
+          <h3 style="font-size:14.5px">What dtype does <code>a + b</code> produce?</h3>
+          <div class="grid-2">
+            <div class="field"><label for="d-a">a</label><select class="input" id="d-a"></select></div>
+            <div class="field"><label for="d-b">b</label><select class="input" id="d-b"></select></div>
+          </div>
+          <div id="d-res"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="dtypes.py" data-imp>
+x = torch.tensor([1, 2, 3])          # int64 (inferred)
+x.float()                            # -> float32
+x.to(torch.float16)                  # -> float16
+labels = torch.tensor([0., 2., 1.]).long()   # CrossEntropyLoss wants int64
+
+# NumPy arrays are float64 by default — convert once at the boundary
+X = torch.from_numpy(np_array).float()
+
+(torch.tensor([1, 2]) + torch.tensor([0.5, 0.5])).dtype   # float32 (promotion)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:dtypes"></div>
+    </section>
+
+    <!-- ============ OPS ============ -->
+    <section class="tab-panel" data-panel="ops" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Element-wise, reductions and matrix multiplication</h3>
+        <ul>
+          <li><strong>Element-wise</strong> — <code>+ - * / **</code>, <code>torch.exp</code>, <code>torch.sqrt</code>, <code>torch.clamp</code>, <code>torch.sigmoid</code>: same shape in, same shape out.</li>
+          <li><strong>Reductions</strong> — <code>sum, mean, std, max, min, argmax, prod</code>: collapse one or more dimensions. The <code>dim</code> argument names the axis that <em>disappears</em>. <span class="imp">Must-know</span></li>
+          <li><strong>Matrix multiplication</strong> — <code>@</code> / <code>torch.matmul</code>: inner dimensions must match, <code>(n, m) @ (m, p) → (n, p)</code>. This is what every Linear layer does. <span class="imp">Must-know</span></li>
+        </ul>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · which dimension collapses?</div>
+      <div class="card card-pad playground">
+        <div class="controls">
+          <div class="field"><span class="label-t">Operation</span><div class="seg" id="r-op">
+            <button data-v="sum" class="on">sum</button><button data-v="mean">mean</button><button data-v="max">max</button><button data-v="argmax">argmax</button></div></div>
+          <div class="field"><span class="label-t">dim</span><div class="seg" id="r-dim">
+            <button data-v="none">None</button><button data-v="0" class="on">0</button><button data-v="1">1</button></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="r-keep"> keepdim=True</label>
+          <p class="small muted">Colour shows which elements are combined into each output value.</p>
+        </div>
+        <div class="out-area">
+          <div id="r-code"></div>
+          <div class="tslab"><div><div class="cap">x · shape (3, 4)</div><div id="r-in"></div></div><div><div class="cap" id="r-cap"></div><div id="r-out"></div></div></div>
+        </div>
+      </div>
+
+      <div class="block-title"><i data-icon="flask"></i>Try it · matrix multiplication, cell by cell</div>
+      <div class="card card-pad">
+        <p class="small muted" style="margin-bottom:12px">Hover or tap a cell of the result to see the row of A and the column of B that produce it.</p>
+        <div class="mm-wrap"><div><div class="cap label">A (2, 3)</div><div id="mm-a"></div></div>@<div><div class="cap label">B (3, 2)</div><div id="mm-b"></div></div>=<div><div class="cap label">C (2, 2)</div><div id="mm-c"></div></div></div>
+        <div id="mm-exp" class="callout blue mt"></div>
+      </div>
+
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="math_ops.py" data-imp>
+x = torch.tensor([[1., 2., 3.], [4., 5., 6.]])
+
+x * 2, x + x, x ** 2, torch.exp(x), x.clamp(min=2, max=5)   # element-wise
+x.sum(), x.sum(dim=0), x.sum(dim=1, keepdim=True)            # reductions
+x.mean(dim=0), x.std(dim=1), x.max(dim=1).values, x.argmax(dim=1)
+
+W = torch.randn(3, 4)
+x @ W                       # (2, 3) @ (3, 4) -> (2, 4)
+torch.matmul(x, W)          # same
+torch.bmm(torch.randn(8, 2, 3), torch.randn(8, 3, 4))   # batched: (8, 2, 4)
+x * x                       # element-wise, NOT matmul
+torch.dot(torch.tensor([1., 2.]), torch.tensor([3., 4.]))   # 11.
+
+# softmax across classes for each row
+logits = torch.randn(4, 10)
+probs = torch.softmax(logits, dim=1)        # each row sums to 1
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:ops"></div>
+    </section>
+
+    <!-- ============ BROADCAST ============ -->
+    <section class="tab-panel" data-panel="broadcast" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Broadcasting: operate on different shapes without copying <span class="imp">Must-know</span></h3>
+        <ol>
+          <li>Align the shapes on the <strong>right</strong>. Missing leading dimensions count as 1.</li>
+          <li>For each dimension the sizes must be <strong>equal</strong>, or one of them must be <strong>1</strong>.</li>
+          <li>Size-1 dimensions are stretched to match. The result takes the larger size in every position.</li>
+        </ol>
+        <p>That is why <code>logits + bias</code> works for <code>(64, 10) + (10,)</code>: the bias is reused for every sample in the batch.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · broadcast checker</div>
+      <div class="card card-pad">
+        <div class="btn-row" id="b-presets"></div>
+        <div class="grid-2 mt">
+          <div class="field"><label for="b-a">shape of a</label><input class="input mono" id="b-a" value="3, 1"></div>
+          <div class="field"><label for="b-b">shape of b</label><input class="input mono" id="b-b" value="1, 4"></div>
+        </div>
+        <div class="split mt2">
+          <div><table class="bc-table" id="b-table"></table><div id="b-res" class="mt"></div></div>
+          <div id="b-vis"></div>
+        </div>
+      </div>
+      <div class="callout red mt"><i data-icon="alert"></i><div><b>The silent bug:</b> predictions <code>(N, 1)</code> minus targets <code>(N,)</code> broadcast to <code>(N, N)</code>. No error — just a wrong loss. Try the "(N,1) vs (N,)" preset. <span class="imp">Must-know</span></div></div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="broadcasting.py" data-imp>
+a = torch.arange(3).reshape(3, 1)     # (3, 1)
+b = torch.arange(4)                   # (4,)  -> treated as (1, 4)
+(a + b).shape                         # torch.Size([3, 4])
+
+# Standardise each feature column with keepdim
+X = torch.randn(100, 5)
+Xn = (X - X.mean(dim=0, keepdim=True)) / X.std(dim=0, keepdim=True)
+
+# The silent bug and its fix
+pred = torch.randn(8, 1); y = torch.randn(8)
+((pred - y) ** 2).shape               # torch.Size([8, 8])  <- wrong!
+((pred.squeeze(1) - y) ** 2).shape    # torch.Size([8])     <- right
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:broadcast"></div>
+    </section>
+
+    <!-- ============ INDEX ============ -->
+    <section class="tab-panel" data-panel="index" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Indexing works like NumPy</h3>
+        <p>Use <code>x[row, col]</code>, slices <code>start:stop:step</code>, negative indices, lists of indices and boolean masks. Basic slices return <strong>views</strong> (shared memory); lists and masks return <strong>copies</strong>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · what does this expression select?</div>
+      <div class="card card-pad playground">
+        <div class="controls">
+          <div class="field"><label for="i-expr">Expression on x (shape 4×5)</label><input class="input mono" id="i-expr" value="x[1:3, ::2]"></div>
+          <div class="btn-row" id="i-presets"></div>
+          <p class="small muted">Supports ints, <code>a:b:c</code> slices, lists like <code>[0, 2]</code>, and masks like <code>x[x &gt; 10]</code> or <code>x[x % 2 == 0]</code>.</p>
+        </div>
+        <div class="out-area">
+          <div class="tslab"><div><div class="cap">x</div><div id="i-grid"></div></div><div><div class="cap" id="i-cap"></div><div id="i-out"></div></div></div>
+          <div id="i-note"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="indexing.py">
+x = torch.arange(20).reshape(4, 5)
+x[0], x[-1], x[:, 1], x[1:3, ::2]     # views
+x[[0, 2]]                             # rows 0 and 2 (copy)
+x[x > 10]                             # 1-D tensor of matching values (copy)
+x[x > 10] = 0                         # write through a mask
+torch.where(x > 10, x, torch.zeros_like(x))
+idx = torch.tensor([[4], [0], [2], [1]])
+x.gather(1, idx)                      # pick one column per row
+x[..., -1]                            # ellipsis = all leading dims
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:index"></div>
+    </section>
+
+    <!-- ============ RESHAPE ============ -->
+    <section class="tab-panel" data-panel="reshape" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Shape is just a way of reading flat memory <span class="imp">Must-know</span></h3>
+        <p>A tensor's data sits in one flat block (its <strong>storage</strong>). The <strong>shape</strong> and <strong>strides</strong> say how to read it: stride <code>(4, 1)</code> means "jump 4 elements for the next row, 1 for the next column".</p>
+        <ul>
+          <li><code>view</code> / <code>reshape</code> / <code>unsqueeze</code> / <code>squeeze</code> / <code>flatten</code> change the shape — usually without touching memory.</li>
+          <li><code>transpose</code> / <code>permute</code> / <code>.T</code> only swap strides. The data isn't moved, so the tensor becomes <strong>non-contiguous</strong> and <code>view</code> will refuse it.</li>
+          <li><code>.contiguous()</code> copies into a fresh, ordered block; <code>reshape</code> does that automatically when it must.</li>
+        </ul>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · storage, shape and stride simulator</div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="layers"></i>x = torch.arange(12).reshape(3, 4)</h3><div class="btn-row"><button class="btn btn-sm" id="s-reset"><i data-icon="reset"></i>Reset</button></div></div>
+        <div class="card-pad">
+          <div class="btn-row" id="s-ops"></div>
+          <div class="mt2" id="s-log"></div>
+          <div class="grid-4 mt" id="s-stats"></div>
+          <div class="mt2"><div class="label" style="margin-bottom:16px">Storage (flat memory) — numbers above show the order you read it in</div><div class="mem-strip" id="s-mem"></div></div>
+          <div class="mt2"><div class="label" style="margin-bottom:6px">Logical view</div><div class="slabs" id="s-view"></div></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="reshaping.py" data-imp>
+x = torch.arange(12)
+x.view(3, 4); x.reshape(4, 3); x.view(-1, 6)   # -1 = infer
+x.view(3, 4).stride()                           # (4, 1)
+
+t = x.view(3, 4).T                              # transpose: shape (4, 3), stride (1, 4)
+t.is_contiguous()                               # False
+# t.view(12)  -> RuntimeError: view size is not compatible ... Use .reshape(...)
+t.contiguous().view(12)                         # works (copies)
+t.reshape(12)                                   # works (copies automatically)
+
+img = torch.randn(224, 224, 3)                  # H, W, C (from PIL/NumPy)
+img = img.permute(2, 0, 1)                      # C, H, W for Conv2d
+batch = img.unsqueeze(0)                        # (1, 3, 224, 224)
+batch.squeeze(0).shape                          # (3, 224, 224)
+batch.flatten(1).shape                          # (1, 150528) keep batch dim
+torch.cat([a, b], dim=0); torch.stack([a, b], dim=0)   # join along existing / new dim
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:reshape"></div>
+    </section>
+
+    <!-- ============ MEMORY ============ -->
+    <section class="tab-panel" data-panel="memory" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Who shares memory with whom? <span class="imp">Must-know</span></h3>
+        <p>Assignment, views, slices, <code>detach()</code> and <code>numpy()</code> all <strong>share</strong> memory with the original. <code>clone()</code>, <code>torch.tensor(...)</code>, <code>.contiguous()</code> on a non-contiguous tensor and moving to another device <strong>copy</strong>. In-place operations (methods ending in <code>_</code>) modify shared memory — and everything aliasing it.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · run an in-place write and see what changes</div>
+      <div class="card card-pad">
+        <div class="btn-row"><button class="btn btn-primary" id="m-write"><i data-icon="play"></i>a[0] = 99 (in-place)</button><button class="btn" id="m-add">a.add_(10)</button><button class="btn" id="m-new">a = a + 10 (new tensor)</button><button class="btn" id="m-reset"><i data-icon="reset"></i>Reset</button></div>
+        <div class="mt2" style="display:grid;gap:6px" id="m-rows"></div>
+        <div class="mt" id="m-note"></div>
+      </div>
+      <div class="block-title"><i data-icon="cpu"></i>Devices</div>
+      <div class="card lesson">
+        <p>A tensor lives on one device. Operations need all inputs on the same device, and moving data between CPU and GPU is a copy across the PCIe bus — do it once per batch, not inside inner loops.</p>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="memory_and_devices.py" data-imp>
+a = torch.tensor([1., 2., 3.])
+b = a                    # same object
+v = a[1:]                # view (shares storage)
+c = a.clone()            # independent copy
+n = a.numpy()            # shares memory (CPU only)
+a[0] = 99                # b, n see it; v[0] is a[1] so unchanged; c does not
+
+x = torch.randn(3, requires_grad=True)
+snap = x.detach().clone()          # safe snapshot, no graph, own memory
+val = x.sum().item()               # Python float
+arr = x.detach().cpu().numpy()     # GPU tensor -> NumPy
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+g = x.to(device)                   # copy to GPU (returns new tensor!)
+z = torch.zeros(3, device=g.device)   # create directly on the right device
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="tensors:memory"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, tensorGrid, codeBlock, rng } = PT;
+  // icons inside template-like markup
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const seg = (id, cb) => { const el = $('#' + id); el.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; el.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); }); return () => el.querySelector('.on').dataset.v; };
+
+  /* ====== CREATE ====== */
+  function create() {
+    const fn = $('#c-fn').value; const R = Math.max(1, Math.min(6, +$('#c-r').value || 1)); const C = Math.max(1, Math.min(8, +$('#c-c').value || 1));
+    const seed = +$('#c-seed').value || 0; const r = rng(seed * 7919 + 13);
+    let data = [], dtype = 'torch.float32', code, note = '';
+    const n = R * C;
+    for (let i = 0; i < R; i++) { const row = []; for (let j = 0; j < C; j++) {
+      const k = i * C + j; let v;
+      switch (fn) {
+        case 'zeros': v = 0; break; case 'ones': v = 1; break; case 'full': v = 7; break;
+        case 'eye': v = i === j ? 1 : 0; break; case 'rand': v = r(); break; case 'randn': v = r.normal(); break;
+        case 'randint': v = Math.floor(r() * 10); break; case 'arange': v = k; break;
+        case 'linspace': v = n === 1 ? 0 : k / (n - 1); break; case 'empty': v = [0, 3.2e-41, 1.4e-45, -2.1e+38, 0, 4.6e-41][k % 6]; break;
+      } row.push(v); } data.push(row); }
+    const shape = '(' + R + ', ' + C + ')';
+    switch (fn) {
+      case 'full': code = 'torch.full(' + shape + ', 7.0)'; break;
+      case 'eye': code = 'torch.eye(' + R + ', ' + C + ')'; break;
+      case 'randint': code = 'torch.randint(0, 10, ' + shape + ')'; dtype = 'torch.int64'; break;
+      case 'arange': code = 'torch.arange(' + n + ').reshape(' + R + ', ' + C + ')'; dtype = 'torch.int64'; note = 'arange with integer arguments gives int64; use torch.arange(' + n + '.) for floats.'; break;
+      case 'linspace': code = 'torch.linspace(0, 1, ' + n + ').reshape(' + R + ', ' + C + ')'; note = 'linspace includes both end points.'; break;
+      case 'empty': code = 'torch.empty(' + R + ', ' + C + ')'; note = '⚠ Uninitialised memory: values are whatever was there before. Overwrite before use.'; break;
+      default: code = 'torch.' + fn + '(' + R + ', ' + C + ')';
+    }
+    if (fn === 'rand') note = 'Uniform on [0, 1).';
+    if (fn === 'randn') note = 'Standard normal: mean 0, std 1 — the usual starting point for weights.';
+    setCode($('#c-code'), 'torch.manual_seed(' + seed + ')\nx = ' + code, 'factory');
+    const isInt = dtype === 'torch.int64';
+    $('#c-grid').innerHTML = tensorGrid(data, { d: fn === 'empty' ? 1 : 2 }).replace(/>(-?\d\.\d)e([+-]\d+)</g, '>$1e$2<');
+    if (fn === 'empty') $('#c-grid').innerHTML = tensorGrid(data.map((r) => r.map((v) => v === 0 ? '0.' : v.toExponential(1))));
+    else if (!isInt) $('#c-grid').innerHTML = tensorGrid(data.map((r) => r.map((v) => fn === 'rand' || fn === 'randn' || fn === 'linspace' ? v.toFixed(4) : v.toFixed(0) + '.')));
+    $('#c-stats').innerHTML = ['shape torch.Size([' + R + ', ' + C + '])', 'dtype ' + dtype, 'ndim ' + 2, 'numel ' + n, 'device cpu'].map((s) => '<span class="chip">' + s + '</span>').join('');
+    $('#c-note').textContent = note;
+  }
+  ['c-fn', 'c-r', 'c-c', 'c-seed'].forEach((id) => $('#' + id).addEventListener('input', create));
+  create();
+
+  /* ====== DTYPES ====== */
+  const DT = { bool: 0, uint8: 1, int32: 2, int64: 3, float16: 4, bfloat16: 4.5, float32: 5, float64: 6 };
+  const opts = Object.keys(DT).map((k) => '<option>' + k + '</option>').join('');
+  $('#d-a').innerHTML = opts; $('#d-b').innerHTML = opts; $('#d-a').value = 'int64'; $('#d-b').value = 'float32';
+  function promo() {
+    const a = $('#d-a').value, b = $('#d-b').value;
+    let res;
+    const isF = (t) => t.startsWith('float') || t === 'bfloat16';
+    if (a === b) res = a;
+    else if (isF(a) && !isF(b)) res = a;
+    else if (isF(b) && !isF(a)) res = b;
+    else if ((a === 'float16' && b === 'bfloat16') || (b === 'float16' && a === 'bfloat16')) res = 'float32';
+    else res = DT[a] > DT[b] ? a : b;
+    const why = a === b ? 'Same dtype — nothing to promote.' : (isF(a) !== isF(b) ? 'Integer + float → the float type wins (a float tensor operand decides the result).' : (res === 'float32' && a !== 'float32' && b !== 'float32' ? 'float16 and bfloat16 have no common 16-bit type, so PyTorch goes up to float32.' : 'Same category → the wider type wins.'));
+    $('#d-res').innerHTML = '<div class="ok-box">torch.' + a + ' + torch.' + b + ' → torch.' + res + '</div><p class="small muted mt">' + why + '</p>';
+  }
+  $('#d-a').addEventListener('change', promo); $('#d-b').addEventListener('change', promo); promo();
+  function mem() {
+    const n = +$('#d-n').value * 1e6;
+    $('#d-n-v').textContent = n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : (n / 1e6).toFixed(0) + 'M';
+    const gb = (b) => { const v = n * b / 1024 ** 3; return v >= 1 ? v.toFixed(1) + ' GB' : (v * 1024).toFixed(0) + ' MB'; };
+    $('#d-mem').innerHTML = [['float32', 4], ['float16 / bf16', 2], ['int8', 1], ['Adam training (fp32)', 16]].map(([k, b]) => '<div class="stat"><div class="v">' + gb(b) + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  $('#d-n').addEventListener('input', mem); mem();
+
+  /* ====== REDUCTIONS ====== */
+  const X = [[3, 7, 1, 5], [8, 2, 6, 4], [1, 9, 3, 2]];
+  const colors = ['hl', 'hl2', 'hl'];
+  const getOp = seg('r-op', reduce), getDim = seg('r-dim', reduce);
+  $('#r-keep').addEventListener('change', reduce);
+  function reduce() {
+    const op = getOp(), dim = getDim(), keep = $('#r-keep').checked;
+    const f = { sum: (a) => a.reduce((s, v) => s + v, 0), mean: (a) => a.reduce((s, v) => s + v, 0) / a.length, max: (a) => Math.max(...a), argmax: (a) => a.indexOf(Math.max(...a)) }[op];
+    let out, shape, cls;
+    if (dim === 'none') { out = [f(X.flat())]; shape = op === 'argmax' ? '() — index into the flattened tensor' : '()'; cls = () => 'hl'; }
+    else if (dim === '0') { out = [0, 1, 2, 3].map((j) => f(X.map((r) => r[j]))); shape = keep ? '(1, 4)' : '(4,)'; cls = (i, j) => (j % 2 ? 'hl2' : 'hl'); }
+    else { out = X.map(f); shape = keep ? '(3, 1)' : '(3,)'; cls = (i) => colors[i]; }
+    $('#r-in').innerHTML = tensorGrid(X, { cls: (i, j) => cls(i, j) + (op.startsWith('arg') || op === 'max' ? '' : '') });
+    const d = op === 'mean' ? 2 : 0;
+    let grid;
+    if (dim === '1' && keep) grid = tensorGrid(out.map((v) => [v]), { d, cls: (i) => colors[i] });
+    else grid = tensorGrid(out, { d, cls: (i, j) => dim === '0' ? (j % 2 ? 'hl2' : 'hl') : (dim === '1' ? colors[j] : 'hl') });
+    $('#r-out').innerHTML = grid;
+    $('#r-cap').textContent = 'result · shape ' + shape;
+    const call = dim === 'none' ? 'x.' + op + '()' : 'x.' + op + '(dim=' + dim + (keep ? ', keepdim=True' : '') + ')';
+    let comment = dim === 'none' ? '# reduce everything to one value' : dim === '0' ? '# collapse dim 0 (rows) -> one value per column' : '# collapse dim 1 (columns) -> one value per row';
+    if (op === 'max' && dim !== 'none') comment += '\n# note: x.max(dim=...) returns (values, indices)';
+    setCode($('#r-code'), call + '   ' + comment, 'reduction');
+  }
+  reduce();
+
+  /* ====== MATMUL ====== */
+  const A = [[1, 2, 3], [4, 5, 6]], B = [[7, 8], [9, 10], [11, 12]];
+  const Cm = A.map((r) => [0, 1].map((j) => r.reduce((s, v, k) => s + v * B[k][j], 0)));
+  function mm(ci, cj) {
+    $('#mm-a').innerHTML = tensorGrid(A, { cls: (i) => (i === ci ? 'hl' : '') });
+    $('#mm-b').innerHTML = tensorGrid(B, { cls: (i, j) => (j === cj ? 'hl2' : '') });
+    $('#mm-c').innerHTML = tensorGrid(Cm, { cls: (i, j) => (i === ci && j === cj ? 'hl' : '') });
+    $$('#mm-c .tcell').forEach((el, k) => { el.style.cursor = 'pointer'; const h = () => mm(Math.floor(k / 2), k % 2); el.addEventListener('mouseenter', h); el.addEventListener('click', h); });
+    const terms = A[ci].map((v, k) => v + '·' + B[k][cj]).join(' + ');
+    $('#mm-exp').innerHTML = PT.icon('info') + '<div><b>C[' + ci + ', ' + cj + ']</b> = row ' + ci + ' of A · column ' + cj + ' of B = ' + terms + ' = <b>' + Cm[ci][cj] + '</b>. Inner sizes (3 and 3) must match; the outer sizes give the result shape (2, 2).</div>';
+  }
+  mm(0, 0);
+
+  /* ====== BROADCAST ====== */
+  const PRE = [['3, 1', '1, 4'], ['64, 10', '10'], ['2, 3', '2'], ['8, 1', '8'], ['32, 3, 224, 224', '3, 1, 1'], ['5, 3, 1', '4, 1']];
+  const PRE_L = ['(3,1)+(1,4)', 'logits + bias', '(2,3)+(2,) ✗', '(N,1) vs (N,) bug', 'image − channel mean', '(5,3,1)+(4,1)'];
+  $('#b-presets').innerHTML = PRE.map((p, i) => '<button class="btn btn-sm" data-i="' + i + '">' + PRE_L[i] + '</button>').join('');
+  $('#b-presets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#b-a').value = PRE[+b.dataset.i][0]; $('#b-b').value = PRE[+b.dataset.i][1]; bcast(); });
+  const parseShape = (s) => s.replace(/[()\[\]]/g, '').split(',').map((v) => v.trim()).filter(Boolean).map(Number);
+  function bcast() {
+    const a = parseShape($('#b-a').value), b = parseShape($('#b-b').value);
+    if (a.some(isNaN) || b.some(isNaN)) { $('#b-res').innerHTML = '<div class="err-box">Enter shapes like 3, 1</div>'; return; }
+    const n = Math.max(a.length, b.length);
+    const pa = Array(n - a.length).fill(null).concat(a), pb = Array(n - b.length).fill(null).concat(b);
+    const res = []; let ok = true; const st = [];
+    for (let i = 0; i < n; i++) {
+      const x = pa[i] == null ? 1 : pa[i], y = pb[i] == null ? 1 : pb[i];
+      if (x === y) { res.push(x); st.push('ok'); }
+      else if (x === 1 || y === 1) { res.push(Math.max(x, y)); st.push('st'); }
+      else { res.push('✗'); st.push('bad'); ok = false; }
+    }
+    const row = (lab, arr, isRes) => '<tr><td class="lab">' + lab + '</td>' + arr.map((v, i) => '<td class="' + (isRes ? st[i] : (v == null ? 'miss' : (st[i] === 'st' && v === 1 ? 'st' : st[i] === 'bad' ? 'bad' : ''))) + '">' + (v == null ? '1' : v) + '</td>').join('') + '</tr>';
+    $('#b-table').innerHTML = row('a', pa) + row('b', pb) + row('result', res, true);
+    const bug = a.length === 2 && a[1] === 1 && b.length === 1 && a[0] === b[0] && a[0] > 1;
+    $('#b-res').innerHTML = ok ? '<div class="ok-box">Result shape: (' + res.join(', ') + (res.length === 1 ? ',' : '') + ')</div>' + (bug ? '<div class="err-box mt">⚠ This is the silent loss bug: you probably wanted (' + a[0] + ',), not (' + a[0] + ', ' + a[0] + ').</div>' : '') :
+      '<div class="err-box">RuntimeError: The size of tensor a (' + pa[st.indexOf('bad')] + ') must match the size of tensor b (' + pb[st.indexOf('bad')] + ') at non-singleton dimension ' + st.indexOf('bad') + '</div>';
+    // visual for small 2-D results
+    const vis = $('#b-vis');
+    if (ok && res.length <= 2 && res.every((v) => v <= 8)) {
+      const R2 = res.length === 2 ? res[0] : 1, C2 = res[res.length - 1];
+      const ga = pa.length === 2 ? pa : [1, pa[0]], gb = pb.length === 2 ? pb : [1, pb[0]];
+      const ar = ga.map((v) => (v == null ? 1 : v)), br = gb.map((v) => (v == null ? 1 : v));
+      const cellA = (i, j) => (ar[0] === 1 ? 0 : i) * 10 + (ar[1] === 1 ? 0 : j);
+      const cellB = (i, j) => (br[0] === 1 ? 0 : i) * 10 + (br[1] === 1 ? 0 : j);
+      const mk = (f, real) => { const g = []; for (let i = 0; i < R2; i++) { const r = []; for (let j = 0; j < C2; j++) r.push(f(i, j)); g.push(r); } return g; };
+      const ga2 = mk((i, j) => 'a' + cellA(i, j)), gb2 = mk((i, j) => 'b' + cellB(i, j));
+      const realA = (i, j) => (ar[0] === 1 && i > 0) || (ar[1] === 1 && j > 0);
+      const realB = (i, j) => (br[0] === 1 && i > 0) || (br[1] === 1 && j > 0);
+      vis.innerHTML = '<div class="tslab"><div><div class="cap">a stretched</div>' + tensorGrid(ga2, { cls: (i, j) => realA(i, j) ? 'ghost' : 'hl' }) + '</div><div><div class="cap">b stretched</div>' + tensorGrid(gb2, { cls: (i, j) => realB(i, j) ? 'ghost' : 'hl2' }) + '</div></div><p class="small muted mt">Solid cells exist in memory; dashed cells are virtual copies — broadcasting never allocates them.</p>';
+    } else vis.innerHTML = ok ? '<p class="small muted">Visual shown for 1-D/2-D results up to 8×8.</p>' : '';
+  }
+  ['b-a', 'b-b'].forEach((id) => $('#' + id).addEventListener('input', bcast)); bcast();
+
+  /* ====== INDEXING ====== */
+  const XI = Array.from({ length: 4 }, (_, i) => Array.from({ length: 5 }, (_, j) => i * 5 + j));
+  const IP = ['x[1]', 'x[:, 2]', 'x[1:3, ::2]', 'x[-1, -2:]', 'x[[0, 3]]', 'x[x > 12]', 'x[x % 2 == 0]', 'x[0:4:3, [1, 4]]'];
+  $('#i-presets').innerHTML = IP.map((p) => '<button class="btn btn-sm mono">' + esc(p) + '</button>').join('');
+  $('#i-presets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#i-expr').value = b.textContent; idx(); });
+  function parsePart(p, size) {
+    p = p.trim();
+    if (p === '' || p === ':') return { idx: [...Array(size).keys()], kind: 'slice' };
+    if (/^\[.*\]$/.test(p)) { const l = p.slice(1, -1).split(',').map((v) => +v.trim()); if (l.some((v) => isNaN(v) || v >= size || v < -size)) throw 0; return { idx: l.map((v) => (v < 0 ? v + size : v)), kind: 'list' }; }
+    if (p.includes(':')) {
+      const [a, b, c] = p.split(':').map((v) => v.trim());
+      const step = c ? +c : 1; if (!step || step < 0 || isNaN(step)) throw 0;
+      let s = a === '' || a == null ? 0 : +a, e = b === '' || b == null ? size : +b;
+      if (isNaN(s) || isNaN(e)) throw 0;
+      if (s < 0) s += size; if (e < 0) e += size; e = Math.min(e, size);
+      const out = []; for (let k = Math.max(0, s); k < e; k += step) out.push(k); return { idx: out, kind: 'slice' };
+    }
+    let v = +p; if (isNaN(v) || v >= size || v < -size) throw 0; if (v < 0) v += size; return { idx: [v], kind: 'int' };
+  }
+  function idx() {
+    const e = $('#i-expr').value.replace(/\s+/g, ' ').trim();
+    let sel = new Set(), out, shape, view, note = '';
+    try {
+      const mm = e.match(/^x\[\s*x\s*(>|<|>=|<=|==)\s*(\d+)\s*\]$/), md = e.match(/^x\[\s*x\s*%\s*(\d+)\s*==\s*(\d+)\s*\]$/);
+      if (mm || md) {
+        const test = mm ? (v) => ({ '>': v > +mm[2], '<': v < +mm[2], '>=': v >= +mm[2], '<=': v <= +mm[2], '==': v === +mm[2] })[mm[1]] : (v) => v % +md[1] === +md[2];
+        out = XI.flat().filter(test); XI.flat().forEach((v) => test(v) && sel.add(v));
+        shape = '(' + out.length + ',)'; view = false; note = 'A boolean mask always returns a 1-D copy of the selected elements.';
+      } else {
+        const m = e.match(/^x\[(.*)\]$/); if (!m) throw 0;
+        let inner = m[1]; const parts = []; let depth = 0, cur = '';
+        for (const ch of inner) { if (ch === '[') depth++; if (ch === ']') depth--; if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch; }
+        parts.push(cur); if (parts.length > 2) throw 0;
+        const r = parsePart(parts[0], 4), c = parsePart(parts[1] == null ? ':' : parts[1], 5);
+        if (r.kind === 'list' && c.kind === 'list') { if (r.idx.length !== c.idx.length) throw 0; out = r.idx.map((i, k) => XI[i][c.idx[k]]); out.forEach((v) => sel.add(v)); shape = '(' + out.length + ',)'; view = false; note = 'Two index lists are paired element by element: x[[r0, r1], [c0, c1]] → [x[r0,c0], x[r1,c1]].'; }
+        else {
+          out = r.idx.map((i) => c.idx.map((j) => XI[i][j])); out.flat().forEach((v) => sel.add(v));
+          const dims = []; if (r.kind !== 'int') dims.push(r.idx.length); if (c.kind !== 'int') dims.push(c.idx.length);
+          if (r.kind === 'int') out = out[0]; if (c.kind === 'int') out = Array.isArray(out[0]) ? out.map((x) => x[0]) : out;
+          shape = '(' + dims.join(', ') + (dims.length === 1 ? ',' : '') + ')';
+          view = r.kind !== 'list' && c.kind !== 'list';
+          if (dims.length === 0) note = 'Two integers select a single element: a 0-D tensor. Use .item() for a Python number.';
+          else note = view ? 'Only ints and slices → this is a view. Writing to it changes x.' : 'A list of indices → advanced indexing → a copy.';
+        }
+      }
+      $('#i-grid').innerHTML = tensorGrid(XI, { cls: (i, j, v) => (sel.has(v) ? 'hl' : '') });
+      const shown = Array.isArray(out) ? out : [out];
+      $('#i-out').innerHTML = shown.length ? tensorGrid(shown, { d: 0 }) : '<span class="muted small">empty</span>';
+      $('#i-cap').textContent = 'result · shape ' + shape + (view === true ? ' · view' : view === false ? ' · copy' : '');
+      $('#i-note').innerHTML = '<div class="callout blue">' + PT.icon('info') + '<div>' + note + '</div></div>';
+    } catch (err) {
+      $('#i-grid').innerHTML = tensorGrid(XI);
+      $('#i-out').innerHTML = ''; $('#i-cap').textContent = '';
+      $('#i-note').innerHTML = '<div class="err-box">IndexError / unsupported here — try one of the presets.</div>';
+    }
+  }
+  $('#i-expr').addEventListener('input', idx); idx();
+
+  /* ====== STRIDES SIMULATOR ====== */
+  let T, storageId, log;
+  function resetS() { T = { storage: [...Array(12).keys()], shape: [3, 4], stride: [4, 1], offset: 0 }; storageId = 1; log = ['x = torch.arange(12).reshape(3, 4)']; drawS(); }
+  const isContig = (t) => { let exp = 1; for (let i = t.shape.length - 1; i >= 0; i--) { if (t.shape[i] !== 1 && t.stride[i] !== exp) return false; exp *= t.shape[i]; } return true; };
+  const contigStride = (shape) => { const s = []; let acc = 1; for (let i = shape.length - 1; i >= 0; i--) { s[i] = acc; acc *= shape[i]; } return s; };
+  const numel = (shape) => shape.reduce((a, b) => a * b, 1);
+  function logicalOrder(t) { const out = []; const rec = (d, off) => { if (d === t.shape.length) { out.push(off); return; } for (let i = 0; i < t.shape[d]; i++) rec(d + 1, off + i * t.stride[d]); }; rec(0, t.offset); return out; }
+  function materialize(t) { const vals = logicalOrder(t).map((o) => t.storage[o]); return { storage: vals, shape: t.shape.slice(), stride: contigStride(t.shape), offset: 0 }; }
+  const OPS = [
+    { l: '.view(4, 3)', f: (t) => view(t, [4, 3]) },
+    { l: '.view(2, 6)', f: (t) => view(t, [2, 6]) },
+    { l: '.view(-1)', f: (t) => view(t, [numel(t.shape)]) },
+    { l: '.view(2, 3, 2)', f: (t) => view(t, [2, 3, 2]) },
+    { l: '.unsqueeze(0)', f: (t) => ({ ...t, shape: [1, ...t.shape], stride: [numel(t.shape), ...t.stride] }) },
+    { l: '.squeeze()', f: (t) => { const k = t.shape.map((s, i) => [s, t.stride[i]]).filter(([s]) => s !== 1); return { ...t, shape: k.map((x) => x[0]), stride: k.map((x) => x[1]) }; } },
+    { l: '.T  (transpose)', f: (t) => { if (t.shape.length !== 2) throw new Error('.T here expects a 2-D tensor (use permute for N-D).'); return { ...t, shape: [t.shape[1], t.shape[0]], stride: [t.stride[1], t.stride[0]] }; } },
+    { l: '.permute(2, 0, 1)', f: (t) => { if (t.shape.length !== 3) throw new Error('permute(2, 0, 1) needs a 3-D tensor — try .view(2, 3, 2) first.'); return { ...t, shape: [t.shape[2], t.shape[0], t.shape[1]], stride: [t.stride[2], t.stride[0], t.stride[1]] }; } },
+    { l: '.contiguous()', f: (t) => (isContig(t) ? t : (storageId++, materialize(t))) },
+    { l: '.reshape(-1)', f: (t) => { if (isContig(t)) return view(t, [numel(t.shape)]); storageId++; return view(materialize(t), [numel(t.shape)]); } },
+  ];
+  function view(t, shape) {
+    if (numel(shape) !== numel(t.shape)) throw new Error('RuntimeError: shape ' + JSON.stringify(shape) + ' is invalid for input of size ' + numel(t.shape));
+    if (!isContig(t)) throw new Error('RuntimeError: view size is not compatible with input tensor\'s size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead.');
+    return { ...t, shape: shape.slice(), stride: contigStride(shape) };
+  }
+  $('#s-ops').innerHTML = OPS.map((o, i) => '<button class="btn btn-sm mono" data-i="' + i + '">' + o.l + '</button>').join('');
+  $('#s-ops').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const op = OPS[+b.dataset.i];
+    try { const before = storageId; T = op.f(T); log.push('x = x' + op.l.split('  ')[0] + (storageId !== before ? '   # copied into new storage' : '')); $('#s-log').dataset.err = ''; drawS(); }
+    catch (err) { drawS(err.message); }
+  });
+  $('#s-reset').addEventListener('click', resetS);
+  function drawS(err) {
+    const host = $('#s-log'); host.innerHTML = '';
+    host.appendChild(codeBlock(log.slice(-6).join('\n'), { title: 'history' }));
+    if (err) host.insertAdjacentHTML('beforeend', '<div class="err-box mt">' + esc(err) + '</div>');
+    const c = isContig(T);
+    $('#s-stats').innerHTML = [['shape', '(' + T.shape.join(', ') + (T.shape.length === 1 ? ',' : '') + ')'], ['stride', '(' + T.stride.join(', ') + (T.stride.length === 1 ? ',' : '') + ')'], ['is_contiguous()', String(c)], ['storage', '#' + storageId]].map(([k, v]) => '<div class="stat"><div class="v" style="font-size:16px;color:' + (k === 'is_contiguous()' ? (c ? 'var(--green)' : 'var(--red)') : 'var(--text)') + '">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    const order = logicalOrder(T); const rank = {}; order.forEach((o, i) => { rank[o] = i; });
+    $('#s-mem').innerHTML = T.storage.map((v, i) => '<span class="tcell ' + (c ? 'hl2' : 'hl') + '"><small>' + (rank[i] != null ? rank[i] : '') + '</small>' + v + '</span>').join('');
+    // logical view
+    const vals = order.map((o) => T.storage[o]);
+    const sh = T.shape.filter(() => true);
+    let html = '';
+    if (sh.length <= 1) html = tensorGrid(vals.length ? vals : [], { d: 0 });
+    else if (sh.length === 2) { const g = []; for (let i = 0; i < sh[0]; i++) g.push(vals.slice(i * sh[1], (i + 1) * sh[1])); html = tensorGrid(g, { d: 0 }); }
+    else { const inner = numel(sh.slice(-2)); const outer = vals.length / inner; for (let s = 0; s < outer; s++) { const g = []; const slab = vals.slice(s * inner, (s + 1) * inner); for (let i = 0; i < sh[sh.length - 2]; i++) g.push(slab.slice(i * sh[sh.length - 1], (i + 1) * sh[sh.length - 1])); html += '<div><div class="cap">[' + s + ']</div>' + tensorGrid(g, { d: 0 }) + '</div>'; } }
+    $('#s-view').innerHTML = html;
+  }
+  resetS();
+
+  /* ====== MEMORY ALIASING ====== */
+  let M;
+  const NAMES = [
+    { k: 'a', why: 'the original' }, { k: 'b = a', why: 'same object' }, { k: 'v = a[1:]', why: 'view (shares storage)' },
+    { k: 'c = a.clone()', why: 'own copy' }, { k: 'd = a.detach()', why: 'shares storage, no graph' }, { k: 'n = a.numpy()', why: 'shares memory (CPU)' }, { k: 't = torch.tensor(n)', why: 'copies data' },
+  ];
+  function resetM() { M = { store: [1, 2, 3], own: { c: [1, 2, 3], t: [1, 2, 3] }, aRebound: false, aNew: null, changed: new Set() }; $('#m-note').innerHTML = ''; drawM(); }
+  function val(k) {
+    if (k === 'a') return M.aRebound ? M.aNew : M.store;
+    if (k.startsWith('b') || k.startsWith('d') || k.startsWith('n')) return M.store;
+    if (k.startsWith('v')) return M.store.slice(1);
+    if (k.startsWith('c')) return M.own.c; return M.own.t;
+  }
+  function drawM() {
+    $('#m-rows').innerHTML = NAMES.map((n) => '<div class="alias-row' + (M.changed.has(n.k[0]) ? ' changed' : '') + '"><span class="nm">' + esc(n.k) + '</span><span>' + tensorGrid(val(n.k), { d: 0 }) + '</span><span class="why">' + n.why + '</span></div>').join('');
+  }
+  $('#m-write').addEventListener('click', () => {
+    const tgt = M.aRebound ? M.aNew : M.store; tgt[0] = 99;
+    M.changed = new Set(M.aRebound ? ['a'] : ['a', 'b', 'd', 'n']);
+    $('#m-note').innerHTML = '<div class="callout amber">' + PT.icon('alert') + '<div>' + (M.aRebound ? 'After <code>a = a + 10</code>, <b>a</b> points to new memory, so only <b>a</b> changes.' : '<b>b, d, n</b> share a\'s storage and change too. <b>v</b> starts at element 1, so its values are unaffected by <code>a[0]</code>. <b>c</b> and <b>t</b> own their memory.') + '</div></div>';
+    drawM();
+  });
+  $('#m-add').addEventListener('click', () => {
+    const tgt = M.aRebound ? M.aNew : M.store; for (let i = 0; i < 3; i++) tgt[i] += 10;
+    M.changed = new Set(M.aRebound ? ['a'] : ['a', 'b', 'v', 'd', 'n']);
+    $('#m-note').innerHTML = '<div class="callout amber">' + PT.icon('alert') + '<div><code>add_</code> writes into the existing storage, so every alias — including the view <b>v</b> — sees the change.</div></div>';
+    drawM();
+  });
+  $('#m-new').addEventListener('click', () => {
+    M.aNew = (M.aRebound ? M.aNew : M.store).map((v) => v + 10); M.aRebound = true; M.changed = new Set(['a']);
+    $('#m-note').innerHTML = '<div class="callout green">' + PT.icon('check') + '<div><code>a = a + 10</code> creates a <b>new</b> tensor and rebinds the name <b>a</b>. The old storage — still used by b, v, d, n — is untouched.</div></div>';
+    drawM();
+  });
+  $('#m-reset').addEventListener('click', resetM);
+  resetM();
+
+  PT.init('tensors');
+})();
+</script>
+</body>
+</html>

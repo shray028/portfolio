@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTorch Autograd — Graphs, backward() and Gradients</title>
+  <meta name="description" content="Interactive autograd lab: chain rule on a neuron, step-through backward pass on a computation graph, gradient accumulation and zero_grad, no_grad and detach.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .chain { display: grid; gap: 6px; font: 13px/1.6 var(--font-mono); }
+    .chain div { padding: 8px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .chain b { color: #ffcbb8; }
+    .cmp { display: grid; grid-template-columns: 1fr 1fr 70px; gap: 6px; font: 13px var(--font-mono); }
+    .cmp div { padding: 7px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+    .cmp .h { background: none; border: 0; color: var(--dim); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+    .cmp .ok { color: var(--green); text-align: center; }
+    .g-svg text { font-family: var(--font-mono); }
+    .gauge { height: 26px; border-radius: 8px; background: var(--surface); overflow: hidden; position: relative; }
+    .gauge span { display: block; height: 100%; background: linear-gradient(90deg, #ff8a5c, #fbbf24); transition: width .4s var(--ease); }
+    .gauge b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 12px var(--font-mono); }
+    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; cursor: pointer; }
+    .toggle-row input { accent-color: var(--ember); width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 03 · FOUNDATIONS</span>
+      <h1>Autograd — <span class="grad">gradients for free</span></h1>
+      <p class="desc">Training is "nudge every weight downhill". To know which way is downhill you need ∂loss/∂weight for millions of weights. Autograd records your forward pass as a graph and runs the chain rule backwards through it — here you can watch it happen node by node.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Backward-pass stepper · accumulation lab</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="why"><span class="n">1</span>Why autograd</button>
+      <button class="tab" data-tab="graph"><span class="n">2</span>Computation graph</button>
+      <button class="tab" data-tab="accumulate"><span class="n">3</span>Accumulation &amp; zero_grad</button>
+      <button class="tab" data-tab="control"><span class="n">4</span>no_grad, detach &amp; freezing</button>
+    </div></div>
+
+    <!-- ============ WHY ============ -->
+    <section class="tab-panel" data-panel="why">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The chain rule, automated <span class="imp">Must-know</span></h3>
+        <p>For one neuron with a sigmoid and binary cross-entropy, you can still derive the gradients by hand:</p>
+        <p><code>z = w·x + b</code> → <code>ŷ = σ(z)</code> → <code>L = −[y·log ŷ + (1−y)·log(1−ŷ)]</code></p>
+        <p>∂L/∂w = ∂L/∂ŷ · ∂ŷ/∂z · ∂z/∂w, which simplifies to <strong>(ŷ − y)·x</strong>, and ∂L/∂b = <strong>ŷ − y</strong>. Now imagine doing that for a 50-layer network. Autograd does exactly this bookkeeping for any composition of differentiable operations: set <code>requires_grad=True</code>, compute the loss, call <code>loss.backward()</code>, read <code>.grad</code>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · hand-derived vs autograd</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">input x</span><div class="range-row"><input type="range" id="n-x" min="-3" max="3" step="0.1" value="1.5"><span class="val" id="n-x-v"></span></div></div>
+          <div class="field"><span class="label-t">weight w</span><div class="range-row"><input type="range" id="n-w" min="-3" max="3" step="0.1" value="0.8"><span class="val" id="n-w-v"></span></div></div>
+          <div class="field"><span class="label-t">bias b</span><div class="range-row"><input type="range" id="n-b" min="-3" max="3" step="0.1" value="-0.5"><span class="val" id="n-b-v"></span></div></div>
+          <div class="field"><span class="label-t">true label y</span><div class="seg" id="n-y"><button data-v="0">0</button><button data-v="1" class="on">1</button></div></div>
+          <button class="btn btn-primary" id="n-step"><i data-icon="play"></i>Take one gradient step (lr = 0.5)</button>
+        </div>
+        <div>
+          <div class="chain" id="n-chain"></div>
+          <div class="cmp mt" id="n-cmp"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="neuron_autograd.py" data-imp>
+import torch
+
+x = torch.tensor(1.5)
+y = torch.tensor(1.0)
+w = torch.tensor(0.8, requires_grad=True)
+b = torch.tensor(-0.5, requires_grad=True)
+
+z = w * x + b
+y_hat = torch.sigmoid(z)
+loss = torch.nn.functional.binary_cross_entropy(y_hat, y)
+
+loss.backward()                 # chain rule through the recorded graph
+print(w.grad, b.grad)           # equals (y_hat - y) * x  and  (y_hat - y)
+print((y_hat - y) * x)          # manual check
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="autograd:why"></div>
+    </section>
+
+    <!-- ============ GRAPH ============ -->
+    <section class="tab-panel" data-panel="graph" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Forward builds the graph, backward walks it in reverse</h3>
+        <p>Each operation on a tracked tensor creates a node that remembers its inputs and how to compute its <strong>local derivative</strong>. The result tensor points to that node through <code>grad_fn</code>. <code>backward()</code> starts at the output with gradient 1 and, at each node, multiplies the incoming gradient by the local derivative and passes it on. Where branches meet, gradients <strong>add</strong>.</p>
+        <p>Only <strong>leaf</strong> tensors you created with <code>requires_grad=True</code> keep their <code>.grad</code>. Intermediate results don't, unless you call <code>.retain_grad()</code>. <span class="imp">Must-know</span></p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · step through backward()</div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="git"></i>Graph</h3>
+          <div class="seg" id="g-ex"><button data-v="0" class="on">L = (w·x + b − t)²</button><button data-v="1">z = sin(x²)</button><button data-v="2">y = x·x + x (branch)</button></div></div>
+        <div class="card-pad">
+          <div class="svg-scroll"><svg class="g-svg" id="g-svg" width="100%" viewBox="0 0 760 250" style="min-width:620px"></svg></div>
+          <div class="btn-row mt"><button class="btn" id="g-reset"><i data-icon="reset"></i>Reset</button><button class="btn btn-primary" id="g-step"><i data-icon="step"></i>Backward step</button><button class="btn" id="g-all"><i data-icon="play"></i>Run all</button><span class="legend"><span><i style="background:#5fb3f9"></i>leaf (requires_grad)</span><span><i style="background:#646d82"></i>constant</span><span><i style="background:#b18cff"></i>operation</span><span><i style="background:#ff7a59"></i>gradient</span></span></div>
+          <div class="callout blue mt" id="g-msg"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="graph_inspection.py">
+x = torch.tensor(2.0, requires_grad=True)
+y = x ** 2
+z = torch.sin(y)
+print(z.grad_fn)                       # <SinBackward0>
+print(z.grad_fn.next_functions)        # ((<PowBackward0>, 0),)
+print(x.is_leaf, y.is_leaf)            # True False
+
+y.retain_grad()                        # keep grad for a non-leaf
+z.backward()
+print(x.grad)                          # cos(x²)·2x = cos(4)·4 ≈ -2.6146
+print(y.grad)                          # cos(4)   ≈ -0.6536
+
+v = torch.tensor([1., 2., 3.], requires_grad=True)
+out = v * 2                            # vector output
+out.backward(torch.ones_like(out))     # or out.sum().backward()
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="autograd:graph"></div>
+    </section>
+
+    <!-- ============ ACCUMULATE ============ -->
+    <section class="tab-panel" data-panel="accumulate" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>backward() adds, it does not overwrite <span class="imp">Must-know</span></h3>
+        <p>Every call to <code>backward()</code> <strong>adds</strong> the new gradient into <code>.grad</code>. That's useful when you deliberately sum gradients over several mini-batches, but in a normal loop it means stale gradients pile up. That's why every training step begins (or ends) with <code>optimizer.zero_grad()</code>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · x = 3, y = x², call backward repeatedly</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="btn-row"><button class="btn btn-primary" id="a-back"><i data-icon="play"></i>y = x**2; y.backward()</button><button class="btn" id="a-zero"><i data-icon="reset"></i>x.grad.zero_()</button></div>
+          <div class="gauge"><span id="a-bar"></span><b id="a-val"></b></div>
+          <div id="a-log"></div>
+        </div>
+        <div>
+          <p class="small muted" style="margin-bottom:8px">Minimising <code>(w − 2)²</code> from w = 5 with lr 0.1. Without <code>zero_grad</code>, each step uses the <em>sum</em> of all past gradients and training oscillates.</p>
+          <canvas class="viz" id="a-chart"></canvas>
+          <div class="legend mt"><span><i style="background:#4ade80"></i>with zero_grad (w)</span><span><i style="background:#f87171"></i>forgot zero_grad (w)</span><span><i style="background:#646d82"></i>target w = 2</span></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="accumulation.py" data-imp>
+x = torch.tensor(3.0, requires_grad=True)
+for _ in range(3):
+    y = x ** 2
+    y.backward()
+    print(x.grad)          # 6., 12., 18.  <- accumulating!
+
+x.grad.zero_()             # reset a raw tensor's gradient
+optimizer.zero_grad()      # reset all parameters (set_to_none=True by default)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="autograd:accumulate"></div>
+    </section>
+
+    <!-- ============ CONTROL ============ -->
+    <section class="tab-panel" data-panel="control" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Turning tracking off <span class="imp">Must-know</span></h3>
+        <dl class="kv">
+          <dt>with torch.no_grad():</dt><dd>Nothing inside is recorded. Use for validation, inference and manual weight updates — saves memory and time.</dd>
+          <dt>torch.inference_mode()</dt><dd>Stricter, slightly faster <code>no_grad</code> for pure inference.</dd>
+          <dt>t.detach()</dt><dd>Same data, but cut from the graph. Use to log values, feed a target network, or stop gradients flowing into part of a model.</dd>
+          <dt>p.requires_grad_(False)</dt><dd>Stops tracking a parameter permanently — how you freeze layers.</dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · will <code>y</code> be tracked?</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <label class="toggle-row"><input type="checkbox" id="t-rg" checked> <code>w = torch.randn(3, requires_grad=True)</code></label>
+          <label class="toggle-row"><input type="checkbox" id="t-ng"> wrap in <code>with torch.no_grad():</code></label>
+          <label class="toggle-row"><input type="checkbox" id="t-dt"> use <code>w.detach()</code> instead of <code>w</code></label>
+          <label class="toggle-row"><input type="checkbox" id="t-fr"> <code>w.requires_grad_(False)</code> (freeze)</label>
+        </div>
+        <div><div id="t-code"></div><div id="t-res" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="no_grad_detach.py" data-imp>
+model.eval()
+with torch.no_grad():              # evaluation: no graph, less memory
+    preds = model(x_val).argmax(1)
+
+with torch.inference_mode():       # serving
+    out = model(x)
+
+loss_history.append(loss.item())   # or loss.detach() — never keep `loss` itself
+
+for p in model.backbone.parameters():   # freeze
+    p.requires_grad_(False)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="autograd:control"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, fmt, codeBlock, esc } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const sig = (z) => 1 / (1 + Math.exp(-z));
+
+  /* ===== Neuron ===== */
+  let ny = 1;
+  $('#n-y').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#n-y button').forEach((x) => x.classList.toggle('on', x === b)); ny = +b.dataset.v; neuron(); });
+  function neuron() {
+    const x = +$('#n-x').value, w = +$('#n-w').value, b = +$('#n-b').value, y = ny;
+    $('#n-x-v').textContent = x.toFixed(1); $('#n-w-v').textContent = w.toFixed(2); $('#n-b-v').textContent = b.toFixed(2);
+    const z = w * x + b, yh = sig(z), L = -(y * Math.log(Math.max(yh, 1e-12)) + (1 - y) * Math.log(Math.max(1 - yh, 1e-12)));
+    const dL_dyh = -(y / yh) + (1 - y) / (1 - yh), dyh_dz = yh * (1 - yh), dz_dw = x;
+    const gw = dL_dyh * dyh_dz * dz_dw, gb = dL_dyh * dyh_dz;
+    $('#n-chain').innerHTML =
+      '<div><span>z = w·x + b</span><b>' + fmt(z, 4) + '</b></div>' +
+      '<div><span>ŷ = σ(z)</span><b>' + fmt(yh, 4) + '</b></div>' +
+      '<div><span>L = BCE(ŷ, y)</span><b>' + fmt(L, 4) + '</b></div>' +
+      '<div><span>∂L/∂ŷ · ∂ŷ/∂z · ∂z/∂w = ' + fmt(dL_dyh, 3) + ' · ' + fmt(dyh_dz, 3) + ' · ' + fmt(dz_dw, 2) + '</span><b>' + fmt(gw, 4) + '</b></div>';
+    $('#n-cmp').innerHTML = '<div class="h">by hand: (ŷ−y)·x, (ŷ−y)</div><div class="h">autograd: w.grad, b.grad</div><div class="h">match</div>' +
+      '<div>' + fmt((yh - y) * x, 4) + '</div><div>' + fmt(gw, 4) + '</div><div class="ok">✓</div>' +
+      '<div>' + fmt(yh - y, 4) + '</div><div>' + fmt(gb, 4) + '</div><div class="ok">✓</div>';
+    return { gw, gb };
+  }
+  ['n-x', 'n-w', 'n-b'].forEach((id) => $('#' + id).addEventListener('input', neuron));
+  $('#n-step').addEventListener('click', () => {
+    const { gw, gb } = neuron();
+    const w = $('#n-w'), b = $('#n-b');
+    w.value = Math.max(-3, Math.min(3, +w.value - 0.5 * gw)); b.value = Math.max(-3, Math.min(3, +b.value - 0.5 * gb));
+    neuron();
+  });
+  neuron();
+
+  /* ===== Graph stepper ===== */
+  // node: id, label, x, y, kind(leaf|const|op), val, ins:[ids], local:[fn returning d out / d in_k]
+  const EX = [
+    () => {
+      const w = 0.5, x = 3, b = 1, t = 4; const m = w * x, s = m + b, d = s - t, L = d * d;
+      return { nodes: [
+        { id: 'w', l: 'w', x: 40, y: 50, k: 'leaf', v: w }, { id: 'x', l: 'x', x: 40, y: 140, k: 'const', v: x },
+        { id: 'm', l: 'mul', x: 200, y: 95, k: 'op', v: m, ins: ['w', 'x'], loc: [x, w] },
+        { id: 'b', l: 'b', x: 200, y: 200, k: 'leaf', v: b },
+        { id: 's', l: 'add', x: 360, y: 140, k: 'op', v: s, ins: ['m', 'b'], loc: [1, 1] },
+        { id: 't', l: 't', x: 360, y: 225, k: 'const', v: t },
+        { id: 'd', l: 'sub', x: 520, y: 170, k: 'op', v: d, ins: ['s', 't'], loc: [1, -1] },
+        { id: 'L', l: 'pow 2', x: 680, y: 170, k: 'op', v: L, ins: ['d'], loc: [2 * d] },
+      ], out: 'L', code: 'L = (w*x + b - t)**2' };
+    },
+    () => {
+      const x = 2, y = x * x, z = Math.sin(y);
+      return { nodes: [
+        { id: 'x', l: 'x', x: 80, y: 125, k: 'leaf', v: x },
+        { id: 'y', l: 'pow 2', x: 330, y: 125, k: 'op', v: y, ins: ['x'], loc: [2 * x] },
+        { id: 'z', l: 'sin', x: 600, y: 125, k: 'op', v: z, ins: ['y'], loc: [Math.cos(y)] },
+      ], out: 'z', code: 'z = torch.sin(x**2)' };
+    },
+    () => {
+      const x = 3, a = x * x, y = a + x;
+      return { nodes: [
+        { id: 'x', l: 'x', x: 80, y: 125, k: 'leaf', v: x },
+        { id: 'a', l: 'mul x·x', x: 330, y: 60, k: 'op', v: a, ins: ['x', 'x'], loc: [x, x] },
+        { id: 'y', l: 'add', x: 600, y: 125, k: 'op', v: y, ins: ['a', 'x'], loc: [1, 1] },
+      ], out: 'y', code: 'y = x*x + x' };
+    },
+  ];
+  let G, grads, queue, edgesDone, exIdx = 0;
+  function gReset() {
+    G = EX[exIdx](); grads = {}; edgesDone = new Set();
+    grads[G.out] = 1; queue = [G.out];
+    $('#g-msg').innerHTML = PT.icon('info') + '<div>Forward pass done: <code>' + G.code + '</code>. Each node shows its value. Backward starts at the output with gradient <b>1</b> (∂out/∂out). Press <b>Backward step</b>.</div>';
+    gDraw();
+  }
+  const node = (id) => G.nodes.find((n) => n.id === id);
+  function gStep() {
+    if (!queue.length) return false;
+    // process nodes in reverse topological order: take op whose all consumers are done
+    const id = queue.shift(); const n = node(id);
+    if (!n.ins) return gStep();
+    const parts = [];
+    n.ins.forEach((inId, k) => {
+      const contrib = grads[id] * n.loc[k];
+      const before = grads[inId] || 0;
+      grads[inId] = before + contrib;
+      edgesDone.add(inId + '>' + id + '#' + k);
+      parts.push('∂/∂' + node(inId).l + ' += ' + fmt(grads[id], 3) + ' × ' + fmt(n.loc[k], 3) + ' = ' + fmt(contrib, 3) + (before ? '  (adds to ' + fmt(before, 3) + ' → ' + fmt(grads[inId], 3) + ')' : ''));
+      if (node(inId).ins && !queue.includes(inId)) queue.push(inId);
+    });
+    let msg = '<b>' + n.l + '</b> node: incoming gradient ' + fmt(grads[id], 3) + ' × local derivative →<br><code style="white-space:pre-wrap">' + esc(parts.join('\n')) + '</code>' + (exIdx === 2 && id === 'a' ? '<br><b>x is used twice</b> (mul) and once more in add, so all three contributions are summed: 1 + 3 + 3 = 7 = d(x²+x)/dx.' : '');
+    if (!queue.length) {
+      const leaves = G.nodes.filter((m) => m.k === 'leaf').map((m) => m.l + '.grad = ' + fmt(grads[m.id], 4)).join(', ');
+      msg += '<br><b style="color:var(--green)">Done.</b> ' + leaves + '. Constants (requires_grad=False) get no .grad.';
+    }
+    $('#g-msg').innerHTML = PT.icon('info') + '<div>' + msg + '</div>';
+    gDraw(); return true;
+  }
+  function gDraw() {
+    const svg = $('#g-svg');
+    let h = '<defs><marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4a5470"/></marker></defs>';
+    G.nodes.forEach((n) => (n.ins || []).forEach((inId, k) => {
+      const a = node(inId); const done = edgesDone.has(inId + '>' + n.id + '#' + k);
+      const off = n.ins[0] === n.ins[1] ? (k ? 14 : -14) : 0;
+      h += '<path d="M' + (a.x + 34) + ' ' + a.y + ' Q ' + ((a.x + n.x) / 2) + ' ' + ((a.y + n.y) / 2 + off * 2) + ' ' + (n.x - 36) + ' ' + (n.y + off / 2) + '" fill="none" stroke="' + (done ? '#ff7a59' : '#4a5470') + '" stroke-width="' + (done ? 2.4 : 1.5) + '" marker-end="url(#ga)"/>';
+    }));
+    G.nodes.forEach((n) => {
+      const c = n.k === 'leaf' ? '#5fb3f9' : n.k === 'const' ? '#646d82' : '#b18cff';
+      h += '<rect x="' + (n.x - 34) + '" y="' + (n.y - 20) + '" width="68" height="40" rx="10" fill="' + c + '22" stroke="' + c + '"/>';
+      h += '<text x="' + n.x + '" y="' + (n.y - 3) + '" text-anchor="middle" fill="#f2f4fa" font-size="11.5" font-weight="700">' + esc(n.l) + '</text>';
+      h += '<text x="' + n.x + '" y="' + (n.y + 12) + '" text-anchor="middle" fill="#8c94a9" font-size="10.5">= ' + fmt(n.v, 3) + '</text>';
+      if (grads[n.id] != null && n.k !== 'const') h += '<text x="' + n.x + '" y="' + (n.y + 36) + '" text-anchor="middle" fill="#ff7a59" font-size="11" font-weight="700">grad ' + fmt(grads[n.id], 3) + '</text>';
+    });
+    svg.innerHTML = h;
+  }
+  $('#g-ex').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#g-ex button').forEach((x) => x.classList.toggle('on', x === b)); exIdx = +b.dataset.v; gReset(); });
+  $('#g-step').addEventListener('click', gStep);
+  $('#g-reset').addEventListener('click', gReset);
+  $('#g-all').addEventListener('click', () => { let k = 0; while (gStep() && k++ < 20); });
+  gReset();
+
+  /* ===== Accumulation ===== */
+  let acc = 0, calls = [];
+  function accDraw() {
+    $('#a-bar').style.width = Math.min(100, acc / 30 * 100) + '%';
+    $('#a-val').textContent = 'x.grad = ' + (acc ? acc.toFixed(1) : 'None');
+    const host = $('#a-log'); host.innerHTML = '';
+    host.appendChild(codeBlock(calls.slice(-6).join('\n') || '# nothing yet', { title: 'console' }));
+  }
+  $('#a-back').addEventListener('click', () => { acc += 6; calls.push('y.backward()      # x.grad -> ' + acc.toFixed(1) + (acc > 6 ? '   (6 added again)' : '')); accDraw(); });
+  $('#a-zero').addEventListener('click', () => { acc = 0; calls.push('x.grad.zero_()    # x.grad -> 0.0'); accDraw(); });
+  accDraw();
+  function accChart() {
+    const good = [], bad = []; let w1 = 5, w2 = 5, g2 = 0;
+    for (let i = 0; i < 40; i++) { good.push(w1); bad.push(w2); w1 -= 0.1 * 2 * (w1 - 2); g2 += 2 * (w2 - 2); w2 -= 0.1 * g2; }
+    PT.lineChart($('#a-chart'), [{ data: Array(40).fill(2), color: '#646d82', dash: [4, 4], width: 1 }, { data: good, color: '#4ade80' }, { data: bad, color: '#f87171' }], { h: 230, xlabel: 'step' });
+  }
+
+  /* ===== no_grad toggles ===== */
+  function track() {
+    const rg = $('#t-rg').checked, ng = $('#t-ng').checked, dt = $('#t-dt').checked, fr = $('#t-fr').checked;
+    let code = 'w = torch.randn(3' + (rg ? ', requires_grad=True' : '') + ')\n';
+    if (fr) code += 'w.requires_grad_(False)\n';
+    const src = dt ? 'w.detach()' : 'w';
+    code += ng ? 'with torch.no_grad():\n    y = (' + src + ' * 2).sum()\n' : 'y = (' + src + ' * 2).sum()\n';
+    code += 'print(y.requires_grad, y.grad_fn)';
+    setCode($('#t-code'), code, 'snippet');
+    const tracked = rg && !fr && !dt && !ng;
+    const reason = !rg ? 'w never asked for gradients.' : fr ? 'w was frozen with requires_grad_(False).' : ng ? 'Operations inside no_grad() are not recorded.' : dt ? 'detach() returns a tensor cut from the graph.' : 'w requires grad and the operation was recorded.';
+    $('#t-res').innerHTML = tracked
+      ? '<div class="ok-box">True &lt;SumBackward0&gt;\n→ y.backward() would fill w.grad</div><p class="small muted mt">' + reason + '</p>'
+      : '<div class="err-box">False None\n→ y.backward() raises: element 0 of tensors does not require grad</div><p class="small muted mt">' + reason + '</p>';
+  }
+  ['t-rg', 't-ng', 't-dt', 't-fr'].forEach((id) => $('#' + id).addEventListener('change', track));
+  track();
+
+  let cur = '';
+  PT.init('autograd', (id) => { cur = id; if (id === 'accumulate') requestAnimationFrame(accChart); });
+  window.addEventListener('resize', () => { if (cur === 'accumulate') accChart(); });
+})();
+</script>
+</body>
+</html>

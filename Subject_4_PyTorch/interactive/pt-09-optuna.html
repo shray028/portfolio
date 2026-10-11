@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hyperparameter Tuning with Optuna — PyTorch</title>
+  <meta name="description" content="Tune a PyTorch ANN with Optuna: hyperparameters vs parameters, grid vs random vs Bayesian (TPE) search on an interactive landscape, objectives, studies and median pruning.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .race { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .race .cap { display: flex; justify-content: space-between; font: 600 12px var(--font-mono); margin-bottom: 4px; }
+    .hp-row { display: grid; grid-template-columns: 22px 1fr 120px; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .hp-row input[type=number] { width: 100%; min-height: 28px; padding: 2px 8px; }
+    @media (max-width: 900px) { .race { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 09 · BUILDING NETWORKS</span>
+      <h1>Hyperparameter tuning with <span class="grad">Optuna</span></h1>
+      <p class="desc">Learning rate, layer sizes, dropout, batch size, optimizer — none of these are learned by gradient descent. Optuna searches them for you, learns which regions look promising, and kills bad trials early.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Search-space calculator · search race · pruning</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="what"><span class="n">1</span>What to tune</button>
+      <button class="tab" data-tab="search"><span class="n">2</span>Grid vs random vs TPE</button>
+      <button class="tab" data-tab="code"><span class="n">3</span>Optuna code &amp; pruning</button>
+    </div></div>
+
+    <!-- ============ WHAT ============ -->
+    <section class="tab-panel" data-panel="what">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Hyperparameters are chosen, parameters are learned</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Hyperparameter</th><th>Typical search space</th><th>Impact</th></tr></thead>
+          <tbody>
+            <tr><td>learning rate <span class="imp">Must-know</span></td><td><code>1e-5 … 1e-1</code>, log scale</td><td>Usually the most important by far</td></tr>
+            <tr><td>batch size</td><td>32, 64, 128, 256</td><td>Speed/memory; interacts with lr</td></tr>
+            <tr><td>hidden layers / units</td><td>1–5 layers, 32–512 units</td><td>Capacity</td></tr>
+            <tr><td>dropout</td><td>0.0 … 0.5</td><td>Regularisation</td></tr>
+            <tr><td>weight decay</td><td><code>1e-6 … 1e-2</code>, log scale</td><td>Regularisation</td></tr>
+            <tr><td>optimizer</td><td>Adam, AdamW, SGD+momentum</td><td>Convergence behaviour</td></tr>
+            <tr><td>epochs</td><td>fixed upper bound + early stopping / pruning</td><td>Training length</td></tr>
+          </tbody>
+        </table></div>
+        <p class="mt">Always score hyperparameters on a <strong>validation</strong> set — never the test set, or the test score stops being an honest estimate.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · how big is a grid?</div>
+      <div class="card card-pad split">
+        <div style="display:grid;gap:6px" id="h-rows"></div>
+        <div class="controls">
+          <div class="grid-2" id="h-stats"></div>
+          <div id="h-note"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optuna:what"></div>
+    </section>
+
+    <!-- ============ SEARCH ============ -->
+    <section class="tab-panel" data-panel="search" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Three ways to spend the same budget <span class="imp">Must-know</span></h3>
+        <p>The landscape below is a validation-accuracy surface over <strong>learning rate</strong> (x, log scale — matters a lot) and <strong>dropout</strong> (y — matters a little). Each method gets the same number of trials.</p>
+        <ul>
+          <li><strong>Grid</strong> tests only √n distinct learning rates — and wastes trials re-testing dropout values that barely matter.</li>
+          <li><strong>Random</strong> tests n distinct learning rates, so it finds the good band more often.</li>
+          <li><strong>TPE</strong> (Optuna's default sampler) starts randomly, then samples more where good trials were — exploiting what it learned.</li>
+        </ul>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · search race</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="field" style="min-width:220px"><span class="label-t">trials per method</span><div class="range-row"><input type="range" id="s-n" min="9" max="49" step="1" value="16"><span class="val" id="s-n-v"></span></div></div>
+          <button class="btn btn-primary" id="s-run"><i data-icon="play"></i>Run search</button><button class="btn" id="s-seed"><i data-icon="reset"></i>New random seed</button></div>
+        <div class="race mt2" id="s-race"></div>
+        <div class="split mt2"><div><div class="label" style="margin-bottom:6px">best accuracy found so far</div><canvas class="viz" id="s-best"></canvas><div class="legend mt"><span><i style="background:#646d82"></i>grid</span><span><i style="background:#5fb3f9"></i>random</span><span><i style="background:#ff7a59"></i>TPE (simplified)</span></div></div><div id="s-note"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optuna:search"></div>
+    </section>
+
+    <!-- ============ CODE ============ -->
+    <section class="tab-panel" data-panel="code" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Objective → trial → study</h3>
+        <dl class="kv">
+          <dt>objective(trial)</dt><dd>Samples hyperparameters, builds and trains a model, returns the validation metric.</dd>
+          <dt>trial.suggest_float / int / categorical</dt><dd>Defines the search space as the code runs — so it can be conditional (e.g. number of units per layer depends on number of layers).</dd>
+          <dt>optuna.create_study(direction=…)</dt><dd><code>"maximize"</code> for accuracy, <code>"minimize"</code> for loss.</dd>
+          <dt>trial.report + should_prune</dt><dd>Report the metric each epoch; the pruner stops hopeless trials early.</dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · median pruning</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">warm-up epochs before pruning (n_warmup_steps)</span><div class="range-row"><input type="range" id="p-w" min="1" max="8" step="1" value="3"><span class="val" id="p-w-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="p-on" checked> MedianPruner enabled</label>
+          <div class="grid-2" id="p-stats"></div>
+          <p class="small muted">A trial is pruned when its accuracy at an epoch is below the median of earlier trials at that same epoch.</p>
+        </div>
+        <div><canvas class="viz" id="p-chart"></canvas><div class="legend mt"><span><i style="background:#4ade80"></i>completed trial</span><span><i style="background:#f87171"></i>pruned trial</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="optuna_tuning.py" data-imp>
+import optuna, torch, torch.nn as nn
+
+def build_model(trial):
+    n_layers = trial.suggest_int("n_layers", 1, 3)
+    layers, in_f = [nn.Flatten()], 784
+    for i in range(n_layers):
+        out_f = trial.suggest_int(f"units_l{i}", 32, 256, step=32)   # conditional space
+        layers += [nn.Linear(in_f, out_f), nn.BatchNorm1d(out_f), nn.ReLU(),
+                   nn.Dropout(trial.suggest_float(f"dropout_l{i}", 0.0, 0.5))]
+        in_f = out_f
+    layers.append(nn.Linear(in_f, 10))
+    return nn.Sequential(*layers)
+
+def objective(trial):
+    model = build_model(trial).to(device)
+    lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+    wd = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
+    opt_name = trial.suggest_categorical("optimizer", ["Adam", "AdamW", "SGD"])
+    batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
+    optimizer = getattr(torch.optim, opt_name)(model.parameters(), lr=lr, weight_decay=wd)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
+    for epoch in range(10):
+        train_one_epoch(model, train_loader, optimizer)
+        acc = evaluate(model, val_loader)
+        trial.report(acc, epoch)
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+    return acc
+
+study = optuna.create_study(direction="maximize",
+                            sampler=optuna.samplers.TPESampler(seed=42),
+                            pruner=optuna.pruners.MedianPruner(n_warmup_steps=3))
+study.optimize(objective, n_trials=50, timeout=3600)
+print(study.best_value, study.best_params)
+# optuna.visualization.plot_param_importances(study)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optuna:code"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, rng, canvas } = PT;
+
+  /* ===== Grid size calculator ===== */
+  const HP = [['learning rate', 5, true], ['batch size', 4, true], ['hidden units', 4, true], ['n layers', 3, false], ['dropout', 4, false], ['weight decay', 4, false], ['optimizer', 3, false]];
+  function hRows() {
+    $('#h-rows').innerHTML = HP.map((h, i) => '<label class="hp-row"><input type="checkbox" data-i="' + i + '"' + (h[2] ? ' checked' : '') + '><span>' + h[0] + '</span><span class="small muted">values <input class="input mono" type="number" min="2" max="10" data-v="' + i + '" value="' + h[1] + '"></span></label>').join('');
+    $$('#h-rows input').forEach((el) => el.addEventListener('input', () => { const i = +(el.dataset.i || el.dataset.v); if (el.dataset.i) HP[i][2] = el.checked; else HP[i][1] = Math.max(2, Math.min(10, +el.value || 2)); hCalc(); }));
+  }
+  function hCalc() {
+    const on = HP.filter((h) => h[2]); const n = on.reduce((a, h) => a * h[1], 1);
+    const mins = n * 4; const t = mins < 60 ? mins + ' min' : mins < 1440 ? (mins / 60).toFixed(1) + ' h' : (mins / 1440).toFixed(1) + ' days';
+    $('#h-stats').innerHTML = '<div class="stat"><div class="v">' + n.toLocaleString() + '</div><div class="k">grid trials (' + on.length + ' hyperparameters)</div></div><div class="stat"><div class="v">' + t + '</div><div class="k">at 4 min per trial</div></div>';
+    $('#h-note').innerHTML = '<div class="callout ' + (n > 500 ? 'red' : 'blue') + '">' + PT.icon(n > 500 ? 'alert' : 'info') + '<div>Grid size multiplies with every hyperparameter you add — the curse of dimensionality. ' + (n > 500 ? 'At this size a grid is impractical; ' : '') + 'Random or TPE search with a fixed budget (say 50 trials) covers the same space without exploding.</div></div>';
+  }
+  hRows(); hCalc();
+
+  /* ===== Search race ===== */
+  // landscape: x = log10 lr in [-5, -1], y = dropout in [0, 0.5]
+  const acc = (x, y) => 0.62 + 0.29 * Math.exp(-((x + 2.85) ** 2) / 0.18) + 0.025 * Math.exp(-((y - 0.25) ** 2) / 0.05) + 0.015 * Math.sin(x * 3 + y * 7);
+  let seed = 4, trials = null, step = 0, raf = null;
+  function plan(n) {
+    const r = rng(seed * 101);
+    const k = Math.round(Math.sqrt(n)); const grid = [];
+    for (let i = 0; i < k; i++) for (let j = 0; j < Math.ceil(n / k); j++) if (grid.length < n) grid.push([-5 + 4 * (i + 0.5) / k, 0.5 * (j + 0.5) / Math.ceil(n / k)]);
+    const rand = Array.from({ length: n }, () => [-5 + 4 * r(), 0.5 * r()]);
+    const tpe = [];
+    for (let t = 0; t < n; t++) {
+      if (t < 5) tpe.push([-5 + 4 * r(), 0.5 * r()]);
+      else {
+        const scored = tpe.map((p) => [acc(p[0], p[1]), p]).sort((a, b) => b[0] - a[0]);
+        const good = scored.slice(0, Math.max(1, Math.ceil(scored.length * 0.25)));
+        if (r() < 0.2) tpe.push([-5 + 4 * r(), 0.5 * r()]);
+        else { const g = good[Math.floor(r() * good.length)][1]; tpe.push([Math.max(-5, Math.min(-1, g[0] + r.normal() * 0.35)), Math.max(0, Math.min(0.5, g[1] + r.normal() * 0.08))]); }
+      }
+    }
+    return { grid, rand, tpe };
+  }
+  const COLS = { grid: '#9aa3b8', rand: '#5fb3f9', tpe: '#ff7a59' };
+  const NM = { grid: 'Grid', rand: 'Random', tpe: 'TPE (simplified)' };
+  let heat = null;
+  function drawRace() {
+    const n = +$('#s-n').value; $('#s-n-v').textContent = n;
+    if (!trials) trials = plan(n);
+    const host = $('#s-race');
+    if (!host.children.length) host.innerHTML = ['grid', 'rand', 'tpe'].map((m) => '<div><div class="cap"><span style="color:' + COLS[m] + '">' + NM[m] + '</span><span id="cap-' + m + '"></span></div><canvas class="viz" id="cv-' + m + '"></canvas></div>').join('');
+    const best = {};
+    ['grid', 'rand', 'tpe'].forEach((m) => {
+      const cv = $('#cv-' + m); const { ctx, w, h } = canvas(cv, Math.min(240, cv.clientWidth * 0.75 || 200));
+      const cell = 6;
+      for (let px = 0; px < w; px += cell) for (let py = 0; py < h; py += cell) {
+        const x = -5 + 4 * px / w, y = 0.5 - 0.5 * py / h; const a = (acc(x, y) - 0.6) / 0.32;
+        ctx.fillStyle = 'rgba(74,222,128,' + (0.04 + Math.max(0, a) * 0.5) + ')'; ctx.fillRect(px, py, cell, cell);
+      }
+      ctx.fillStyle = '#646d82'; ctx.font = '10px JetBrains Mono'; ctx.fillText('lr 1e-5', 4, h - 4); ctx.fillText('1e-1', w - 30, h - 4); ctx.fillText('dropout ↑', 4, 12);
+      const pts = trials[m].slice(0, step);
+      let b = 0, bp = null; const curve = [];
+      pts.forEach((p) => { const a = acc(p[0], p[1]); if (a > b) { b = a; bp = p; } curve.push(b); });
+      pts.forEach((p) => { ctx.beginPath(); ctx.arc(((p[0] + 5) / 4) * w, h - (p[1] / 0.5) * h, 4, 0, 6.283); ctx.fillStyle = COLS[m]; ctx.fill(); ctx.strokeStyle = '#07080d'; ctx.stroke(); });
+      if (bp) { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(((bp[0] + 5) / 4) * w, h - (bp[1] / 0.5) * h, 8, 0, 6.283); ctx.stroke(); ctx.lineWidth = 1; }
+      $('#cap-' + m).textContent = b ? (b * 100).toFixed(1) + '%' : '';
+      best[m] = curve;
+    });
+    const pad = (c) => (c.length ? c : [NaN]);
+    PT.lineChart($('#s-best'), [{ data: pad(best.grid), color: '#9aa3b8' }, { data: pad(best.rand), color: '#5fb3f9' }, { data: pad(best.tpe), color: '#ff7a59' }], { h: 200, ymin: 0.6, ymax: 0.95, xlabel: 'trial' });
+    if (step >= n) {
+      const fin = { grid: best.grid[n - 1], rand: best.rand[n - 1], tpe: best.tpe[n - 1] };
+      const win = Object.keys(fin).sort((a, b) => fin[b] - fin[a])[0];
+      const lrs = new Set(trials.grid.map((p) => p[0].toFixed(3))).size;
+      $('#s-note').innerHTML = '<div class="callout blue">' + PT.icon('info') + '<div><b>' + NM[win] + '</b> found the best configuration this run (' + (fin[win] * 100).toFixed(1) + '%). The grid only tried <b>' + lrs + '</b> distinct learning rates out of ' + n + ' trials; random and TPE tried ' + n + '. Change the seed — random search is luck-dependent, TPE usually concentrates its later trials in the bright band.</div></div>';
+    } else $('#s-note').innerHTML = '';
+  }
+  function run() { if (raf) { clearTimeout(raf); cancelAnimationFrame(raf); } step = 0; trials = plan(+$('#s-n').value); const n = +$('#s-n').value; const tick = () => { step++; drawRace(); if (step < n) raf = setTimeout(() => requestAnimationFrame(tick), 90); else raf = null; }; tick(); }
+  $('#s-run').addEventListener('click', run);
+  $('#s-seed').addEventListener('click', () => { seed++; run(); });
+  $('#s-n').addEventListener('input', () => { trials = null; step = 0; drawRace(); });
+
+  /* ===== Pruning ===== */
+  function prune() {
+    const W = +$('#p-w').value, on = $('#p-on').checked; $('#p-w-v').textContent = W;
+    const r = rng(77); const E = 10; const runs = [];
+    for (let t = 0; t < 14; t++) {
+      const final = 0.7 + r() * 0.22, speed = 1.5 + r() * 2.5;
+      runs.push(Array.from({ length: E }, (_, e) => final - (final - 0.35) * Math.exp(-(e + 1) / speed) + (r() - 0.5) * 0.01));
+    }
+    const shown = []; let epochsUsed = 0, pruned = 0;
+    runs.forEach((c, t) => {
+      let stop = E;
+      if (on && t >= 4) for (let e = W; e < E; e++) { const prev = shown.filter((s) => s.c.length > e).map((s) => s.c[e]).sort((a, b) => a - b); if (prev.length) { const med = prev[Math.floor(prev.length / 2)]; if (c[e] < med) { stop = e + 1; break; } } }
+      epochsUsed += stop; if (stop < E) pruned++;
+      shown.push({ c: c.slice(0, stop), p: stop < E });
+    });
+    const { ctx, w, h } = canvas($('#p-chart'), 250);
+    const X = (e) => 34 + (e / (E - 1)) * (w - 46), Y = (v) => h - 20 - ((v - 0.3) / 0.65) * (h - 30);
+    ctx.strokeStyle = '#222939'; ctx.fillStyle = '#646d82'; ctx.font = '10px JetBrains Mono';
+    [0.4, 0.6, 0.8].forEach((v) => { ctx.beginPath(); ctx.moveTo(34, Y(v)); ctx.lineTo(w - 10, Y(v)); ctx.stroke(); ctx.fillText(v.toFixed(1), 4, Y(v) + 3); });
+    if (on) { ctx.strokeStyle = 'rgba(251,191,36,.6)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(X(W), 6); ctx.lineTo(X(W), h - 20); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#fbbf24'; ctx.fillText('pruning starts', X(W) + 4, 14); }
+    shown.forEach((s) => { ctx.strokeStyle = s.p ? '#f87171' : '#4ade80'; ctx.lineWidth = 1.8; ctx.beginPath(); s.c.forEach((v, e) => (e ? ctx.lineTo(X(e), Y(v)) : ctx.moveTo(X(e), Y(v)))); ctx.stroke(); if (s.p) { const e = s.c.length - 1; ctx.fillStyle = '#f87171'; ctx.fillText('✕', X(e) - 3, Y(s.c[e]) + 4); } });
+    $('#p-stats').innerHTML = '<div class="stat"><div class="v">' + pruned + ' / 14</div><div class="k">trials pruned</div></div><div class="stat"><div class="v">' + Math.round((1 - epochsUsed / (14 * E)) * 100) + '%</div><div class="k">compute saved</div></div>';
+  }
+  $('#p-w').addEventListener('input', prune); $('#p-on').addEventListener('change', prune);
+
+  let cur = '';
+  PT.init('optuna', (id) => { cur = id; if (id === 'search') requestAnimationFrame(drawRace); if (id === 'code') requestAnimationFrame(prune); });
+  window.addEventListener('resize', () => { if (cur === 'search') drawRace(); if (cur === 'code') prune(); });
+})();
+</script>
+</body>
+</html>

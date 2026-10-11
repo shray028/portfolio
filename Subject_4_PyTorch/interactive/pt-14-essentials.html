@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTorch Production Essentials — Saving, Reproducibility, AMP, torch.compile &amp; Errors</title>
+  <meta name="description" content="The PyTorch skills beyond the training loop: state_dict and checkpoints, reproducible seeds, mixed precision with float16/bfloat16, torch.compile, and a debugger for the most common PyTorch errors.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; cursor: pointer; }
+    .toggle-row input { accent-color: var(--ember); width: 16px; height: 16px; }
+    .bits { display: flex; gap: 2px; flex-wrap: wrap; }
+    .bits span { width: 14px; height: 22px; border-radius: 3px; display: grid; place-items: center; font: 600 9px var(--font-mono); color: #07080d; }
+    .bits .s { background: #f87171; } .bits .e { background: #fbbf24; } .bits .m { background: #5fb3f9; }
+    .fmt-row { display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .fmt-row .nm { font: 700 12.5px var(--font-mono); }
+    .err-list { display: grid; gap: 6px; }
+    .err-item { text-align: left; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12px var(--font-mono); color: #fecaca; transition: border-color .2s; }
+    .err-item:hover { border-color: var(--line-strong); }
+    .err-item.on { border-color: rgba(248,113,113,.65); background: rgba(248,113,113,.07); }
+    .runs { display: grid; gap: 6px; font: 12.5px var(--font-mono); }
+    .runs div { padding: 7px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 14 · BEYOND THE PLAYLIST</span>
+      <h1>Production <span class="grad">essentials</span></h1>
+      <p class="desc">The things every real project and most interviews need but tutorials skip: saving and resuming correctly, reproducible runs, mixed precision, <code>torch.compile</code>, and reading PyTorch's error messages like a native.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Checkpoint builder · seed lab · float formats · error debugger</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="save"><span class="n">1</span>Saving &amp; loading</button>
+      <button class="tab" data-tab="repro"><span class="n">2</span>Reproducibility</button>
+      <button class="tab" data-tab="amp"><span class="n">3</span>Mixed precision</button>
+      <button class="tab" data-tab="compile"><span class="n">4</span>torch.compile</button>
+      <button class="tab" data-tab="errors"><span class="n">5</span>Common errors</button>
+    </div></div>
+
+    <!-- ============ SAVE ============ -->
+    <section class="tab-panel" data-panel="save">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Save the state_dict, not the object <span class="imp">Must-know</span></h3>
+        <p>A <code>state_dict</code> is an ordered dictionary from names to tensors: every <strong>parameter</strong> (weights, biases) and every <strong>buffer</strong> (BatchNorm's running mean/var). It's plain data, so it survives refactors. For inference you need only the model's state_dict; to <em>resume training</em> you also need the optimizer's (Adam's moment estimates), the scheduler's and the epoch.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · build a checkpoint</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <label class="toggle-row"><input type="checkbox" data-k="model" checked> model.state_dict()</label>
+          <label class="toggle-row"><input type="checkbox" data-k="optimizer" checked> optimizer.state_dict()</label>
+          <label class="toggle-row"><input type="checkbox" data-k="scheduler"> scheduler.state_dict()</label>
+          <label class="toggle-row"><input type="checkbox" data-k="epoch" checked> epoch</label>
+          <label class="toggle-row"><input type="checkbox" data-k="best"> best validation metric</label>
+          <label class="toggle-row"><input type="checkbox" data-k="scaler"> GradScaler state (AMP)</label>
+          <div id="ck-verdict"></div>
+        </div>
+        <div><div id="ck-code"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>What is inside a state_dict?</div>
+      <div class="card card-pad">
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>key</th><th>shape</th><th>kind</th></tr></thead>
+          <tbody>
+            <tr><td><code>0.weight</code></td><td>(256, 784)</td><td>parameter — Linear</td></tr>
+            <tr><td><code>0.bias</code></td><td>(256,)</td><td>parameter</td></tr>
+            <tr><td><code>1.weight</code> / <code>1.bias</code></td><td>(256,)</td><td>parameter — BatchNorm γ / β</td></tr>
+            <tr><td><code>1.running_mean</code> / <code>1.running_var</code></td><td>(256,)</td><td><b>buffer</b> — saved, but not trained</td></tr>
+            <tr><td><code>1.num_batches_tracked</code></td><td>()</td><td>buffer (int64)</td></tr>
+            <tr><td><code>4.weight</code> / <code>4.bias</code></td><td>(10, 256) / (10,)</td><td>parameter — output Linear</td></tr>
+          </tbody>
+        </table></div>
+        <p class="small muted mt">For <code>nn.Sequential(nn.Linear(784,256), nn.BatchNorm1d(256), nn.ReLU(), nn.Dropout(), nn.Linear(256,10))</code>. ReLU and Dropout have no state, so indices 2 and 3 don't appear.</p>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="essentials:save"></div>
+    </section>
+
+    <!-- ============ REPRO ============ -->
+    <section class="tab-panel" data-panel="repro" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Randomness lives in many places <span class="imp">Must-know</span></h3>
+        <p>Weight initialisation, dropout masks, data shuffling, augmentation and some GPU kernels are all random. Python's <code>random</code>, NumPy and PyTorch each have their own generator; DataLoader workers get their own seeds too. Seed them all and request deterministic algorithms to make a run repeatable on the same hardware and library versions.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · run the "same" script twice</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <label class="toggle-row"><input type="checkbox" id="r-seed" checked> <code>torch.manual_seed(42)</code> at the top</label>
+          <button class="btn btn-primary" id="r-run"><i data-icon="play"></i>Run script</button>
+          <button class="btn" id="r-clear"><i data-icon="reset"></i>Clear</button>
+        </div>
+        <div><div class="runs" id="r-out"></div><div id="r-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="reproducibility.py" data-imp>
+import os, random, numpy as np, torch
+
+def seed_everything(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)                       # CPU + all CUDA devices
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    torch.backends.cudnn.benchmark = False        # don't auto-pick (possibly nondeterministic) kernels
+    torch.use_deterministic_algorithms(True)      # error if an op has no deterministic version
+
+def seed_worker(worker_id):                       # give each DataLoader worker a derived seed
+    s = torch.initial_seed() % 2**32
+    np.random.seed(s); random.seed(s)
+
+g = torch.Generator().manual_seed(42)
+loader = DataLoader(ds, batch_size=64, shuffle=True, num_workers=4,
+                    worker_init_fn=seed_worker, generator=g)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="essentials:repro"></div>
+    </section>
+
+    <!-- ============ AMP ============ -->
+    <section class="tab-panel" data-panel="amp" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Half the bits, roughly twice the speed</h3>
+        <p>Modern GPUs have tensor cores that multiply 16-bit floats much faster than 32-bit ones, and 16-bit tensors use half the memory. <code>torch.autocast</code> runs matmuls and convolutions in 16-bit while keeping sensitive ops (softmax, losses, reductions) in float32. The catch is <strong>range</strong>: float16's smallest normal number is about 6×10⁻⁵, so tiny gradients underflow to zero — <code>GradScaler</code> multiplies the loss up before backward and divides the gradients back down. bfloat16 keeps float32's exponent range, so it needs no scaler.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · how each format stores a number</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="field" style="min-width:260px"><span class="label-t">value (log scale)</span><div class="range-row"><input type="range" id="a-v" min="-10" max="6" step="0.01" value="-4.3"><span class="val" id="a-v-v"></span></div></div>
+          <div class="seg" id="a-pre"><button data-v="-8">gradient 1e-8</button><button data-v="-4.3">5e-5</button><button data-v="0.5">3.14…</button><button data-v="4.9">80,000</button></div></div>
+        <div class="mt" id="a-rows"></div>
+        <div id="a-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="amp_training.py">
+scaler = torch.amp.GradScaler("cuda")                # only needed for float16
+for xb, yb in loader:
+    xb, yb = xb.to(device), yb.to(device)
+    optimizer.zero_grad(set_to_none=True)
+    with torch.autocast(device_type="cuda", dtype=torch.float16):
+        logits = model(xb)
+        loss = loss_fn(logits, yb)
+    scaler.scale(loss).backward()                    # scaled loss -> scaled grads
+    scaler.unscale_(optimizer)                       # optional: before clipping
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    scaler.step(optimizer)                           # skips the step if grads are inf/nan
+    scaler.update()
+
+# bfloat16 (Ampere+ GPUs, TPUs): no scaler needed
+with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+    loss = loss_fn(model(xb), yb)
+loss.backward(); optimizer.step()
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="essentials:amp"></div>
+    </section>
+
+    <!-- ============ COMPILE ============ -->
+    <section class="tab-panel" data-panel="compile" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>One line, same code, faster kernels</h3>
+        <p><code>torch.compile(model)</code> (PyTorch 2.0+) captures your forward pass as graphs with <strong>TorchDynamo</strong>, then <strong>TorchInductor</strong> fuses chains of small operations into fewer, larger GPU kernels (via Triton) or optimised C++ on CPU. Fewer kernel launches and fewer round-trips to memory = speed.</p>
+        <dl class="kv">
+          <dt>first call</dt><dd>Slow — tracing and compilation (seconds to minutes).</dd>
+          <dt>later calls</dt><dd>Fast — reuses the compiled code while input shapes and types stay the same.</dd>
+          <dt>graph break</dt><dd>Something Dynamo can't trace (e.g. <code>print</code>, data-dependent Python control flow, unsupported libraries) splits the graph; that part runs eagerly. Correct, but less speed-up.</dd>
+          <dt>recompile</dt><dd>New input shapes trigger recompilation; <code>dynamic=True</code> generalises over shapes.</dd>
+          <dt>mode=</dt><dd><code>"default"</code>, <code>"reduce-overhead"</code> (CUDA graphs, small batches), <code>"max-autotune"</code> (longest compile, fastest kernels).</dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="compile.py">
+model = MyNet().to(device)
+model = torch.compile(model)                        # that's it
+# model = torch.compile(model, mode="max-autotune", dynamic=False)
+
+for xb, yb in loader:                               # training loop unchanged
+    loss = loss_fn(model(xb.to(device)), yb.to(device))
+    optimizer.zero_grad(); loss.backward(); optimizer.step()
+
+# Find graph breaks
+# TORCH_LOGS="graph_breaks" python train.py
+explanation = torch._dynamo.explain(model)(example_input)
+print(explanation.graph_break_count)
+
+# Saving: the compiled wrapper prefixes keys with "_orig_mod." — save the original module
+torch.save(model._orig_mod.state_dict(), "model.pt")
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="essentials:compile"></div>
+    </section>
+
+    <!-- ============ ERRORS ============ -->
+    <section class="tab-panel" data-panel="errors" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Most PyTorch errors are shape, dtype or device errors <span class="imp">Must-know</span></h3>
+        <p>When something breaks, print <code>x.shape, x.dtype, x.device</code> for every tensor involved in the failing line. Nine times out of ten that tells you the fix. Paste an error below or pick one from the list.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · error decoder</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="e-in">paste an error message</label><input class="input mono" id="e-in" placeholder="RuntimeError: mat1 and mat2 shapes cannot be multiplied (64x784 and 512x10)"></div>
+          <div class="err-list" id="e-list"></div>
+        </div>
+        <div id="e-detail"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="essentials:errors"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, rng } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+
+  /* ===== Checkpoint builder ===== */
+  function ck() {
+    const on = {}; $$('[data-k]').forEach((el) => { on[el.dataset.k] = el.checked; });
+    const save = [], load = [];
+    if (on.epoch) { save.push('    "epoch": epoch,'); load.push('start_epoch = ckpt["epoch"] + 1'); }
+    if (on.model) { save.push('    "model": model.state_dict(),'); load.push('model.load_state_dict(ckpt["model"])'); }
+    if (on.optimizer) { save.push('    "optimizer": optimizer.state_dict(),'); load.push('optimizer.load_state_dict(ckpt["optimizer"])'); }
+    if (on.scheduler) { save.push('    "scheduler": scheduler.state_dict(),'); load.push('scheduler.load_state_dict(ckpt["scheduler"])'); }
+    if (on.best) { save.push('    "best_acc": best_acc,'); load.push('best_acc = ckpt["best_acc"]'); }
+    if (on.scaler) { save.push('    "scaler": scaler.state_dict(),'); load.push('scaler.load_state_dict(ckpt["scaler"])'); }
+    setCode($('#ck-code'), '# save\ntorch.save({\n' + save.join('\n') + '\n}, "checkpoint.pt")\n\n# resume\nckpt = torch.load("checkpoint.pt", map_location=device)\n' + load.join('\n') + '\nmodel.train()', 'checkpoint.py');
+    const issues = [];
+    if (!on.model) issues.push('Without the model weights there is nothing to resume.');
+    if (on.model && !on.optimizer) issues.push('No optimizer state: Adam\'s running averages restart from zero, so the first steps after resuming behave differently (often a loss spike).');
+    if (on.model && !on.epoch) issues.push('No epoch: the schedule and logging restart from epoch 0.');
+    $('#ck-verdict').innerHTML = issues.length ? '<div class="callout amber">' + PT.icon('alert') + '<div>' + issues.join('<br>') + '</div></div>' : '<div class="callout green">' + PT.icon('check') + '<div>Enough to resume training exactly where it stopped' + (on.model && !on.scheduler ? ' (add the scheduler if you use one)' : '') + '. For inference-only deployment, save just <code>model.state_dict()</code>.</div></div>';
+  }
+  $$('[data-k]').forEach((el) => el.addEventListener('change', ck)); ck();
+
+  /* ===== Seeds ===== */
+  let runs = [], runNo = 0;
+  $('#r-run').addEventListener('click', () => {
+    runNo++; const seeded = $('#r-seed').checked;
+    const r = seeded ? rng(42) : rng(Math.floor(Math.random() * 1e9));
+    const w = [r(), r(), r()].map((v) => v.toFixed(4)); const idx = [0, 1, 2, 3, 4, 5].sort(() => r() - 0.5).join(' ');
+    runs.push({ n: runNo, seeded, w, idx });
+    $('#r-out').innerHTML = runs.slice(-5).map((x) => '<div>run ' + x.n + (x.seeded ? ' (seeded)' : '') + ' → init w = [' + x.w.join(', ') + '], shuffle = ' + x.idx + '</div>').join('');
+    const last = runs.slice(-2);
+    $('#r-note').innerHTML = last.length < 2 ? '<p class="small muted">Run it again.</p>' : (last[0].w.join() === last[1].w.join() ? '<div class="callout green">' + PT.icon('check') + '<div>Identical: same seed → same initial weights and same shuffle order → same training run.</div></div>' : '<div class="callout amber">' + PT.icon('alert') + '<div>Different numbers — without a seed every run starts from different weights and sees data in a different order, so results vary from run to run.</div></div>');
+  });
+  $('#r-clear').addEventListener('click', () => { runs = []; $('#r-out').innerHTML = ''; $('#r-note').innerHTML = ''; });
+
+  /* ===== Float formats ===== */
+  const FORMATS = [
+    { n: 'float32', e: 8, m: 23, bias: 127 },
+    { n: 'bfloat16', e: 8, m: 7, bias: 127 },
+    { n: 'float16', e: 5, m: 10, bias: 15 },
+  ];
+  function quant(v, f) {
+    if (v === 0) return { q: 0, kind: 'zero' };
+    const maxE = (1 << f.e) - 2 - f.bias, minE = 1 - f.bias;
+    const max = (2 - Math.pow(2, -f.m)) * Math.pow(2, maxE);
+    if (Math.abs(v) > max) return { q: Infinity, kind: 'overflow' };
+    let e = Math.floor(Math.log2(Math.abs(v)));
+    let kind = 'normal';
+    if (e < minE) { e = minE; kind = 'subnormal'; }
+    const step = Math.pow(2, e - f.m);
+    const q = Math.round(v / step) * step;
+    if (q === 0) return { q: 0, kind: 'underflow' };
+    return { q, kind, e, step };
+  }
+  function bitsHTML(f) { return '<div class="bits">' + '<span class="s">s</span>' + Array(f.e).fill('<span class="e">e</span>').join('') + Array(f.m).fill('<span class="m"></span>').join('') + '</div>'; }
+  function amp() {
+    const v = Math.pow(10, +$('#a-v').value);
+    $('#a-v-v').textContent = v.toExponential(3);
+    let worst = '';
+    $('#a-rows').innerHTML = FORMATS.map((f) => {
+      const r = quant(v, f); const rel = r.q && isFinite(r.q) ? Math.abs(r.q - v) / v : null;
+      const shown = r.kind === 'underflow' ? '0  ← underflow!' : r.kind === 'overflow' ? 'inf  ← overflow!' : r.q.toPrecision(8) + (r.kind === 'subnormal' ? '  (subnormal, low precision)' : '');
+      if (f.n === 'float16' && (r.kind === 'underflow' || r.kind === 'subnormal' || r.kind === 'overflow')) worst = r.kind;
+      return '<div class="fmt-row"><span class="nm">' + f.n + '</span><div>' + bitsHTML(f) + '<div class="mono small" style="margin-top:6px;color:' + (r.kind === 'underflow' || r.kind === 'overflow' ? 'var(--red)' : 'var(--text-2)') + '">' + shown + (rel != null ? '<span class="dim">   relative error ' + rel.toExponential(1) + '</span>' : '') + '</div></div></div>';
+    }).join('') + '<div class="legend mt"><span><i style="background:#f87171"></i>sign</span><span><i style="background:#fbbf24"></i>exponent (range)</span><span><i style="background:#5fb3f9"></i>mantissa (precision)</span></div>';
+    $('#a-note').innerHTML = worst === 'underflow' ? '<div class="callout red">' + PT.icon('alert') + '<div>In float16 this gradient becomes <b>0</b> — the weight would never update. GradScaler multiplies the loss by e.g. 65,536 so gradients stay representable, then unscales before the optimizer step. bfloat16 keeps it (8 exponent bits, like float32).</div></div>'
+      : worst === 'subnormal' ? '<div class="callout amber">' + PT.icon('alert') + '<div>Below float16\'s normal range (≈6.1e-5): stored as a subnormal with very few significant bits. Precision is already degrading.</div></div>'
+      : worst === 'overflow' ? '<div class="callout red">' + PT.icon('alert') + '<div>float16 tops out at 65,504 — larger activations or losses become <b>inf</b>. Another reason autocast keeps reductions and losses in float32.</div></div>'
+      : '<div class="callout blue">' + PT.icon('info') + '<div>All three represent this value; bfloat16 has the largest rounding error (7 mantissa bits) but the same range as float32.</div></div>';
+  }
+  $('#a-v').addEventListener('input', amp);
+  $('#a-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#a-v').value = b.dataset.v; amp(); });
+  amp();
+
+  /* ===== Error decoder ===== */
+  const ERRS = [
+    { m: 'mat1 and mat2 shapes cannot be multiplied', k: ['mat1', 'mat2', 'cannot be multiplied'],
+      cause: 'A Linear layer\'s <code>in_features</code> doesn\'t match the size of the incoming features. Typical after Flatten in a CNN, or when the input wasn\'t flattened at all.',
+      fix: '# (64x784 and 512x10): input has 784 features, layer expects 512\nprint(x.shape)                  # check right before the layer\nself.fc = nn.Linear(784, 10)     # match in_features\n# or let PyTorch infer it:\nself.fc = nn.LazyLinear(10)' },
+    { m: 'Expected all tensors to be on the same device', k: ['same device', 'cuda:0 and cpu', 'device'],
+      cause: 'One operation received a CUDA tensor and a CPU tensor — usually the batch, the labels, or a tensor created inside forward().',
+      fix: 'model.to(device)\nxb, yb = xb.to(device), yb.to(device)\nmask = torch.ones(n, device=x.device)    # create tensors on the input\'s device' },
+    { m: 'expected scalar type Long but found Float', k: ['scalar type long', 'long but found float', 'expected scalar type'],
+      cause: 'CrossEntropyLoss / NLLLoss need integer class ids (int64), or nn.Embedding received float ids.',
+      fix: 'loss = nn.CrossEntropyLoss()(logits, y.long())\nemb(ids.long())' },
+    { m: 'Target size (torch.Size([64])) must be the same as input size (torch.Size([64, 1]))', k: ['target size', 'same as input size'],
+      cause: 'BCEWithLogitsLoss / BCELoss need targets with exactly the logits\' shape (and float dtype).',
+      fix: 'loss = nn.BCEWithLogitsLoss()(logits, y.float().unsqueeze(1))   # (64,) -> (64, 1)\n# or: logits.squeeze(1) vs y.float()' },
+    { m: 'one of the variables needed for gradient computation has been modified by an inplace operation', k: ['inplace operation', 'modified by an inplace'],
+      cause: 'An in-place op (x += 1, relu_(), x[0] = ...) overwrote a tensor autograd saved for the backward pass.',
+      fix: 'x = x + 1                    # instead of x += 1\nnn.ReLU(inplace=False)\n# debug: torch.autograd.set_detect_anomaly(True) shows the forward line' },
+    { m: 'CUDA out of memory. Tried to allocate 2.00 GiB', k: ['out of memory', 'oom', 'tried to allocate'],
+      cause: 'Activations + weights + gradients + optimizer state exceed GPU memory. Common hidden cause: accumulating `loss` (with its graph) in a list, or evaluating without no_grad.',
+      fix: 'running_loss += loss.item()        # not loss\nwith torch.no_grad(): ...         # evaluation\n# smaller batch + gradient accumulation, mixed precision:\nwith torch.autocast("cuda", dtype=torch.bfloat16): ...\ntorch.cuda.empty_cache()           # frees cached blocks, not live tensors' },
+    { m: 'element 0 of tensors does not require grad and does not have a grad_fn', k: ['does not require grad', 'grad_fn'],
+      cause: 'backward() was called on something not connected to any parameter: computed inside no_grad, after .detach()/.item(), or all parameters are frozen.',
+      fix: '# compute the loss outside torch.no_grad()\nloss = loss_fn(model(x), y)        # not loss_fn(model(x).detach(), y)\nprint([p.requires_grad for p in model.parameters()][:5])' },
+    { m: 'Trying to backward through the graph a second time', k: ['backward through the graph a second time', 'second time'],
+      cause: 'The graph was freed by the first backward(), but part of it is reused — often a hidden state carried across batches in an RNN.',
+      fix: 'hidden = hidden.detach()          # truncate BPTT between batches\n# or, if truly needed: loss.backward(retain_graph=True)' },
+    { m: 'view size is not compatible with input tensor\'s size and stride', k: ['view size is not compatible', 'stride', 'contiguous'],
+      cause: 'view() on a non-contiguous tensor (after transpose/permute).',
+      fix: 'x = x.permute(0, 2, 1).reshape(n, -1)   # or .contiguous().view(...)' },
+    { m: 'Expected more than 1 value per channel when training', k: ['more than 1 value per channel'],
+      cause: 'BatchNorm in train mode received a batch of size 1 (often the last batch of an epoch).',
+      fix: 'DataLoader(ds, batch_size=64, shuffle=True, drop_last=True)\n# or call model.eval() for single-sample inference' },
+    { m: 'stack expects each tensor to be equal size', k: ['stack expects each tensor', 'equal size'],
+      cause: 'The default collate_fn tried to stack variable-length samples (sentences, images of different sizes).',
+      fix: 'loader = DataLoader(ds, batch_size=32, collate_fn=pad_collate)   # pad per batch\n# images: transforms.Resize((224, 224)) in the Dataset' },
+    { m: 'Error(s) in loading state_dict: Missing key(s) / Unexpected key(s) "module.fc.weight"', k: ['loading state_dict', 'missing key', 'unexpected key', 'module.'],
+      cause: 'The saved keys don\'t match the model: saved from DataParallel/DDP ("module." prefix) or torch.compile ("_orig_mod."), or the architecture changed.',
+      fix: 'sd = torch.load("model.pt", map_location="cpu")\nsd = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in sd.items()}\nmodel.load_state_dict(sd)\n# strict=False only if you intend to load a partial model' },
+  ];
+  let curE = 0;
+  $('#e-list').innerHTML = ERRS.map((e, i) => '<button class="err-item" data-i="' + i + '">' + esc(e.m.length > 72 ? e.m.slice(0, 70) + '…' : e.m) + '</button>').join('');
+  $('#e-list').addEventListener('click', (e) => { const b = e.target.closest('.err-item'); if (b) showErr(+b.dataset.i); });
+  function showErr(i) {
+    curE = i; const e = ERRS[i];
+    $$('#e-list .err-item').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    const host = $('#e-detail');
+    host.innerHTML = '<div class="err-box">RuntimeError: ' + esc(e.m) + '</div><div class="card lesson mt" style="padding:16px 18px"><h4 style="margin-top:0">Why it happens</h4><p>' + e.cause + '</p><h4>Fix</h4></div>';
+    host.querySelector('.lesson').appendChild(codeBlock(e.fix, { title: 'fix' }));
+  }
+  $('#e-in').addEventListener('input', () => {
+    const t = $('#e-in').value.toLowerCase(); if (!t.trim()) return;
+    let best = -1, score = 0;
+    ERRS.forEach((e, i) => { const s = e.k.reduce((a, k) => a + (t.includes(k.toLowerCase()) ? k.length : 0), 0); if (s > score) { score = s; best = i; } });
+    if (best >= 0) showErr(best);
+    else $('#e-detail').innerHTML = '<div class="callout">' + PT.icon('info') + '<div>No match in this list. Print <code>shape</code>, <code>dtype</code> and <code>device</code> of every tensor on the failing line.</div></div>';
+  });
+  showErr(0);
+
+  PT.init('essentials');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building an ANN &amp; Training on GPU — PyTorch</title>
+  <meta name="description" content="Build a Fashion-MNIST classifier in PyTorch: flattening images, layer shapes and parameter counts, train vs eval mode, and moving models and data to the GPU without device errors.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .px { display: grid; grid-template-columns: repeat(28, 1fr); gap: 0; width: 196px; aspect-ratio: 1; background: #090b12; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+    .px span { border-radius: 1px; }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .flow .box { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12px var(--font-mono); text-align: center; min-width: 96px; }
+    .flow .box b { display: block; font-size: 13px; color: var(--text); }
+    .flow .box small { color: var(--muted); }
+    .flow .arr { color: var(--dim); font: 700 16px var(--font-mono); }
+    .flow .box.act { border-color: rgba(177,140,255,.4); }
+    .flow .box.out { border-color: rgba(255,122,89,.5); }
+    .strip { display: flex; height: 18px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+    .strip span { flex: 1; }
+    .dev-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); }
+    .mode-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    @media (max-width: 800px) { .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 07 · BUILDING NETWORKS</span>
+      <h1>An ANN on <span class="grad">Fashion-MNIST</span>, then on the GPU</h1>
+      <p class="desc">Put modules 02–06 together: a Dataset of 28×28 clothing images, a DataLoader, an <code>nn.Module</code> classifier, CrossEntropyLoss and Adam — trained, evaluated correctly, and moved to a GPU with one <code>device</code> variable.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Shape flow · mode simulator · device debugger</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="arch"><span class="n">1</span>Architecture &amp; shapes</button>
+      <button class="tab" data-tab="train"><span class="n">2</span>Train &amp; evaluate</button>
+      <button class="tab" data-tab="gpu"><span class="n">3</span>Training on GPU</button>
+    </div></div>
+
+    <!-- ============ ARCH ============ -->
+    <section class="tab-panel" data-panel="arch">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Image → vector → hidden layers → 10 logits</h3>
+        <p>Fashion-MNIST has 60,000 training and 10,000 test images of 10 clothing classes, each a 28×28 grayscale image. An MLP doesn't understand 2-D structure, so each image is <strong>flattened</strong> into 784 numbers (scaled to 0–1). Two hidden layers with ReLU learn features; the last layer outputs <strong>10 logits</strong>, one per class. No softmax — <code>CrossEntropyLoss</code> handles it. <span class="imp">Must-know</span></p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · follow one image through the network</div>
+      <div class="card card-pad">
+        <div class="split">
+          <div>
+            <div class="seg" id="a-cls"><button data-v="0" class="on">T-shirt</button><button data-v="1">Trouser</button><button data-v="7">Sneaker</button><button data-v="8">Bag</button></div>
+            <div class="mt" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+              <div><div class="label" style="margin-bottom:4px">x · (1, 28, 28)</div><div class="px" id="a-px"></div></div>
+              <div style="flex:1;min-width:180px"><div class="label" style="margin-bottom:4px">x.view(-1) · (784,) — rows laid end to end</div><div class="strip" id="a-strip"></div>
+                <p class="small muted mt">In a batch: <code>(64, 1, 28, 28)</code> → <code>nn.Flatten()</code> → <code>(64, 784)</code>. Flatten keeps the batch dimension.</p></div>
+            </div>
+          </div>
+          <div class="controls">
+            <div class="field"><span class="label-t">hidden layer 1 units</span><div class="range-row"><input type="range" id="a-h1" min="16" max="512" step="16" value="128"><span class="val" id="a-h1-v"></span></div></div>
+            <div class="field"><span class="label-t">hidden layer 2 units</span><div class="range-row"><input type="range" id="a-h2" min="16" max="256" step="16" value="64"><span class="val" id="a-h2-v"></span></div></div>
+            <div class="grid-2" id="a-stats"></div>
+          </div>
+        </div>
+        <div class="flow mt2" id="a-flow"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="fashion_mnist_model.py" data-imp>
+import torch, torch.nn as nn
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+tf = transforms.ToTensor()                          # PIL (28,28) uint8 -> (1,28,28) float in [0,1]
+train_ds = datasets.FashionMNIST("data", train=True, download=True, transform=tf)
+test_ds = datasets.FashionMNIST("data", train=False, download=True, transform=tf)
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_ds, batch_size=256)
+
+class MyNN(nn.Module):
+    def __init__(self, hidden1=128, hidden2=64, n_classes=10):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Flatten(),                           # (N,1,28,28) -> (N,784)
+            nn.Linear(784, hidden1), nn.ReLU(),
+            nn.Linear(hidden1, hidden2), nn.ReLU(),
+            nn.Linear(hidden2, n_classes),          # logits
+        )
+
+    def forward(self, x):
+        return self.net(x)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ann:arch"></div>
+    </section>
+
+    <!-- ============ TRAIN ============ -->
+    <section class="tab-panel" data-panel="train" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>train() and eval() change behaviour; no_grad() saves memory <span class="imp">Must-know</span></h3>
+        <p>Two switches that are easy to confuse — and you normally need both during evaluation.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · mode simulator</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">Module mode</span><div class="seg" id="m-mode"><button data-v="train" class="on">model.train()</button><button data-v="eval">model.eval()</button></div></div>
+          <div class="field"><span class="label-t">Gradient tracking</span><div class="seg" id="m-grad"><button data-v="on" class="on">normal</button><button data-v="off">with torch.no_grad()</button></div></div>
+          <p class="small muted">Run the same input twice and compare. Correct evaluation is <b>eval + no_grad</b>.</p>
+        </div>
+        <div><div class="mode-grid" id="m-out"></div><div id="m-verdict" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · full training and evaluation</div>
+      <textarea class="py" data-title="train_fashion_mnist.py" data-imp>
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = MyNN().to(device)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+def evaluate(loader):
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for xb, yb in loader:
+            xb, yb = xb.to(device), yb.to(device)
+            pred = model(xb).argmax(dim=1)
+            correct += (pred == yb).sum().item()
+            total += yb.size(0)
+    model.train()
+    return correct / total
+
+for epoch in range(10):
+    model.train()
+    running = 0.0
+    for xb, yb in train_loader:
+        xb, yb = xb.to(device), yb.to(device)
+        loss = loss_fn(model(xb), yb)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        running += loss.item()
+    print(f"epoch {epoch+1}  loss {running/len(train_loader):.4f}  test acc {evaluate(test_loader):.4f}")
+      </textarea>
+      <div class="callout blue mt"><i data-icon="info"></i><div>A simple MLP like this usually reaches roughly 88–89% test accuracy on Fashion-MNIST. The CNN in module 10 pushes past 90% because it understands spatial structure.</div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ann:train"></div>
+    </section>
+
+    <!-- ============ GPU ============ -->
+    <section class="tab-panel" data-panel="gpu" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Three lines move training to the GPU <span class="imp">Must-know</span></h3>
+        <ol>
+          <li>Pick the device once: <code>device = "cuda" if torch.cuda.is_available() else "cpu"</code> (or <code>"mps"</code> on Apple silicon).</li>
+          <li>Move the model once: <code>model.to(device)</code> — in place for modules.</li>
+          <li>Move every batch inside the loop: <code>xb, yb = xb.to(device), yb.to(device)</code> — tensors return a <em>new</em> copy, so reassign.</li>
+        </ol>
+        <p>GPUs win on large, parallel work: big batches, big layers, convolutions. Copying data across PCIe and launching kernels has overhead, so tiny models can even be slower on a GPU.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · device debugger</div>
+      <div class="card card-pad split">
+        <div style="display:grid;gap:6px" id="g-rows"></div>
+        <div><div id="g-code"></div><div id="g-res" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="gpu_training.py" data-imp>
+print(torch.cuda.is_available(), torch.cuda.device_count())
+print(torch.cuda.get_device_name(0))
+
+device = torch.device("cuda" if torch.cuda.is_available() else
+                      "mps" if torch.backends.mps.is_available() else "cpu")
+model = MyNN().to(device)                     # parameters move in place
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)   # after .to()
+
+train_loader = DataLoader(train_ds, batch_size=128, shuffle=True,
+                          pin_memory=True, num_workers=2)
+for xb, yb in train_loader:
+    xb = xb.to(device, non_blocking=True)     # must reassign
+    yb = yb.to(device, non_blocking=True)
+    ...
+
+class WithBuffer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.register_buffer("mask", torch.ones(10))   # moves with model.to()
+    def forward(self, x):
+        noise = torch.randn(x.shape, device=x.device)  # create on x's device
+        return x * self.mask + noise
+
+print(torch.cuda.memory_allocated() / 1e6, "MB")
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ann:gpu"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, rng } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Pixel art garments ===== */
+  const NAMES = ['T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot'];
+  function garment(c) {
+    const r = rng(c + 5); const g = [];
+    for (let i = 0; i < 28; i++) { const row = []; for (let j = 0; j < 28; j++) {
+      let v = 0;
+      if (c === 0) { if ((i >= 4 && i <= 9 && j >= 3 && j <= 24 && Math.abs(j - 13.5) < 6 + (i - 4) * 2) || (i >= 9 && i <= 25 && j >= 8 && j <= 19)) v = 0.75; if (i <= 5 && j >= 11 && j <= 16) v = 0; }
+      else if (c === 1) { if (i >= 3 && i <= 25 && ((j >= 8 && j <= 13) || (j >= 14 && j <= 19)) && !(i > 8 && j === 13.5)) v = 0.7; if (i >= 3 && i <= 6 && j >= 8 && j <= 19) v = 0.8; if (i > 8 && (j === 13 || j === 14)) v = 0; }
+      else if (c === 7) { if (i >= 14 && i <= 21 && j >= 3 && j <= 25 && (i >= 18 || j <= 10 + (i - 14) * 3.5)) v = 0.8; if (i >= 20 && i <= 21) v = j >= 3 && j <= 25 ? 0.95 : 0; }
+      else if (c === 8) { if (i >= 9 && i <= 24 && j >= 4 && j <= 23) v = 0.65; if (i >= 4 && i <= 9 && (j === 9 || j === 18 || ((i === 4 || i === 5) && j >= 9 && j <= 18))) v = 0.85; }
+      if (v) v = Math.min(1, v + (r() - 0.5) * 0.2);
+      row.push(v); } g.push(row); }
+    return g;
+  }
+  let cls = 0;
+  function pixels() {
+    const g = garment(cls);
+    $('#a-px').innerHTML = g.flat().map((v) => '<span style="background:rgba(255,236,226,' + v + ')"></span>').join('');
+    $('#a-strip').innerHTML = g.flat().map((v, k) => '<span style="background:' + (v ? 'rgba(255,236,226,' + v + ')' : (Math.floor(k / 28) % 2 ? '#0d1019' : '#111522')) + '"></span>').join('');
+  }
+  function arch() {
+    const h1 = +$('#a-h1').value, h2 = +$('#a-h2').value;
+    $('#a-h1-v').textContent = h1; $('#a-h2-v').textContent = h2;
+    const p1 = 784 * h1 + h1, p2 = h1 * h2 + h2, p3 = h2 * 10 + 10, tot = p1 + p2 + p3;
+    $('#a-stats').innerHTML = '<div class="stat"><div class="v">' + tot.toLocaleString() + '</div><div class="k">parameters</div></div><div class="stat"><div class="v">' + (p1 / tot * 100).toFixed(0) + '%</div><div class="k">in the first layer</div></div>';
+    // fake but deterministic logits peaking at the chosen class
+    const r = rng(cls * 13 + h1 + h2);
+    const logits = NAMES.map((_, k) => (k === cls ? 4 : r() * 2.4 - 0.6));
+    const m = Math.max(...logits), ex = logits.map((v) => Math.exp(v - m)), s = ex.reduce((a, b) => a + b, 0);
+    const top = ex.map((v, k) => [v / s, k]).sort((a, b) => b[0] - a[0]).slice(0, 3);
+    const box = (t, sh, cls2) => '<div class="box ' + (cls2 || '') + '"><b>' + t + '</b><small>' + sh + '</small></div>';
+    $('#a-flow').innerHTML = [box('input', '(64, 1, 28, 28)'), box('Flatten', '(64, 784)', 'act'), box('Linear 784→' + h1, p1.toLocaleString() + ' params'), box('ReLU', '(64, ' + h1 + ')', 'act'), box('Linear ' + h1 + '→' + h2, p2.toLocaleString() + ' params'), box('ReLU', '(64, ' + h2 + ')', 'act'), box('Linear ' + h2 + '→10', p3.toLocaleString() + ' params'), box('logits', '(64, 10)', 'out'),
+      '<div class="box out" style="text-align:left"><b>softmax · illustrative</b>' + top.map(([p, k]) => '<small style="display:block">' + NAMES[k] + ' ' + (p * 100).toFixed(1) + '%</small>').join('') + '</div>'].join('<span class="arr">→</span>');
+  }
+  segc('a-cls', (v) => { cls = +v; pixels(); arch(); });
+  ['a-h1', 'a-h2'].forEach((id) => $('#' + id).addEventListener('input', arch));
+  pixels(); arch();
+
+  /* ===== Mode simulator ===== */
+  let mode = 'train', grad = 'on';
+  function modes() {
+    const tr = mode === 'train', g = grad === 'on';
+    const r1 = rng(11), r2 = rng(29);
+    const base = [0.62, 0.21, 0.09];
+    const run = (r) => (tr ? base.map((v) => Math.max(0, v + (r() - 0.5) * 0.18)) : base);
+    const a = run(r1), b = run(r2);
+    const cells = [
+      ['Dropout', tr ? 'drops ~p of units, scales the rest' : 'identity — all units kept', tr],
+      ['BatchNorm', tr ? 'uses this batch\'s mean/var; updates running stats' : 'uses stored running mean/var', tr],
+      ['Graph recorded?', g ? 'yes — activations stored for backward' : 'no — lower memory, faster', !g],
+      ['Same input twice →', a.map((v) => v.toFixed(2)).join(' ') + ' / ' + b.map((v) => v.toFixed(2)).join(' '), tr],
+    ];
+    $('#m-out').innerHTML = cells.map(([k, v, warn]) => '<div class="stat"><div class="k">' + k + '</div><div style="font:600 12.5px var(--font-mono);margin-top:4px;color:' + (k.startsWith('Same') ? (tr ? 'var(--amber)' : 'var(--green)') : 'var(--text)') + '">' + v + '</div></div>').join('');
+    let v;
+    if (!tr && !g) v = '<div class="ok-box">✓ Correct evaluation setup: deterministic outputs and no wasted memory.</div>';
+    else if (tr && g) v = '<div class="ok-box">✓ Correct training setup: dropout active, BN learning statistics, gradients recorded.</div>';
+    else if (tr && !g) v = '<div class="err-box">✗ Evaluating in train mode: dropout is still active, so predictions are noisy and accuracy is underestimated. BatchNorm also overwrites its running stats with test data.</div>';
+    else v = '<div class="err-box">✗ eval() without no_grad(): results are right, but autograd stores a graph you never use — wasted memory and time, and possible OOM on big batches.</div>';
+    $('#m-verdict').innerHTML = v;
+  }
+  segc('m-mode', (v) => { mode = v; modes(); });
+  segc('m-grad', (v) => { grad = v; modes(); });
+  modes();
+
+  /* ===== Device debugger ===== */
+  const ITEMS = [
+    { k: 'model', l: 'model = MyNN().to(?)', v: 'cuda' },
+    { k: 'x', l: 'xb = xb.to(?)', v: 'cpu' },
+    { k: 'y', l: 'yb = yb.to(?)', v: 'cpu' },
+    { k: 'buf', l: 'torch.zeros(...) inside forward', v: 'cpu', opts: ['cpu', 'x.device'] },
+  ];
+  function devRows() {
+    $('#g-rows').innerHTML = ITEMS.map((it, i) => '<div class="dev-row"><span>' + esc(it.l.replace('?', '"' + (it.v === 'x.device' ? 'x.device' : it.v) + '"')) + '</span><div class="seg" data-i="' + i + '">' + (it.opts || ['cpu', 'cuda']).map((o) => '<button data-v="' + o + '" class="' + (o === it.v ? 'on' : '') + '">' + o + '</button>').join('') + '</div></div>').join('') +
+      '<p class="small muted">Make it run on the GPU: everything that meets inside one operation must share a device.</p>';
+    $$('#g-rows .seg').forEach((s) => s.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; ITEMS[+s.dataset.i].v = b.dataset.v; devRows(); devRun(); }));
+  }
+  function devRun() {
+    const [m, x, y, buf] = ITEMS.map((i) => i.v);
+    const bufDev = buf === 'x.device' ? x : 'cpu';
+    setCode($('#g-code'), 'model = MyNN().to("' + m + '")\nxb, yb = xb.to("' + x + '"), yb.to("' + y + '")\n# inside forward: torch.zeros(n' + (buf === 'x.device' ? ', device=x.device' : '') + ')\nlogits = model(xb)\nloss = loss_fn(logits, yb)', 'step');
+    let err = null;
+    if (m !== x) err = 'RuntimeError: Expected all tensors to be on the same device, but found at least two devices, ' + (m === 'cuda' ? 'cuda:0 and cpu' : 'cpu and cuda:0') + '!\n  → raised in model(xb): the Linear weight is on ' + m + ' but the input is on ' + x + '.';
+    else if (bufDev !== x) err = 'RuntimeError: Expected all tensors to be on the same device ...\n  → raised inside forward: torch.zeros() defaults to the CPU. Use device=x.device or register_buffer.';
+    else if (y !== x) err = 'RuntimeError: Expected all tensors to be on the same device ...\n  → raised in loss_fn(logits, yb): logits on ' + x + ', labels on ' + y + '. Move the labels too.';
+    $('#g-res').innerHTML = err ? '<div class="err-box">' + esc(err) + '</div>' : '<div class="ok-box">✓ Runs' + (m === 'cuda' ? ' on the GPU.' : ' — but on the CPU. Fine for debugging; slow for training.') + '</div>';
+  }
+  devRows(); devRun();
+
+  PT.init('ann');
+})();
+</script>
+</body>
+</html>

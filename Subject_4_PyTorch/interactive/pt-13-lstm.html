@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LSTM Next-Word Predictor — Gates, Vanishing Gradients &amp; Decoding</title>
+  <meta name="description" content="LSTMs in PyTorch: why RNN gradients vanish, an interactive LSTM cell with forget/input/output gates, building n-gram training sequences with padding, and next-word prediction with greedy and temperature sampling.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    textarea.input { min-height: 110px; font: 12.5px/1.6 var(--font-mono); resize: vertical; }
+    .cell-svg text { font-family: var(--font-mono); }
+    .seqtbl td { font: 12px var(--font-mono); white-space: nowrap; }
+    .seqtbl td.pad { color: var(--dim); }
+    .seqtbl td.y { color: var(--ember); font-weight: 700; }
+    .probs { display: grid; gap: 6px; }
+    .prob { display: grid; grid-template-columns: 110px 1fr 60px; gap: 8px; align-items: center; font: 12px var(--font-mono); }
+    .gen { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: #090b12; font: 14px/1.7 var(--font-mono); min-height: 60px; }
+    .gen b { color: var(--ember); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 13 · SEQUENCES</span>
+      <h1>LSTMs &amp; a <span class="grad">next-word predictor</span></h1>
+      <p class="desc">Plain RNNs forget: their gradients fade after a dozen steps. LSTMs add a gated memory cell that can carry information — and gradients — across long sequences. Then you'll turn a paragraph into training data and generate text one word at a time.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Gradient decay plot · LSTM cell · n-gram builder · text generator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="vanish"><span class="n">1</span>Vanishing gradients</button>
+      <button class="tab" data-tab="gates"><span class="n">2</span>Inside an LSTM cell</button>
+      <button class="tab" data-tab="data"><span class="n">3</span>Building the dataset</button>
+      <button class="tab" data-tab="predict"><span class="n">4</span>Predicting the next word</button>
+    </div></div>
+
+    <!-- ============ VANISH ============ -->
+    <section class="tab-panel" data-panel="vanish">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Gradients multiply through time <span class="imp">Must-know</span></h3>
+        <p>To learn that the word 30 steps ago mattered, the gradient must flow back through 30 copies of the recurrent cell, getting multiplied by roughly the same factor each time. A factor below 1 shrinks it exponentially (<strong>vanishing</strong>); above 1 it blows up (<strong>exploding</strong>). The LSTM's cell state is updated additively, <code>cₜ = fₜ·cₜ₋₁ + iₜ·g̃ₜ</code>, so the gradient along it is scaled only by the forget gate — which the network can learn to keep near 1.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · how far back does the signal reach?</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">RNN per-step factor |W<sub>hh</sub>·tanh′|</span><div class="range-row"><input type="range" id="v-r" min="0.5" max="1.3" step="0.01" value="0.85"><span class="val" id="v-r-v"></span></div></div>
+          <div class="field"><span class="label-t">LSTM forget gate f</span><div class="range-row"><input type="range" id="v-f" min="0.8" max="1" step="0.005" value="0.97"><span class="val" id="v-f-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="v-clip"> clip_grad_norm_(max_norm=5)</label>
+          <div class="grid-2" id="v-stats"></div>
+        </div>
+        <div><canvas class="viz" id="v-chart"></canvas><div class="legend mt"><span><i style="background:#5fb3f9"></i>RNN gradient reaching step t−k</span><span><i style="background:#ff7a59"></i>LSTM (cell-state path)</span></div><p class="small muted mt">Log scale. Simplified model: one constant factor per step.</p></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="clipping.py" data-imp>
+loss.backward()
+torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)   # between backward and step
+optimizer.step()
+
+# Inspect gradient norms to spot vanishing / exploding
+for name, p in model.named_parameters():
+    if p.grad is not None:
+        print(f"{name:30s} {p.grad.norm():.2e}")
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="lstm:vanish"></div>
+    </section>
+
+    <!-- ============ GATES ============ -->
+    <section class="tab-panel" data-panel="gates" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Three gates control one memory cell <span class="imp">Must-know</span></h3>
+        <dl class="kv">
+          <dt>fₜ = σ(·)</dt><dd><b>Forget gate</b> — how much of the old memory cₜ₋₁ to keep (1 = keep all).</dd>
+          <dt>iₜ = σ(·)</dt><dd><b>Input gate</b> — how much of the new candidate to write.</dd>
+          <dt>g̃ₜ = tanh(·)</dt><dd><b>Candidate</b> — the new information, in [−1, 1].</dd>
+          <dt>oₜ = σ(·)</dt><dd><b>Output gate</b> — how much of the memory to reveal as hₜ.</dd>
+          <dt>cₜ, hₜ</dt><dd><code>cₜ = fₜ⊙cₜ₋₁ + iₜ⊙g̃ₜ</code> &nbsp; <code>hₜ = oₜ⊙tanh(cₜ)</code></dd>
+        </dl>
+        <p class="mt">Each gate is its own small layer over [hₜ₋₁, xₜ], which is why an LSTM has 4× the parameters of a plain RNN of the same size.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one LSTM unit</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">previous memory cₜ₋₁</span><div class="range-row"><input type="range" id="g-c" min="-2" max="2" step="0.05" value="1.2"><span class="val" id="g-c-v"></span></div></div>
+          <div class="field"><span class="label-t">forget gate f</span><div class="range-row"><input type="range" id="g-f" min="0" max="1" step="0.01" value="0.9"><span class="val" id="g-f-v"></span></div></div>
+          <div class="field"><span class="label-t">input gate i</span><div class="range-row"><input type="range" id="g-i" min="0" max="1" step="0.01" value="0.3"><span class="val" id="g-i-v"></span></div></div>
+          <div class="field"><span class="label-t">candidate g̃</span><div class="range-row"><input type="range" id="g-g" min="-1" max="1" step="0.01" value="-0.6"><span class="val" id="g-g-v"></span></div></div>
+          <div class="field"><span class="label-t">output gate o</span><div class="range-row"><input type="range" id="g-o" min="0" max="1" step="0.01" value="0.7"><span class="val" id="g-o-v"></span></div></div>
+          <div class="btn-row" id="g-pre"></div>
+        </div>
+        <div><svg class="cell-svg" id="g-svg" width="100%" viewBox="0 0 560 300"></svg><div id="g-msg" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="lstm_api.py" data-imp>
+lstm = nn.LSTM(input_size=100, hidden_size=150, num_layers=1, batch_first=True)
+x = torch.randn(32, 12, 100)                   # (N, L, embedding_dim)
+output, (h_n, c_n) = lstm(x)
+output.shape, h_n.shape, c_n.shape             # (32, 12, 150), (1, 32, 150), (1, 32, 150)
+print(sum(p.numel() for p in lstm.parameters()))   # 4 * (150*(100+150) + 2*150) = 151,200
+
+gru = nn.GRU(100, 150, batch_first=True)       # 3 gates, no cell state
+output, h_n = gru(x)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="lstm:gates"></div>
+    </section>
+
+    <!-- ============ DATA ============ -->
+    <section class="tab-panel" data-panel="data" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Every prefix is a training example <span class="imp">Must-know</span></h3>
+        <p>For each sentence, every prefix predicts the word that follows it. Left-pad the prefixes to a common length so the most recent words sit at the end — exactly where the LSTM's last time step reads them. The target is the next word's id, so this is a classification problem with <code>vocab_size</code> classes.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · text → (X, y)</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="d-t">corpus (one sentence per line)</label><textarea class="input" id="d-t">pytorch makes deep learning simple
+tensors flow through the network
+the network learns from data</textarea></div>
+          <div class="grid-2" id="d-stats"></div>
+        </div>
+        <div style="max-height:420px;overflow:auto"><table class="tbl seqtbl" id="d-tbl"></table></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="next_word_dataset.py" data-imp>
+import torch, torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+
+sentences = [s.lower().split() for s in corpus.split("\n") if s.strip()]
+vocab = {"<PAD>": 0, "<UNK>": 1}
+for s in sentences:
+    for w in s:
+        vocab.setdefault(w, len(vocab))
+
+seqs = []
+for s in sentences:
+    ids = [vocab[w] for w in s]
+    for i in range(1, len(ids)):
+        seqs.append(ids[: i + 1])             # prefix + next word
+
+max_len = max(len(s) for s in seqs)
+padded = torch.tensor([[0] * (max_len - len(s)) + s for s in seqs])   # left-pad
+X, y = padded[:, :-1], padded[:, -1]          # inputs and next-word targets
+
+loader = DataLoader(TensorDataset(X, y), batch_size=32, shuffle=True)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="lstm:data"></div>
+    </section>
+
+    <!-- ============ PREDICT ============ -->
+    <section class="tab-panel" data-panel="predict" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Predict, append, repeat</h3>
+        <p>The model outputs logits over the whole vocabulary for the next word. Pick one (greedily or by sampling), append it to the input, and run again. <strong>Temperature</strong> divides the logits before softmax: low T sharpens the distribution (safe, repetitive), high T flattens it (creative, error-prone).</p>
+        <div class="callout amber mt"><i data-icon="info"></i><div>The demo below uses a small count-based (bigram) model trained instantly in your browser on the paragraph shown, so you can see decoding behaviour live. The PyTorch LSTM in the code block learns the same kind of distribution, conditioned on the whole prefix rather than one word.</div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · generate text</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="p-seed">seed text</label><input class="input mono" id="p-seed" value="the model"></div>
+          <div class="field"><span class="label-t">temperature T</span><div class="range-row"><input type="range" id="p-t" min="0.1" max="2" step="0.05" value="0.8"><span class="val" id="p-t-v"></span></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="p-gen"><i data-icon="play"></i>Sample 12 words</button><button class="btn" id="p-greedy">Greedy</button><button class="btn" id="p-one"><i data-icon="step"></i>+1 word</button></div>
+          <div class="gen" id="p-out"></div>
+        </div>
+        <div><div class="label" style="margin-bottom:8px" id="p-cap"></div><div class="probs" id="p-probs"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="lstm_next_word.py" data-imp>
+class NextWordLSTM(nn.Module):
+    def __init__(self, vocab_size, emb_dim=100, hidden=150):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
+        self.lstm = nn.LSTM(emb_dim, hidden, batch_first=True)
+        self.fc = nn.Linear(hidden, vocab_size)
+
+    def forward(self, x):                        # (N, L)
+        out, (h_n, c_n) = self.lstm(self.embedding(x))
+        return self.fc(h_n[-1])                  # (N, vocab_size) — logits for the next word
+
+model = NextWordLSTM(len(vocab)).to(device)
+opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+loss_fn = nn.CrossEntropyLoss()
+for epoch in range(50):
+    for xb, yb in loader:
+        xb, yb = xb.to(device), yb.to(device)
+        loss = loss_fn(model(xb), yb)
+        opt.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        opt.step()
+
+idx2word = {i: w for w, i in vocab.items()}
+def generate(seed, n_words=10, temperature=0.8):
+    model.eval()
+    words = seed.lower().split()
+    for _ in range(n_words):
+        ids = [vocab.get(w, 1) for w in words][-(max_len - 1):]
+        x = torch.tensor([[0] * (max_len - 1 - len(ids)) + ids], device=device)
+        with torch.no_grad():
+            logits = model(x)[0] / temperature
+        next_id = torch.multinomial(torch.softmax(logits, dim=-1), 1).item()   # argmax for greedy
+        words.append(idx2word[next_id])
+    return " ".join(words)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="lstm:predict"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, rng, canvas } = PT;
+
+  /* ===== Vanishing ===== */
+  function vanish() {
+    const r = +$('#v-r').value, f = +$('#v-f').value, clip = $('#v-clip').checked;
+    $('#v-r-v').textContent = r.toFixed(2); $('#v-f-v').textContent = f.toFixed(3);
+    const K = 50; const rnn = [], lstm = [];
+    for (let k = 0; k <= K; k++) { let g = Math.pow(r, k); if (clip && g > 5) g = 5; rnn.push(Math.log10(Math.max(g, 1e-12))); lstm.push(Math.log10(Math.max(Math.pow(f, k), 1e-12))); }
+    PT.lineChart($('#v-chart'), [{ data: rnn, color: '#5fb3f9' }, { data: lstm, color: '#ff7a59' }], { h: 250, ymin: -6, ymax: 3, xlabel: 'k steps back (log10 gradient)' });
+    const reach = (fac) => (fac >= 1 ? '∞' : Math.ceil(Math.log(0.01) / Math.log(fac)));
+    $('#v-stats').innerHTML = '<div class="stat"><div class="v">' + (r > 1 ? (clip ? 'clipped' : 'explodes') : reach(r)) + '</div><div class="k">RNN: steps until gradient &lt; 1%</div></div><div class="stat"><div class="v">' + reach(f) + '</div><div class="k">LSTM: steps until gradient &lt; 1%</div></div>';
+  }
+  ['v-r', 'v-f'].forEach((id) => $('#' + id).addEventListener('input', vanish)); $('#v-clip').addEventListener('change', vanish);
+
+  /* ===== Gates ===== */
+  const GP = [['Remember', { f: 1, i: 0, g: 0, o: 0.8 }], ['Forget & overwrite', { f: 0, i: 1, g: 0.9, o: 0.8 }], ['Blend', { f: 0.5, i: 0.5, g: -0.8, o: 0.6 }], ['Hide memory', { f: 1, i: 0, g: 0, o: 0 }]];
+  $('#g-pre').innerHTML = GP.map((p, i) => '<button class="btn btn-sm" data-i="' + i + '">' + p[0] + '</button>').join('');
+  $('#g-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const p = GP[+b.dataset.i][1]; Object.keys(p).forEach((k) => { $('#g-' + k).value = p[k]; }); gates(); });
+  function gates() {
+    const c0 = +$('#g-c').value, f = +$('#g-f').value, i = +$('#g-i').value, g = +$('#g-g').value, o = +$('#g-o').value;
+    ['c', 'f', 'i', 'g', 'o'].forEach((k) => { $('#g-' + k + '-v').textContent = (+$('#g-' + k).value).toFixed(2); });
+    const keep = f * c0, write = i * g, c1 = keep + write, h1 = o * Math.tanh(c1);
+    const col = (v) => (v >= 0 ? '#ff7a59' : '#5fb3f9');
+    const node = (x, y, label, v, c) => '<g><circle cx="' + x + '" cy="' + y + '" r="20" fill="' + (c || '#b18cff') + '22" stroke="' + (c || '#b18cff') + '"/><text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" fill="#f2f4fa" font-size="12" font-weight="700">' + label + '</text>' + (v != null ? '<text x="' + x + '" y="' + (y + 36) + '" text-anchor="middle" fill="#8c94a9" font-size="11">' + fmt(v, 2) + '</text>' : '') + '</g>';
+    const wline = (x1, y1, x2, y2, v) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + col(v) + '" stroke-opacity="' + (0.25 + Math.min(1, Math.abs(v)) * 0.75) + '" stroke-width="' + (1.5 + Math.min(2, Math.abs(v)) * 2) + '"/>';
+    let s = '';
+    s += '<rect x="40" y="20" width="480" height="250" rx="18" fill="#0d1019" stroke="#323c55"/>';
+    s += wline(0, 60, 150, 60, c0) + wline(150, 60, 330, 60, keep) + wline(330, 60, 560, 60, c1);
+    s += wline(250, 180, 330, 180, write) + wline(330, 180, 330, 80, write);
+    s += wline(420, 60, 420, 140, Math.tanh(c1)) + wline(420, 180, 560, 240, h1);
+    s += '<text x="6" y="50" fill="#8c94a9" font-size="11">cₜ₋₁ = ' + fmt(c0, 2) + '</text><text x="470" y="50" fill="#f2f4fa" font-size="12" font-weight="700">cₜ = ' + fmt(c1, 2) + '</text>';
+    s += node(150, 60, '×', null, '#fbbf24') + node(330, 60, '+', null, '#fbbf24') + node(250, 180, '×', null, '#fbbf24') + node(420, 160, '×', null, '#fbbf24');
+    s += node(150, 140, 'f', f) + node(190, 230, 'i', i) + node(300, 240, 'g̃', g, '#4ade80') + node(470, 120, 'o', o);
+    s += '<line x1="150" y1="120" x2="150" y2="80" stroke="#b18cff" stroke-dasharray="3 3"/><line x1="200" y1="212" x2="236" y2="192" stroke="#b18cff" stroke-dasharray="3 3"/><line x1="285" y1="222" x2="262" y2="196" stroke="#4ade80" stroke-dasharray="3 3"/><line x1="452" y1="132" x2="436" y2="150" stroke="#b18cff" stroke-dasharray="3 3"/>';
+    s += '<text x="425" y="105" fill="#8c94a9" font-size="10">tanh</text><text x="470" y="262" fill="#f2f4fa" font-size="12" font-weight="700">hₜ = ' + fmt(h1, 2) + '</text>';
+    $('#g-svg').innerHTML = s;
+    $('#g-msg').innerHTML = '<div class="callout blue">' + PT.icon('info') + '<div>Keep <b>' + fmt(f, 2) + ' × ' + fmt(c0, 2) + ' = ' + fmt(keep, 2) + '</b> of the old memory, write <b>' + fmt(i, 2) + ' × ' + fmt(g, 2) + ' = ' + fmt(write, 2) + '</b> of new content → cₜ = ' + fmt(c1, 2) + '. Reveal hₜ = ' + fmt(o, 2) + ' × tanh(' + fmt(c1, 2) + ') = <b>' + fmt(h1, 2) + '</b>.' + (f > 0.95 && i < 0.05 ? ' With f ≈ 1 and i ≈ 0 the memory passes through unchanged — this is how LSTMs remember across many steps.' : '') + '</div></div>';
+  }
+  ['g-c', 'g-f', 'g-i', 'g-g', 'g-o'].forEach((id) => $('#' + id).addEventListener('input', gates)); gates();
+
+  /* ===== Dataset builder ===== */
+  function data() {
+    const sents = $('#d-t').value.split('\n').map((s) => s.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean)).filter((s) => s.length);
+    const V = { '<PAD>': 0, '<UNK>': 1 }; sents.forEach((s) => s.forEach((w) => { if (!(w in V)) V[w] = Object.keys(V).length; }));
+    const seqs = []; sents.forEach((s) => { for (let i = 1; i < s.length; i++) seqs.push(s.slice(0, i + 1)); });
+    const L = Math.max(2, ...seqs.map((s) => s.length));
+    $('#d-tbl').innerHTML = '<thead><tr>' + Array.from({ length: L - 1 }, (_, k) => '<th>x' + k + '</th>').join('') + '<th>→ y</th></tr></thead><tbody>' + seqs.map((s) => {
+      const pad = Array(L - s.length).fill(null).concat(s.slice(0, -1));
+      return '<tr>' + pad.map((w) => (w == null ? '<td class="pad">0</td>' : '<td>' + V[w] + ' <span class="dim">' + esc(w) + '</span></td>')).join('') + '<td class="y">' + V[s[s.length - 1]] + ' ' + esc(s[s.length - 1]) + '</td></tr>';
+    }).join('') + '</tbody>';
+    $('#d-stats').innerHTML = [[Object.keys(V).length, 'vocab size (= classes)'], [seqs.length, 'training examples'], ['(' + seqs.length + ', ' + (L - 1) + ')', 'X shape'], ['(' + seqs.length + ',)', 'y shape']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:16px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  $('#d-t').addEventListener('input', data); data();
+
+  /* ===== Bigram generator ===== */
+  const CORPUS = 'the model reads the data and the model learns the weights . the network learns from data and the network makes predictions . pytorch makes the training loop simple and pytorch makes the model fast . the optimizer updates the weights and the loss goes down . the data loader feeds the model batches of data . the model makes mistakes and the loss tells the optimizer how to fix the weights . deep learning needs data and deep learning needs patience .';
+  const words = CORPUS.split(' ');
+  const BG = {}; for (let k = 0; k < words.length - 1; k++) { const a = words[k], b = words[k + 1]; (BG[a] = BG[a] || {})[b] = (BG[a][b] || 0) + 1; }
+  let out = [], pr = rng(5);
+  function dist(prev, T) {
+    const c = BG[prev] || BG['.']; const ks = Object.keys(c); const logits = ks.map((k) => Math.log(c[k]));
+    const m = Math.max(...logits); const ex = logits.map((l) => Math.exp((l - m) / T)); const s = ex.reduce((a, b) => a + b, 0);
+    return ks.map((k, i) => [k, ex[i] / s]).sort((a, b) => b[1] - a[1]);
+  }
+  function showProbs() {
+    const T = +$('#p-t').value; $('#p-t-v').textContent = T.toFixed(2);
+    const seed = $('#p-seed').value.toLowerCase().split(/\s+/).filter(Boolean);
+    const all = seed.concat(out); const prev = all[all.length - 1] || 'the';
+    const d = dist(prev, T).slice(0, 7);
+    $('#p-cap').textContent = 'P(next word | "' + prev + '") at T = ' + T.toFixed(2) + (BG[prev] ? '' : ' (unknown word → backing off)');
+    $('#p-probs').innerHTML = d.map(([w, p]) => '<div class="prob"><span>' + esc(w) + '</span><div class="bar"><span style="width:' + (p * 100).toFixed(1) + '%;background:var(--ember)"></span></div><span>' + (p * 100).toFixed(1) + '%</span></div>').join('');
+    $('#p-out').innerHTML = esc(seed.join(' ')) + ' <b>' + esc(out.join(' ')) + '</b>';
+  }
+  function nextWord(greedy) {
+    const seed = $('#p-seed').value.toLowerCase().split(/\s+/).filter(Boolean);
+    const all = seed.concat(out); const d = dist(all[all.length - 1] || 'the', +$('#p-t').value);
+    if (greedy) return d[0][0];
+    let u = pr(), acc = 0; for (const [w, p] of d) { acc += p; if (u <= acc) return w; } return d[d.length - 1][0];
+  }
+  $('#p-gen').addEventListener('click', () => { out = []; for (let k = 0; k < 12; k++) out.push(nextWord(false)); showProbs(); });
+  $('#p-greedy').addEventListener('click', () => { out = []; for (let k = 0; k < 12; k++) out.push(nextWord(true)); showProbs(); });
+  $('#p-one').addEventListener('click', () => { out.push(nextWord(false)); showProbs(); });
+  $('#p-t').addEventListener('input', showProbs); $('#p-seed').addEventListener('input', () => { out = []; showProbs(); });
+  showProbs();
+
+  let cur = '';
+  PT.init('lstm', (id) => { cur = id; if (id === 'vanish') requestAnimationFrame(vanish); });
+  window.addEventListener('resize', () => { if (cur === 'vanish') vanish(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Optimizing the Network — Dropout, BatchNorm, Weight Decay &amp; Early Stopping</title>
+  <meta name="description" content="Interactive labs for fighting overfitting in PyTorch: early stopping on train/validation curves, dropout with inverted scaling, batch normalisation statistics, and L2 weight decay on a polynomial fit.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .toggle-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; cursor: pointer; }
+    .toggle-row input { accent-color: var(--ember); width: 16px; height: 16px; }
+    .vec { display: flex; flex-wrap: wrap; gap: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 08 · BUILDING NETWORKS</span>
+      <h1>Optimizing the network — <span class="grad">beat overfitting</span></h1>
+      <p class="desc">A network with enough parameters can memorise the training set. These four tools make it generalise instead — and each has a train-time vs eval-time subtlety that interviewers love to ask about.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Early stopping · dropout · batch norm · weight decay</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="overfit"><span class="n">1</span>Overfitting &amp; early stopping</button>
+      <button class="tab" data-tab="dropout"><span class="n">2</span>Dropout</button>
+      <button class="tab" data-tab="batchnorm"><span class="n">3</span>Batch normalisation</button>
+      <button class="tab" data-tab="weightdecay"><span class="n">4</span>Weight decay (L2)</button>
+    </div></div>
+
+    <!-- ============ OVERFIT ============ -->
+    <section class="tab-panel" data-panel="overfit">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The gap between training and validation loss <span class="imp">Must-know</span></h3>
+        <p>Early in training both losses fall together. When the model starts fitting noise specific to the training set, training loss keeps falling while validation loss turns upward. That turning point is the best model you will get from this run. <strong>Early stopping</strong> watches validation loss, keeps the best weights, and stops after <code>patience</code> epochs without improvement.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · illustrative learning curves</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <label class="toggle-row"><input type="checkbox" id="o-drop"> add Dropout(0.3)</label>
+          <label class="toggle-row"><input type="checkbox" id="o-wd"> add weight decay 1e-4</label>
+          <label class="toggle-row"><input type="checkbox" id="o-bn"> add BatchNorm</label>
+          <label class="toggle-row"><input type="checkbox" id="o-aug"> 3× more data / augmentation</label>
+          <div class="field"><span class="label-t">early-stopping patience</span><div class="range-row"><input type="range" id="o-pat" min="1" max="15" step="1" value="5"><span class="val" id="o-pat-v"></span></div></div>
+          <div class="grid-2" id="o-stats"></div>
+        </div>
+        <div><canvas class="viz" id="o-chart"></canvas><div class="legend mt"><span><i style="background:#5fb3f9"></i>train loss</span><span><i style="background:#ff7a59"></i>validation loss</span><span><i style="background:#fbbf24"></i>early stop triggers</span></div><p class="small muted mt">Curves are a simplified model of typical behaviour, not a real training run.</p></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="early_stopping.py" data-imp>
+import copy
+
+best_loss, best_state, bad_epochs, patience = float("inf"), None, 0, 5
+for epoch in range(100):
+    train_one_epoch(model, train_loader)
+    val_loss = evaluate_loss(model, val_loader)       # model.eval() + no_grad inside
+    if val_loss < best_loss - 1e-4:
+        best_loss, bad_epochs = val_loss, 0
+        best_state = copy.deepcopy(model.state_dict())
+    else:
+        bad_epochs += 1
+        if bad_epochs >= patience:
+            print(f"early stop at epoch {epoch}")
+            break
+model.load_state_dict(best_state)                     # restore the best weights
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optimize:overfit"></div>
+    </section>
+
+    <!-- ============ DROPOUT ============ -->
+    <section class="tab-panel" data-panel="dropout" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Randomly switch off units during training <span class="imp">Must-know</span></h3>
+        <p>On every forward pass in <code>train()</code> mode, <code>nn.Dropout(p)</code> zeroes each activation with probability <code>p</code> and multiplies survivors by <code>1/(1−p)</code>. Units can't co-adapt, so the network learns redundant, robust features — like training many thinned networks and averaging them. In <code>eval()</code> mode dropout does nothing; thanks to the scaling at train time, the expected activation is the same in both modes.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · dropout on a layer of 12 activations</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">p (drop probability)</span><div class="range-row"><input type="range" id="d-p" min="0" max="0.9" step="0.05" value="0.5"><span class="val" id="d-p-v"></span></div></div>
+          <div class="field"><span class="label-t">mode</span><div class="seg" id="d-mode"><button data-v="train" class="on">model.train()</button><button data-v="eval">model.eval()</button></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="d-run"><i data-icon="play"></i>Forward pass</button><button class="btn" id="d-avg"><i data-icon="sliders"></i>Average 2,000 passes</button></div>
+        </div>
+        <div>
+          <svg id="d-net" width="100%" viewBox="0 0 520 210"></svg>
+          <div class="label mt">input activations</div><div class="vec" id="d-in"></div>
+          <div class="label mt">after dropout</div><div class="vec" id="d-out"></div>
+          <div id="d-note" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="dropout.py" data-imp>
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(784, 256), nn.ReLU(), nn.Dropout(0.3),
+    nn.Linear(256, 128), nn.ReLU(), nn.Dropout(0.3),
+    nn.Linear(128, 10),                    # no dropout on the output
+)
+
+drop = nn.Dropout(p=0.5)
+x = torch.ones(8)
+drop.train(); print(drop(x))               # e.g. tensor([2., 0., 2., 2., 0., 0., 2., 2.])
+drop.eval();  print(drop(x))               # tensor([1., 1., 1., 1., 1., 1., 1., 1.])
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optimize:dropout"></div>
+    </section>
+
+    <!-- ============ BATCHNORM ============ -->
+    <section class="tab-panel" data-panel="batchnorm" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Normalise each feature over the batch, then rescale <span class="imp">Must-know</span></h3>
+        <p>For a feature with batch mean μ<sub>B</sub> and variance σ²<sub>B</sub>: <code>x̂ = (x − μB) / √(σ²B + ε)</code>, then <code>y = γ·x̂ + β</code> with learnable γ (scale) and β (shift). Keeping every layer's inputs centred and scaled lets you use larger learning rates and makes training less sensitive to initialisation. In training, μ and σ come from the batch and a running average is updated; in evaluation, the running averages are used.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one feature through BatchNorm</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">batch size</span><div class="range-row"><input type="range" id="bn-b" min="2" max="256" step="2" value="64"><span class="val" id="bn-b-v"></span></div></div>
+          <div class="field"><span class="label-t">γ (weight)</span><div class="range-row"><input type="range" id="bn-g" min="0.2" max="3" step="0.1" value="1"><span class="val" id="bn-g-v"></span></div></div>
+          <div class="field"><span class="label-t">β (bias)</span><div class="range-row"><input type="range" id="bn-be" min="-3" max="3" step="0.1" value="0"><span class="val" id="bn-be-v"></span></div></div>
+          <button class="btn" id="bn-new"><i data-icon="reset"></i>Next batch</button>
+          <div class="grid-2" id="bn-stats"></div>
+        </div>
+        <div><canvas class="viz" id="bn-chart"></canvas><div class="legend mt"><span><i style="background:#646d82"></i>raw activations (true mean 5, std 3)</span><span><i style="background:#ff7a59"></i>after BatchNorm</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="batchnorm.py" data-imp>
+model = nn.Sequential(
+    nn.Linear(784, 256), nn.BatchNorm1d(256), nn.ReLU(), nn.Dropout(0.3),
+    nn.Linear(256, 10),
+)
+# CNNs: nn.Conv2d(3, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU()
+# Linear before BN often uses bias=False — BN's β already provides the shift.
+
+bn = model[1]
+print(bn.weight.shape, bn.bias.shape)          # γ, β : (256,)
+print(bn.running_mean.shape, bn.running_var.shape, bn.momentum)   # buffers, 0.1
+# Transformers / RNNs: nn.LayerNorm(d_model) normalises per sample instead
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optimize:batchnorm"></div>
+    </section>
+
+    <!-- ============ WEIGHT DECAY ============ -->
+    <section class="tab-panel" data-panel="weightdecay" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Penalise large weights <span class="imp">Must-know</span></h3>
+        <p>L2 regularisation adds <code>λ·Σw²</code> to the loss, which pushes every weight toward zero each step. Big weights let a model make sharp, wiggly predictions that chase noise; keeping them small yields smoother functions. In PyTorch you pass <code>weight_decay=λ</code> to the optimizer. With Adam, prefer <strong>AdamW</strong>, which applies the decay directly to the weights.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · degree-9 polynomial on 12 noisy points (exact ridge solution)</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">λ (weight decay strength)</span><div class="range-row"><input type="range" id="wd-l" min="-8" max="1" step="0.25" value="-8"><span class="val" id="wd-l-v"></span></div></div>
+          <div class="grid-2" id="wd-stats"></div>
+          <p class="small muted">With λ ≈ 0 the curve threads through every training point and swings wildly between them (overfitting). Increase λ and the weights shrink — the curve smooths toward the true sine. Too much λ underfits.</p>
+        </div>
+        <div><canvas class="viz" id="wd-chart"></canvas><div class="legend mt"><span><i style="background:#5fb3f9"></i>training points</span><span><i style="background:#4ade80"></i>validation points</span><span><i style="background:#646d82"></i>true function</span><span><i style="background:#ff7a59"></i>model</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="weight_decay.py" data-imp>
+opt = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+opt = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
+
+# Common refinement: don't decay biases and normalisation parameters
+decay, no_decay = [], []
+for name, p in model.named_parameters():
+    (no_decay if p.ndim == 1 else decay).append(p)
+opt = torch.optim.AdamW([{"params": decay, "weight_decay": 1e-2},
+                         {"params": no_decay, "weight_decay": 0.0}], lr=1e-3)
+
+# Manual L2 (equivalent for plain SGD):
+loss = loss_fn(model(x), y) + 1e-4 * sum((p ** 2).sum() for p in model.parameters())
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optimize:weightdecay"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, fmt, rng, canvas } = PT;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Overfit curves ===== */
+  function overfit() {
+    const drop = $('#o-drop').checked, wd = $('#o-wd').checked, bn = $('#o-bn').checked, aug = $('#o-aug').checked, pat = +$('#o-pat').value;
+    $('#o-pat-v').textContent = pat;
+    const reg = (drop ? 0.45 : 0) + (wd ? 0.25 : 0) + (aug ? 0.55 : 0);
+    const speed = bn ? 1.6 : 1;
+    const r = rng(5); const tr = [], va = [];
+    const floor = 0.32 - (aug ? 0.06 : 0) - (bn ? 0.02 : 0) - (drop ? 0.02 : 0);
+    for (let e = 0; e < 60; e++) {
+      const t = e * speed;
+      const train = 0.05 + (drop ? 0.08 : 0) + (wd ? 0.03 : 0) + 2.1 * Math.exp(-t / 7);
+      const over = Math.max(0, t - 12 - reg * 20) * 0.012 / (1 + reg * 1.5);
+      const val = floor + 2.0 * Math.exp(-t / 7.5) + over + (r() - 0.5) * 0.03;
+      tr.push(train + (r() - 0.5) * 0.015); va.push(val);
+    }
+    let best = 0; let stop = 59; let bad = 0;
+    for (let e = 1; e < 60; e++) { if (va[e] < va[best] - 1e-4) { best = e; bad = 0; } else if (++bad >= pat) { stop = e; break; } }
+    PT.lineChart($('#o-chart'), [{ data: tr, color: '#5fb3f9' }, { data: va, color: '#ff7a59' }], { h: 260, ymin: 0, xlabel: 'epoch', marker: stop });
+    $('#o-stats').innerHTML = '<div class="stat"><div class="v">' + best + '</div><div class="k">best epoch (restored)</div></div><div class="stat"><div class="v">' + va[best].toFixed(3) + '</div><div class="k">best val loss</div></div>';
+  }
+  ['o-drop', 'o-wd', 'o-bn', 'o-aug'].forEach((id) => $('#' + id).addEventListener('change', overfit));
+  $('#o-pat').addEventListener('input', overfit);
+
+  /* ===== Dropout ===== */
+  const ACT = [0.8, 1.4, 0.2, 2.1, 0.9, 0.5, 1.7, 0.3, 1.1, 0.6, 1.9, 0.4];
+  let dmode = 'train', mask = ACT.map(() => 1), seed = 1;
+  const pV = () => +$('#d-p').value;
+  function sample() { const r = rng(seed++ * 7 + 3); const p = pV(); mask = ACT.map(() => (dmode === 'train' && r() < p ? 0 : 1)); }
+  function chip(v, on) { return '<span class="tcell ' + (on ? 'hl2' : 'ghost') + '" style="min-width:42px">' + (on ? v.toFixed(2) : '0') + '</span>'; }
+  function dropDraw(avgNote) {
+    const p = pV(); $('#d-p-v').textContent = p.toFixed(2);
+    const scale = dmode === 'train' ? 1 / (1 - p) : 1;
+    $('#d-in').innerHTML = ACT.map((v) => chip(v, true)).join('');
+    $('#d-out').innerHTML = ACT.map((v, i) => chip(v * scale * mask[i], mask[i])).join('');
+    // network svg: 4 inputs -> 12 hidden (shown as 6 pairs?) -> 3 outputs; show 12 hidden as two cols of 6? keep one col of 12 compressed
+    const W = 520, H = 210; let h = '';
+    const ins = [0, 1, 2, 3].map((k) => [60, 30 + k * 50]); const hid = ACT.map((_, k) => [260, 12 + k * 16.5]); const outs = [0, 1, 2].map((k) => [460, 55 + k * 50]);
+    ins.forEach((a) => hid.forEach((b, j) => { h += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + (mask[j] ? '#323c55' : '#16192a') + '" stroke-width="0.8"/>'; }));
+    hid.forEach((a, j) => outs.forEach((b) => { h += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + (mask[j] ? '#323c55' : '#16192a') + '" stroke-width="0.8"/>'; }));
+    ins.forEach((a) => { h += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="11" fill="#5fb3f933" stroke="#5fb3f9"/>'; });
+    hid.forEach((a, j) => { h += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="7" fill="' + (mask[j] ? '#b18cff55' : '#0d1019') + '" stroke="' + (mask[j] ? '#b18cff' : '#f87171') + '" stroke-dasharray="' + (mask[j] ? '' : '2 2') + '"/>'; if (!mask[j]) h += '<text x="' + (a[0] + 14) + '" y="' + (a[1] + 4) + '" fill="#f87171" font-size="10" font-family="JetBrains Mono">×</text>'; });
+    outs.forEach((a) => { h += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="11" fill="#ff7a5933" stroke="#ff7a59"/>'; });
+    $('#d-net').innerHTML = h;
+    const kept = mask.filter(Boolean).length;
+    $('#d-note').innerHTML = avgNote || ('<div class="callout blue">' + PT.icon('info') + '<div>' + (dmode === 'train' ? kept + ' of 12 units kept this pass; survivors are multiplied by 1/(1−' + p.toFixed(2) + ') = <b>' + scale.toFixed(2) + '</b>. Press <b>Forward pass</b> again — a different set is dropped every time.' : 'eval(): every unit is kept and nothing is scaled. The output is deterministic.') + '</div></div>');
+  }
+  $('#d-run').addEventListener('click', () => { sample(); dropDraw(); });
+  $('#d-p').addEventListener('input', () => { sample(); dropDraw(); });
+  segc('d-mode', (v) => { dmode = v; sample(); dropDraw(); });
+  $('#d-avg').addEventListener('click', () => {
+    const p = pV(); const r = rng(99); const sums = ACT.map(() => 0); const N = 2000;
+    for (let k = 0; k < N; k++) ACT.forEach((v, i) => { if (dmode === 'eval' || r() >= p) sums[i] += v * (dmode === 'train' ? 1 / (1 - p) : 1); });
+    const avg = sums.map((s) => s / N);
+    const err = avg.reduce((s, v, i) => s + Math.abs(v - ACT[i]), 0) / ACT.length;
+    dropDraw('<div class="callout green">' + PT.icon('check') + '<div>Average over ' + N + ' passes: <span class="mono">[' + avg.slice(0, 6).map((v) => v.toFixed(2)).join(', ') + ', …]</span> vs inputs <span class="mono">[' + ACT.slice(0, 6).map((v) => v.toFixed(2)).join(', ') + ', …]</span>. Mean absolute difference ' + err.toFixed(3) + '. Inverted scaling keeps the <b>expected</b> activation unchanged, so no rescaling is needed at inference.</div></div>');
+  });
+
+  /* ===== BatchNorm ===== */
+  let bnSeed = 1, running = { m: 0, v: 1 };
+  function bnDraw() {
+    const B = +$('#bn-b').value, g = +$('#bn-g').value, be = +$('#bn-be').value;
+    $('#bn-b-v').textContent = B; $('#bn-g-v').textContent = g.toFixed(1); $('#bn-be-v').textContent = be.toFixed(1);
+    const r = rng(bnSeed * 17 + B);
+    const x = Array.from({ length: B }, () => 5 + 3 * r.normal());
+    const mu = x.reduce((a, b) => a + b, 0) / B, v = x.reduce((a, b) => a + (b - mu) ** 2, 0) / B;
+    const y = x.map((t) => g * (t - mu) / Math.sqrt(v + 1e-5) + be);
+    const ym = y.reduce((a, b) => a + b, 0) / B, ys = Math.sqrt(y.reduce((a, b) => a + (b - ym) ** 2, 0) / B);
+    const { ctx, w, h } = canvas($('#bn-chart'), 250);
+    const X0 = -8, X1 = 16, bins = 48, bw = (X1 - X0) / bins;
+    const hist = (arr) => { const c = Array(bins).fill(0); arr.forEach((t) => { const k = Math.floor((t - X0) / bw); if (k >= 0 && k < bins) c[k]++; }); return c; };
+    const hx = hist(x), hy = hist(y); const mx = Math.max(...hx, ...hy, 1);
+    const px = (t) => ((t - X0) / (X1 - X0)) * w;
+    ctx.strokeStyle = '#222939'; for (let t = -8; t <= 16; t += 4) { ctx.beginPath(); ctx.moveTo(px(t), 0); ctx.lineTo(px(t), h - 18); ctx.stroke(); ctx.fillStyle = '#646d82'; ctx.font = '10px JetBrains Mono'; ctx.fillText(String(t), px(t) + 2, h - 5); }
+    [[hx, 'rgba(140,148,169,0.55)'], [hy, 'rgba(255,122,89,0.75)']].forEach(([c, col]) => { ctx.fillStyle = col; c.forEach((n, k) => { const bh = (n / mx) * (h - 34); ctx.fillRect(px(X0 + k * bw) + 1, h - 18 - bh, w / bins - 2, bh); }); });
+    running = { m: 0.9 * running.m + 0.1 * mu, v: 0.9 * running.v + 0.1 * v * B / Math.max(1, B - 1) };
+    $('#bn-stats').innerHTML = [[mu.toFixed(2) + ' / ' + Math.sqrt(v).toFixed(2), 'batch mean / std (raw)'], [ym.toFixed(2) + ' / ' + ys.toFixed(2), 'output mean / std (= β / γ)'], [running.m.toFixed(2), 'running_mean (used in eval)'], [B <= 8 ? 'noisy' : B <= 32 ? 'ok' : 'stable', 'batch statistics']].map(([v2, k]) => '<div class="stat"><div class="v" style="font-size:15px">' + v2 + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  ['bn-b', 'bn-g', 'bn-be'].forEach((id) => $('#' + id).addEventListener('input', bnDraw));
+  $('#bn-new').addEventListener('click', () => { bnSeed++; bnDraw(); });
+
+  /* ===== Weight decay: exact ridge on polynomial features ===== */
+  const wr = rng(21);
+  const truth = (x) => Math.sin(Math.PI * x);
+  const trainPts = Array.from({ length: 12 }, (_, i) => { const x = -1 + (2 * i) / 11 + (wr() - 0.5) * 0.08; return [x, truth(x) + wr.normal() * 0.25]; });
+  const valPts = Array.from({ length: 12 }, () => { const x = -1 + 2 * wr(); return [x, truth(x) + wr.normal() * 0.25]; });
+  const D = 9;
+  const feats = (x) => Array.from({ length: D + 1 }, (_, k) => Math.pow(x, k));
+  function solve(A, b) { const n = b.length; const M = A.map((r, i) => r.concat([b[i]])); for (let c = 0; c < n; c++) { let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; [M[c], M[p]] = [M[p], M[c]]; for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; } } return M.map((r, i) => r[n] / r[i]); }
+  function wdDraw() {
+    const lam = Math.pow(10, +$('#wd-l').value); $('#wd-l-v').textContent = lam < 1e-6 ? lam.toExponential(0) : lam.toPrecision(2);
+    const X = trainPts.map(([x]) => feats(x)), y = trainPts.map((p) => p[1]);
+    const A = Array.from({ length: D + 1 }, (_, i) => Array.from({ length: D + 1 }, (_, j) => X.reduce((s, r) => s + r[i] * r[j], 0) + (i === j && i > 0 ? lam : 0)));
+    const bvec = Array.from({ length: D + 1 }, (_, i) => X.reduce((s, r, k) => s + r[i] * y[k], 0));
+    const wv = solve(A, bvec);
+    const f = (x) => feats(x).reduce((s, v, k) => s + v * wv[k], 0);
+    const mse = (pts) => pts.reduce((s, [x, t]) => s + (f(x) - t) ** 2, 0) / pts.length;
+    const { ctx, w, h } = canvas($('#wd-chart'), 260);
+    const tx = (x) => ((x + 1.05) / 2.1) * w, ty = (v) => h / 2 - v * (h / 5);
+    ctx.strokeStyle = '#222939'; ctx.beginPath(); ctx.moveTo(0, ty(0)); ctx.lineTo(w, ty(0)); ctx.stroke();
+    const line = (fn, col, dash, lw) => { ctx.strokeStyle = col; ctx.setLineDash(dash || []); ctx.lineWidth = lw || 2; ctx.beginPath(); for (let k = 0; k <= 200; k++) { const x = -1.05 + 2.1 * k / 200; const v = Math.max(-2.6, Math.min(2.6, fn(x))); k ? ctx.lineTo(tx(x), ty(v)) : ctx.moveTo(tx(x), ty(v)); } ctx.stroke(); ctx.setLineDash([]); };
+    line(truth, '#646d82', [5, 5], 1.5); line(f, '#ff7a59', null, 2.4);
+    trainPts.forEach(([x, v]) => { ctx.fillStyle = '#5fb3f9'; ctx.beginPath(); ctx.arc(tx(x), ty(v), 4.5, 0, 6.283); ctx.fill(); });
+    valPts.forEach(([x, v]) => { ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(tx(x), ty(v), 4, 0, 6.283); ctx.stroke(); });
+    const norm = Math.sqrt(wv.slice(1).reduce((s, v) => s + v * v, 0));
+    $('#wd-stats').innerHTML = [[mse(trainPts).toFixed(3), 'train MSE'], [mse(valPts).toFixed(3), 'validation MSE'], [norm < 1000 ? norm.toFixed(1) : norm.toExponential(1), '‖w‖ (weight size)'], [lam < 1e-4 ? 'overfitting' : lam > 1 ? 'underfitting' : 'balanced', 'regime']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:16px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  $('#wd-l').addEventListener('input', wdDraw);
+
+  let cur = '';
+  const R = { overfit, dropout: () => { sample(); dropDraw(); }, batchnorm: bnDraw, weightdecay: wdDraw };
+  PT.init('optimize', (id) => { cur = id; if (R[id]) requestAnimationFrame(R[id]); });
+  window.addEventListener('resize', () => { if (cur !== 'dropout' && R[cur]) R[cur](); });
+})();
+</script>
+</body>
+</html>

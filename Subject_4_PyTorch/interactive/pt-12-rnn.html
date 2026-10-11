@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RNNs in PyTorch — Tokenisation, Embeddings &amp; a Question-Answering Model</title>
+  <meta name="description" content="Recurrent neural networks in PyTorch: build a vocabulary, look up nn.Embedding rows, step through an unrolled RNN, compute nn.RNN/LSTM/GRU output shapes and parameters, and build a simple QA model.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    textarea.input { min-height: 120px; font: 12.5px/1.6 var(--font-mono); resize: vertical; }
+    .tok { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); font: 600 12px var(--font-mono); }
+    .tok small { color: var(--ember); font-size: 11px; }
+    .tok.unk { border-color: rgba(248,113,113,.5); } .tok.unk small { color: var(--red); }
+    .vocab { display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow: auto; }
+    .vocab span { padding: 2px 7px; border-radius: 6px; background: var(--surface); font: 11.5px var(--font-mono); color: var(--text-2); }
+    .vocab span b { color: var(--ember); font-weight: 600; }
+    .unroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+    .cell { min-width: 120px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); text-align: center; transition: border-color .25s, opacity .25s; }
+    .cell.on { border-color: rgba(255,122,89,.7); background: rgba(255,122,89,.07); }
+    .cell.future { opacity: .35; }
+    .cell .w { font: 700 13px var(--font-mono); margin-bottom: 6px; }
+    .hbars { display: grid; gap: 3px; }
+    .hb { height: 10px; border-radius: 3px; background: var(--surface); position: relative; }
+    .hb span { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 12 · SEQUENCES</span>
+      <h1>Recurrent networks &amp; <span class="grad">a QA system</span></h1>
+      <p class="desc">Text and time series are sequences: order matters and length varies. An RNN reads one step at a time and carries a hidden state forward. Here you build the whole text pipeline — tokens, vocabulary, embeddings, RNN — and wire it into a small question-answering model.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Vocab builder · embedding lookup · RNN stepper · shape calculator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="text"><span class="n">1</span>Text → ids</button>
+      <button class="tab" data-tab="embed"><span class="n">2</span>Embeddings</button>
+      <button class="tab" data-tab="unroll"><span class="n">3</span>How an RNN works</button>
+      <button class="tab" data-tab="qa"><span class="n">4</span>QA model</button>
+    </div></div>
+
+    <!-- ============ TEXT ============ -->
+    <section class="tab-panel" data-panel="text">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Networks need integers, not words</h3>
+        <p>Tokenise (lower-case, strip punctuation, split), build a vocabulary from the <strong>training</strong> data, and map each token to its id. Reserve <code>&lt;PAD&gt;</code> = 0 for padding and <code>&lt;UNK&gt;</code> = 1 for words never seen in training — at inference time users <em>will</em> type them.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · build a vocabulary</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="v-data">training data (question, answer)</label><textarea class="input" id="v-data">What is the capital of France?,Paris
+What is the capital of Germany?,Berlin
+Who wrote Romeo and Juliet?,Shakespeare
+What is the largest planet?,Jupiter
+What is the boiling point of water in Celsius?,100
+Who painted the Mona Lisa?,Leonardo
+What is the square root of 64?,8
+What gas do plants absorb?,CO2</textarea></div>
+          <div class="field"><label for="v-q">encode a new question</label><input class="input mono" id="v-q" value="What is the capital of Italy?"></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:6px" id="v-cap"></div><div class="vocab" id="v-vocab"></div>
+          <div class="label mt2" style="margin-bottom:6px">encoded question</div><div style="display:flex;flex-wrap:wrap;gap:4px" id="v-enc"></div>
+          <div id="v-note" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="vocab.py">
+import re
+from collections import Counter
+
+def tokenize(text):
+    return re.sub(r"[^\w\s]", "", text.lower()).split()
+
+counter = Counter(tok for q, a in pairs for tok in tokenize(q) + tokenize(a))
+vocab = {"<PAD>": 0, "<UNK>": 1}
+for tok in counter:
+    vocab[tok] = len(vocab)
+
+def encode(text):
+    return [vocab.get(tok, vocab["<UNK>"]) for tok in tokenize(text)]
+
+encode("What is the capital of Italy?")   # 'italy' -> 1 (<UNK>)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rnn:text"></div>
+    </section>
+
+    <!-- ============ EMBED ============ -->
+    <section class="tab-panel" data-panel="embed" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>nn.Embedding is a trainable lookup table <span class="imp">Must-know</span></h3>
+        <p><code>nn.Embedding(num_embeddings, embedding_dim)</code> holds a weight matrix of shape <code>(vocab_size, dim)</code>. Feeding ids returns the matching rows: input <code>(N, L)</code> long → output <code>(N, L, dim)</code>. Rows are updated by backprop like any weight, so words used in similar contexts drift close together.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · look up a sentence</div>
+      <div class="card card-pad split">
+        <div>
+          <div class="label" style="margin-bottom:6px">embedding.weight · (10, 4)</div>
+          <div id="e-table"></div>
+        </div>
+        <div class="controls">
+          <div class="btn-row" id="e-words"></div>
+          <div id="e-code"></div>
+          <div><div class="label" style="margin-bottom:6px" id="e-cap"></div><div id="e-out"></div></div>
+          <div class="field"><span class="label-t">vocabulary size (memory per token: one-hot vs embedding dim 128)</span><div class="range-row"><input type="range" id="e-v" min="3" max="6" step="0.1" value="4.7"><span class="val" id="e-v-v"></span></div></div>
+          <div class="grid-2" id="e-mem"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="embedding.py" data-imp>
+emb = nn.Embedding(num_embeddings=len(vocab), embedding_dim=50, padding_idx=0)
+ids = torch.tensor([[5, 2, 9, 0, 0]])     # (batch=1, seq_len=5), dtype long
+vectors = emb(ids)                        # (1, 5, 50)
+print(emb.weight.shape)                   # (len(vocab), 50)
+
+# Start from pretrained vectors (e.g. GloVe) and optionally freeze them
+emb = nn.Embedding.from_pretrained(glove_matrix, freeze=True, padding_idx=0)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rnn:embed"></div>
+    </section>
+
+    <!-- ============ UNROLL ============ -->
+    <section class="tab-panel" data-panel="unroll" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>One cell, reused at every time step <span class="imp">Must-know</span></h3>
+        <p><strong>hₜ = tanh(W<sub>ih</sub>·xₜ + b<sub>ih</sub> + W<sub>hh</sub>·hₜ₋₁ + b<sub>hh</sub>)</strong>. The hidden state is the network's memory of everything read so far. "Unrolling" draws the same cell once per step; backprop through that unrolled graph is <em>backpropagation through time</em> (BPTT).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · step through a sentence</div>
+      <div class="card card-pad">
+        <div class="btn-row"><input class="input mono" id="u-s" value="pytorch makes deep learning fun" style="max-width:360px"><button class="btn btn-primary" id="u-step"><i data-icon="step"></i>Next step</button><button class="btn" id="u-reset"><i data-icon="reset"></i>Reset</button></div>
+        <div class="unroll mt2" id="u-cells"></div>
+        <div class="callout blue mt" id="u-msg"></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · nn.RNN / LSTM / GRU shape &amp; parameter calculator</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="seg" id="c-type"><button data-v="RNN" class="on">nn.RNN</button><button data-v="LSTM">nn.LSTM</button><button data-v="GRU">nn.GRU</button></div>
+          <div class="grid-2">
+            <div class="field"><label>batch N</label><input class="input mono" id="c-n" type="number" value="32" min="1"></div>
+            <div class="field"><label>seq_len L</label><input class="input mono" id="c-l" type="number" value="20" min="1"></div>
+            <div class="field"><label>input_size</label><input class="input mono" id="c-i" type="number" value="50" min="1"></div>
+            <div class="field"><label>hidden_size</label><input class="input mono" id="c-h" type="number" value="64" min="1"></div>
+            <div class="field"><label>num_layers</label><input class="input mono" id="c-k" type="number" value="1" min="1" max="6"></div>
+            <div class="field"><label>bidirectional</label><select class="input" id="c-b"><option value="0">False</option><option value="1">True</option></select></div>
+          </div>
+        </div>
+        <div><div id="c-code"></div><div class="grid-2 mt" id="c-stats"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rnn:unroll"></div>
+    </section>
+
+    <!-- ============ QA ============ -->
+    <section class="tab-panel" data-panel="qa" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A question-answering model as classification</h3>
+        <p>For a small factual dataset with one-word answers, treat the answer as a <strong>class</strong> from the vocabulary: Embedding → RNN → take the final hidden state → Linear(hidden, vocab_size) → CrossEntropyLoss against the answer's id. It memorises its training facts and shows the full sequence pipeline; real QA systems use transformers and retrieval, but the plumbing is the same.</p>
+        <div class="steps mt">
+          <div class="step"><div><b>"what is the capital of france"</b><span>tokenise + encode → ids (1, 6)</span></div></div>
+          <div class="step"><div><b>nn.Embedding(V, 50)</b><span>(1, 6) → (1, 6, 50)</span></div></div>
+          <div class="step"><div><b>nn.RNN(50, 64, batch_first=True)</b><span>output (1, 6, 64), hidden (1, 1, 64)</span></div></div>
+          <div class="step"><div><b>hidden.squeeze(0) → nn.Linear(64, V)</b><span>(1, V) logits over every vocabulary word</span></div></div>
+          <div class="step"><div><b>argmax → id → word</b><span>"paris" (and softmax max as a confidence threshold)</span></div></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="rnn_qa.py" data-imp>
+import torch, torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+
+class QADataset(Dataset):
+    def __init__(self, pairs, vocab):
+        self.pairs, self.vocab = pairs, vocab
+    def __len__(self):
+        return len(self.pairs)
+    def __getitem__(self, i):
+        q, a = self.pairs[i]
+        return torch.tensor(encode(q)), torch.tensor(encode(a)[0])   # one-word answer
+
+loader = DataLoader(QADataset(pairs, vocab), batch_size=1, shuffle=True)   # bs=1 avoids padding
+
+class SimpleRNN(nn.Module):
+    def __init__(self, vocab_size, emb_dim=50, hidden=64):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
+        self.rnn = nn.RNN(emb_dim, hidden, batch_first=True)
+        self.fc = nn.Linear(hidden, vocab_size)
+
+    def forward(self, ids):                       # (N, L)
+        out, h_n = self.rnn(self.embedding(ids))  # out (N, L, H), h_n (1, N, H)
+        return self.fc(h_n.squeeze(0))            # (N, vocab_size)
+
+model = SimpleRNN(len(vocab))
+opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+loss_fn = nn.CrossEntropyLoss()
+for epoch in range(20):
+    for q, a in loader:
+        loss = loss_fn(model(q), a)
+        opt.zero_grad(); loss.backward(); opt.step()
+
+def answer(question, threshold=0.5):
+    ids = torch.tensor(encode(question)).unsqueeze(0)
+    with torch.no_grad():
+        probs = torch.softmax(model(ids), dim=1)
+    p, idx = probs.max(dim=1)
+    if p.item() < threshold:
+        return "I don't know"
+    return list(vocab.keys())[idx.item()]
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rnn:qa"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, rng, fmt, tensorGrid } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const tokenize = (t) => t.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+
+  /* ===== Vocab ===== */
+  function vocab() {
+    const V = { '<PAD>': 0, '<UNK>': 1 };
+    $('#v-data').value.split('\n').forEach((line) => { const i = line.lastIndexOf(','); if (i < 0) return; tokenize(line.slice(0, i)).concat(tokenize(line.slice(i + 1))).forEach((t) => { if (!(t in V)) V[t] = Object.keys(V).length; }); });
+    $('#v-cap').textContent = 'vocab · ' + Object.keys(V).length + ' tokens';
+    $('#v-vocab').innerHTML = Object.entries(V).map(([w, i]) => '<span>' + esc(w) + ' <b>' + i + '</b></span>').join('');
+    const toks = tokenize($('#v-q').value);
+    $('#v-enc').innerHTML = toks.map((t) => '<span class="tok' + (t in V ? '' : ' unk') + '">' + esc(t) + '<small>' + (t in V ? V[t] : '1 · UNK') + '</small></span>').join('');
+    const unk = toks.filter((t) => !(t in V));
+    $('#v-note').innerHTML = unk.length ? '<div class="callout amber">' + PT.icon('alert') + '<div><b>' + unk.map(esc).join(', ') + '</b> never appeared in training, so ' + (unk.length > 1 ? 'they map' : 'it maps') + ' to &lt;UNK&gt; (id 1). The model cannot know the answer — a good reason to add a confidence threshold.</div></div>' : '<div class="callout green">' + PT.icon('check') + '<div>Every token is in the vocabulary.</div></div>';
+  }
+  ['v-data', 'v-q'].forEach((id) => $('#' + id).addEventListener('input', vocab)); vocab();
+
+  /* ===== Embedding ===== */
+  const EW = ['<PAD>', '<UNK>', 'the', 'cat', 'dog', 'sat', 'ran', 'on', 'mat', 'fast'];
+  const er = rng(9); const EM = EW.map((w, i) => (i === 0 ? [0, 0, 0, 0] : [0, 0, 0, 0].map(() => +(er.normal() * 0.8).toFixed(2))));
+  EM[4] = EM[3].map((v) => +(v + (er() - 0.5) * 0.3).toFixed(2)); // dog ≈ cat
+  let sent = [2, 3, 5, 7, 2, 8];
+  function embed() {
+    const used = new Set(sent);
+    $('#e-table').innerHTML = '<table class="tbl"><thead><tr><th>id</th><th>token</th><th>vector</th></tr></thead><tbody>' + EW.map((w, i) => '<tr style="' + (used.has(i) ? 'background:rgba(255,122,89,.08)' : '') + '"><td class="mono">' + i + '</td><td class="mono">' + esc(w) + '</td><td class="mono small">[' + EM[i].map((v) => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(', ') + ']</td></tr>').join('') + '</tbody></table>';
+    $('#e-words').innerHTML = EW.slice(2).map((w, k) => '<button class="btn btn-sm" data-i="' + (k + 2) + '">+ ' + w + '</button>').join('') + '<button class="btn btn-sm" data-c="1">' + PT.icon('trash') + 'clear</button>';
+    $$('#e-words button').forEach((b) => b.addEventListener('click', () => { if (b.dataset.c) sent = []; else if (sent.length < 8) sent.push(+b.dataset.i); embed(); }));
+    setCode($('#e-code'), 'ids = torch.tensor([[' + sent.join(', ') + ']])   # "' + sent.map((i) => EW[i]).join(' ') + '"\nout = emb(ids)', 'lookup');
+    $('#e-cap').textContent = 'output · (1, ' + sent.length + ', 4)';
+    $('#e-out').innerHTML = sent.length ? tensorGrid(sent.map((i) => EM[i])) : '<span class="muted small">add words</span>';
+    const V = Math.round(Math.pow(10, +$('#e-v').value)); $('#e-v-v').textContent = V.toLocaleString();
+    $('#e-mem').innerHTML = '<div class="stat"><div class="v">' + (V * 4 / 1024).toFixed(0) + ' KB</div><div class="k">one-hot vector per token</div></div><div class="stat"><div class="v">0.5 KB</div><div class="k">embedding (128 floats)</div></div>';
+  }
+  $('#e-v').addEventListener('input', embed); embed();
+
+  /* ===== RNN stepper ===== */
+  const H = 4; const ur = rng(42);
+  const Wh = Array.from({ length: H }, () => Array.from({ length: H }, () => ur.normal() * 0.5));
+  const vecFor = (w) => { const r = rng([...w].reduce((s, c) => s * 31 + c.charCodeAt(0), 7) >>> 0); return Array.from({ length: H }, () => r.normal() * 0.9); };
+  let t = 0, hs = [];
+  function uReset() { t = 0; hs = [Array(H).fill(0)]; uDraw(); }
+  function uStep() {
+    const words = tokenize($('#u-s').value); if (t >= words.length) return;
+    const x = vecFor(words[t]), h = hs[hs.length - 1];
+    hs.push(Array.from({ length: H }, (_, i) => Math.tanh(x[i] + h.reduce((s, v, j) => s + Wh[i][j] * v, 0))));
+    t++; uDraw();
+  }
+  function bars(h) { return '<div class="hbars">' + h.map((v) => '<div class="hb"><span style="' + (v >= 0 ? 'left:50%;width:' + v * 50 + '%;background:#ff7a59' : 'right:50%;width:' + -v * 50 + '%;background:#5fb3f9') + '"></span></div>').join('') + '</div>'; }
+  function uDraw() {
+    const words = tokenize($('#u-s').value);
+    $('#u-cells').innerHTML = '<div class="cell on" style="min-width:90px"><div class="w dim">h₀</div>' + bars(hs[0]) + '<div class="small dim mt">zeros</div></div>' +
+      words.map((w, i) => '<div class="cell ' + (i === t - 1 ? 'on' : i >= t ? 'future' : '') + '"><div class="w">x' + (i + 1) + ' · ' + esc(w) + '</div>' + (i < t ? bars(hs[i + 1]) : '<div class="small dim">waiting</div>') + '<div class="small dim mt">h' + (i + 1) + '</div></div>').join('');
+    const L = words.length;
+    $('#u-msg').innerHTML = PT.icon('info') + '<div>' + (t === 0 ? 'The hidden state starts at zeros. Each step combines the current word\'s vector with the previous hidden state using the <b>same</b> weights.' : t < L ? 'Step ' + t + ': h' + t + ' = tanh(W·x' + t + ' + U·h' + (t - 1) + ' + b). It now summarises "' + words.slice(0, t).join(' ') + '".' : 'Done. <code>output</code> stacks all ' + L + ' hidden states → shape (1, ' + L + ', ' + H + '); <code>h_n</code> is only the last one → (1, 1, ' + H + '). A classifier usually reads h_n.') + '</div>';
+    $('#u-step').disabled = t >= L;
+  }
+  $('#u-step').addEventListener('click', uStep); $('#u-reset').addEventListener('click', uReset); $('#u-s').addEventListener('input', uReset);
+  uReset();
+
+  /* ===== Shape calculator ===== */
+  let ctype = 'RNN';
+  $('#c-type').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#c-type button').forEach((x) => x.classList.toggle('on', x === b)); ctype = b.dataset.v; calc(); });
+  function calc() {
+    const N = +$('#c-n').value || 1, L = +$('#c-l').value || 1, I = +$('#c-i').value || 1, Hh = +$('#c-h').value || 1, K = Math.max(1, +$('#c-k').value || 1), D = +$('#c-b').value ? 2 : 1;
+    const g = { RNN: 1, LSTM: 4, GRU: 3 }[ctype];
+    let p = 0; for (let k = 0; k < K; k++) { const inp = k === 0 ? I : Hh * D; p += D * (g * Hh * (inp + Hh) + 2 * g * Hh); }
+    const hn = '(' + D * K + ', ' + N + ', ' + Hh + ')';
+    setCode($('#c-code'), 'rnn = nn.' + ctype + '(input_size=' + I + ', hidden_size=' + Hh + (K > 1 ? ', num_layers=' + K : '') + ', batch_first=True' + (D === 2 ? ', bidirectional=True' : '') + ')\nx = torch.randn(' + N + ', ' + L + ', ' + I + ')\n' +
+      (ctype === 'LSTM' ? 'output, (h_n, c_n) = rnn(x)' : 'output, h_n = rnn(x)') + '\n# output: (' + N + ', ' + L + ', ' + D * Hh + ')\n# h_n:    ' + hn + '   <- NOT batch-first' + (ctype === 'LSTM' ? '\n# c_n:    ' + hn : ''), 'shapes');
+    $('#c-stats').innerHTML = [[p.toLocaleString(), 'parameters'], [g + '×', 'gate blocks vs plain RNN'], ['h_n[-1]', D === 2 ? 'last layer, backward dir' : 'final hidden of last layer'], [D === 2 ? 'torch.cat((h_n[-2], h_n[-1]), 1)' : 'output[:, -1, :]', D === 2 ? 'both directions' : 'equals h_n[-1] (unidirectional)']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:' + (v.length > 14 ? 11.5 : 16) + 'px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  ['c-n', 'c-l', 'c-i', 'c-h', 'c-k', 'c-b'].forEach((id) => $('#' + id).addEventListener('input', calc)); calc();
+
+  PT.init('rnn');
+})();
+</script>
+</body>
+</html>
