@@ -726,9 +726,326 @@
   ];
 
   /* ----------------------------------------------------------
+     DATA — PyTorch Concept Groups & Topics
+     All groups use the subject-level accent (ember). Labs live in
+     Subject_4_PyTorch/interactive and share pt-lab.css/js + pt-qa.js.
+     ---------------------------------------------------------- */
+  const PT_V = '?v=2026-10-11';
+  const pt = (file, hash) => file + PT_V + (hash ? '#' + hash : '');
+  const PYTORCH_CONCEPTS = [
+    {
+      id: 'pt-foundations',
+      title: 'Foundations',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z"/><path d="M8 17a4 4 0 0 0 8 0"/></svg>',
+      topics: [
+        {
+          title: 'What is PyTorch? Dynamic Graphs & the Ecosystem',
+          notes: 'PyTorch is two ideas: tensors (NumPy-like arrays that run on GPUs) and autograd (automatic gradients). Its graphs are define-by-run — recorded as your Python executes — so loops and if-statements just work and errors point at your own line. Covers the Torch → PyTorch 2.x history, PyTorch vs TensorFlow, and the core modules you import every day.',
+          formulas: [],
+          interactive: { file: pt('pt-01-intro.html', 'what'), label: 'History & Features' },
+          extras: [
+            { file: pt('pt-01-intro.html', 'graphs'), label: 'Dynamic Graph Builder' },
+            { file: pt('pt-01-intro.html', 'compare'), label: 'PyTorch vs TensorFlow' },
+            { file: pt('pt-01-intro.html', 'ecosystem'), label: 'Module Map' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Define-by-run'],
+        },
+      ],
+    },
+    {
+      id: 'pt-tensors',
+      title: 'Tensors',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m2 12 8.58 3.91a2 2 0 0 0 1.66 0L21 12M2 17l8.58 3.91a2 2 0 0 0 1.66 0L21 17"/></svg>',
+      topics: [
+        {
+          title: 'Creating Tensors & dtypes',
+          notes: 'Every input, weight and gradient is a tensor with a shape, a dtype and a device. Factory playground for zeros, randn, arange, linspace and friends with manual_seed; torch.tensor vs torch.Tensor vs from_numpy; why float32 is the default and why class labels must be int64; a weight-memory calculator and a type-promotion checker.',
+          formulas: [],
+          interactive: { file: pt('pt-02-tensors.html', 'create'), label: 'Tensor Factory' },
+          extras: [{ file: pt('pt-02-tensors.html', 'dtypes'), label: 'dtypes & Memory' }],
+          tags: ['Interactive', 'Creation', 'dtype'],
+        },
+        {
+          title: 'Maths, Reductions, matmul & Broadcasting',
+          notes: 'The dim argument names the axis that disappears; keepdim keeps it with size 1 for broadcasting back. (n, m) @ (m, p) → (n, p) is what every Linear layer does. Broadcasting aligns shapes from the right and stretches size-1 dims — and silently turns an (N,1) − (N,) loss into (N, N).',
+          formulas: [
+            '\\(C_{ij} = \\sum_k A_{ik} B_{kj}\\)',
+          ],
+          interactive: { file: pt('pt-02-tensors.html', 'ops'), label: 'Reduction & matmul Visualiser' },
+          extras: [{ file: pt('pt-02-tensors.html', 'broadcast'), label: 'Broadcast Checker' }],
+          tags: ['Interactive', 'Must-know', 'Broadcasting'],
+        },
+        {
+          title: 'Indexing, view vs reshape, Strides & Memory',
+          notes: 'A tensor is flat storage plus shape and strides. view/reshape/unsqueeze re-read memory; transpose/permute only swap strides, making the tensor non-contiguous so view refuses it. Simulate storage and strides step by step, see which slices are views vs copies, and which aliases change after an in-place write (clone, detach, numpy).',
+          formulas: [],
+          interactive: { file: pt('pt-02-tensors.html', 'reshape'), label: 'Stride Simulator' },
+          extras: [
+            { file: pt('pt-02-tensors.html', 'index'), label: 'Indexing Playground' },
+            { file: pt('pt-02-tensors.html', 'memory'), label: 'Shared-Memory Lab' },
+          ],
+          tags: ['Interactive', 'Must-know', 'view/reshape'],
+        },
+      ],
+    },
+    {
+      id: 'pt-autograd',
+      title: 'Autograd',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
+      topics: [
+        {
+          title: 'Autograd, Computation Graphs & backward()',
+          notes: 'Operations on tensors with requires_grad=True are recorded into a graph; loss.backward() walks it in reverse applying the chain rule and fills .grad on the leaves. Compare hand-derived neuron gradients with autograd, then step through backward() node by node — including a branch where gradients add up.',
+          formulas: [
+            '\\(\\frac{\\partial L}{\\partial w} = \\frac{\\partial L}{\\partial \\hat y}\\,\\frac{\\partial \\hat y}{\\partial z}\\,\\frac{\\partial z}{\\partial w} = (\\hat y - y)\\,x\\)',
+          ],
+          interactive: { file: pt('pt-03-autograd.html', 'why'), label: 'Hand vs Autograd' },
+          extras: [{ file: pt('pt-03-autograd.html', 'graph'), label: 'Backward-Pass Stepper' }],
+          tags: ['Interactive', 'Must-know', 'Chain rule'],
+        },
+        {
+          title: 'Gradient Accumulation, zero_grad, no_grad & detach',
+          notes: 'backward() adds into .grad, which is why every step calls optimizer.zero_grad() — watch training oscillate without it. no_grad disables recording for evaluation and manual updates, detach cuts one tensor from the graph, and requires_grad_(False) freezes parameters.',
+          formulas: [],
+          interactive: { file: pt('pt-03-autograd.html', 'accumulate'), label: 'Accumulation Lab' },
+          extras: [{ file: pt('pt-03-autograd.html', 'control'), label: 'Is It Tracked?' }],
+          tags: ['Interactive', 'Must-know', 'zero_grad'],
+        },
+      ],
+    },
+    {
+      id: 'pt-workflow',
+      title: 'Training Workflow',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>',
+      topics: [
+        {
+          title: 'The 5-Step Training Loop',
+          notes: 'forward → loss → zero_grad → backward → step: the same five lines train every PyTorch model. Walk through one iteration, train logistic regression or a small MLP live in the browser (decision boundary + loss curve, learning-rate failure modes), then write the breast-cancer pipeline from raw tensors.',
+          formulas: [
+            '\\(\\mathbf{w} \\leftarrow \\mathbf{w} - \\eta\\,\\nabla_{\\mathbf{w}} L\\)',
+          ],
+          interactive: { file: pt('pt-04-pipeline.html', 'loop'), label: 'Loop Walkthrough' },
+          extras: [
+            { file: pt('pt-04-pipeline.html', 'train'), label: 'Watch It Learn' },
+            { file: pt('pt-04-pipeline.html', 'scratch'), label: 'From-Scratch Pipeline' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Training loop'],
+        },
+        {
+          title: 'nn.Module, nn.Sequential & Layers',
+          notes: 'Subclass nn.Module, create layers in __init__, compute in forward, and call model(x). Layers assigned as attributes are registered automatically — a plain Python list is not. Build a model layer by layer and see shapes, parameter counts and the generated Sequential or class code.',
+          formulas: [
+            '\\(\\#\\text{params}(\\text{Linear}) = n_{in} \\cdot n_{out} + n_{out}\\)',
+          ],
+          interactive: { file: pt('pt-05-nn-module.html', 'module'), label: 'Model Builder' },
+          extras: [{ file: pt('pt-05-nn-module.html', 'refactor'), label: 'Refactored Pipeline' }],
+          tags: ['Interactive', 'Must-know', 'nn.Module'],
+        },
+        {
+          title: 'Loss Functions & Optimizers',
+          notes: 'CrossEntropyLoss takes raw logits and long targets (no softmax first); BCEWithLogitsLoss fuses sigmoid + BCE stably; MSE/L1/Huber for regression. Race SGD, momentum, RMSprop and Adam on a narrow valley to see why adaptive optimizers are the default and AdamW is preferred with weight decay.',
+          formulas: [
+            '\\(\\text{CE} = -\\log \\frac{e^{z_y}}{\\sum_j e^{z_j}}\\)',
+          ],
+          interactive: { file: pt('pt-05-nn-module.html', 'loss'), label: 'Loss Explorer' },
+          extras: [{ file: pt('pt-05-nn-module.html', 'optim'), label: 'Optimizer Race' }],
+          tags: ['Interactive', 'Must-know', 'CrossEntropy', 'Adam'],
+        },
+        {
+          title: 'Dataset & DataLoader',
+          notes: 'A Dataset implements __len__ and __getitem__; a DataLoader shuffles, batches, collates and loads in parallel workers. Visualise batches per epoch with shuffle and drop_last, pad variable-length text with a custom collate_fn, balance classes with WeightedRandomSampler and see how num_workers keeps the GPU busy.',
+          formulas: [
+            '\\(\\text{iterations/epoch} = \\lceil N / B \\rceil\\)',
+          ],
+          interactive: { file: pt('pt-06-dataset-dataloader.html', 'loader'), label: 'Batch Visualiser' },
+          extras: [
+            { file: pt('pt-06-dataset-dataloader.html', 'dataset'), label: 'Custom Dataset' },
+            { file: pt('pt-06-dataset-dataloader.html', 'collate'), label: 'collate_fn & Padding' },
+            { file: pt('pt-06-dataset-dataloader.html', 'sampler'), label: 'Samplers & Workers' },
+            { file: pt('pt-06-dataset-dataloader.html', 'why'), label: 'Why Mini-batches' },
+          ],
+          tags: ['Interactive', 'Must-know', 'DataLoader'],
+        },
+      ],
+    },
+    {
+      id: 'pt-networks',
+      title: 'Building & Improving Networks',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>',
+      topics: [
+        {
+          title: 'ANN on Fashion-MNIST & train() vs eval()',
+          notes: 'Flatten 28×28 images to 784 features, two ReLU hidden layers, 10 logits. Follow one image through the network with live parameter counts, then use the mode simulator to see why evaluation needs both model.eval() (dropout/BatchNorm behaviour) and torch.no_grad() (memory).',
+          formulas: [],
+          interactive: { file: pt('pt-07-ann-gpu.html', 'arch'), label: 'Shape Flow' },
+          extras: [{ file: pt('pt-07-ann-gpu.html', 'train'), label: 'Mode Simulator' }],
+          tags: ['Interactive', 'Must-know', 'Fashion-MNIST'],
+        },
+        {
+          title: 'Training on the GPU',
+          notes: 'Pick a device once, model.to(device) once (in place), and xb = xb.to(device) for every batch (returns a new tensor). The device debugger reproduces "Expected all tensors to be on the same device" for the model, the inputs, the labels and tensors created inside forward.',
+          formulas: [],
+          interactive: { file: pt('pt-07-ann-gpu.html', 'gpu'), label: 'Device Debugger' },
+          tags: ['Interactive', 'Must-know', 'CUDA'],
+        },
+        {
+          title: 'Dropout, BatchNorm, Weight Decay & Early Stopping',
+          notes: 'Fight overfitting: early stopping restores the best validation epoch; dropout zeroes units with probability p and scales survivors by 1/(1−p); BatchNorm normalises with batch statistics in training and running averages in eval; weight decay shrinks weights — shown with an exact ridge fit.',
+          formulas: [
+            '\\(\\hat x = \\frac{x - \\mu_B}{\\sqrt{\\sigma_B^2 + \\epsilon}},\; y = \\gamma \\hat x + \\beta\\)',
+          ],
+          interactive: { file: pt('pt-08-optimizing.html', 'dropout'), label: 'Dropout Lab' },
+          extras: [
+            { file: pt('pt-08-optimizing.html', 'overfit'), label: 'Early Stopping' },
+            { file: pt('pt-08-optimizing.html', 'batchnorm'), label: 'BatchNorm Lab' },
+            { file: pt('pt-08-optimizing.html', 'weightdecay'), label: 'Weight Decay Fit' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Regularisation'],
+        },
+        {
+          title: 'Hyperparameter Tuning with Optuna',
+          notes: 'Hyperparameters are chosen, not learned. A grid explodes combinatorially; random search tries more values of the hyperparameters that matter; Optuna’s TPE sampler learns where good trials are. Race the three on the same budget, then watch MedianPruner stop weak trials early.',
+          formulas: [],
+          interactive: { file: pt('pt-09-optuna.html', 'search'), label: 'Search Race' },
+          extras: [
+            { file: pt('pt-09-optuna.html', 'what'), label: 'Grid-Size Calculator' },
+            { file: pt('pt-09-optuna.html', 'code'), label: 'Optuna Code & Pruning' },
+          ],
+          tags: ['Interactive', 'Optuna', 'TPE'],
+        },
+      ],
+    },
+    {
+      id: 'pt-vision',
+      title: 'Computer Vision',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>',
+      topics: [
+        {
+          title: 'Convolution, Padding, Stride & Pooling',
+          notes: 'A 3×3 learned filter slides over the image, multiplying and summing; padding preserves size, stride downsamples, max-pooling halves H and W. Edit the kernel, animate the window and hover any output cell to see its exact computation.',
+          formulas: [
+            '\\(\\text{out} = \\left\\lfloor \\frac{N - K + 2P}{S} \\right\\rfloor + 1\\)',
+            '\\(\\#\\text{params} = c_{out}(c_{in} K^2 + 1)\\)',
+          ],
+          interactive: { file: pt('pt-10-cnn.html', 'conv'), label: 'Convolution Playground' },
+          extras: [{ file: pt('pt-10-cnn.html', 'pool'), label: 'Pooling Lab' }],
+          tags: ['Interactive', 'Must-know', 'Conv2d'],
+        },
+        {
+          title: 'CNN Shapes & a Fashion-MNIST CNN',
+          notes: 'Track (C, H, W) through every layer so the first Linear gets the right in_features — the classic "mat1 and mat2 shapes cannot be multiplied" fix. The calculator generates the nn.Sequential code; then the full Conv → BN → ReLU → Pool CNN with data augmentation.',
+          formulas: [],
+          interactive: { file: pt('pt-10-cnn.html', 'shapes'), label: 'Shape Calculator' },
+          extras: [{ file: pt('pt-10-cnn.html', 'code'), label: 'Fashion-MNIST CNN' }],
+          tags: ['Interactive', 'Shapes', 'CNN'],
+        },
+        {
+          title: 'Transfer Learning — Freeze, Replace the Head, Fine-tune',
+          notes: 'Reuse an ImageNet backbone: freeze parameters with requires_grad=False, swap the final layer for your classes, then optionally unfreeze the last block with a smaller learning rate. Toggle blocks of ResNet-18 or VGG16 and see real trainable-parameter counts; pick a strategy from dataset size and similarity.',
+          formulas: [],
+          interactive: { file: pt('pt-11-transfer-learning.html', 'freeze'), label: 'Freeze Explorer' },
+          extras: [
+            { file: pt('pt-11-transfer-learning.html', 'why'), label: 'Why It Works' },
+            { file: pt('pt-11-transfer-learning.html', 'strategy'), label: 'Strategy Picker' },
+            { file: pt('pt-11-transfer-learning.html', 'code'), label: 'Fine-tuning Code' },
+          ],
+          tags: ['Interactive', 'Must-know', 'ResNet', 'VGG16'],
+        },
+      ],
+    },
+    {
+      id: 'pt-sequences',
+      title: 'Sequence Models',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h13"/></svg>',
+      topics: [
+        {
+          title: 'Text Pipeline & nn.Embedding',
+          notes: 'Tokenise, build a vocabulary with &lt;PAD&gt;=0 and &lt;UNK&gt;=1, encode to ids, then look rows up in nn.Embedding: (N, L) long → (N, L, dim). Build a vocabulary from Q&A pairs and see unknown words map to &lt;UNK&gt;.',
+          formulas: [],
+          interactive: { file: pt('pt-12-rnn.html', 'text'), label: 'Vocabulary Builder' },
+          extras: [{ file: pt('pt-12-rnn.html', 'embed'), label: 'Embedding Lookup' }],
+          tags: ['Interactive', 'Tokenisation', 'Embedding'],
+        },
+        {
+          title: 'RNNs & a Question-Answering Model',
+          notes: 'One cell reused at every step carries a hidden state forward. Step through a sentence, compute nn.RNN / LSTM / GRU output and h_n shapes (h_n is never batch-first) and parameter counts, then wire Embedding → RNN → Linear into a small QA classifier.',
+          formulas: [
+            '\\(h_t = \\tanh(W_{ih} x_t + W_{hh} h_{t-1} + b)\\)',
+          ],
+          interactive: { file: pt('pt-12-rnn.html', 'unroll'), label: 'RNN Stepper & Shapes' },
+          extras: [{ file: pt('pt-12-rnn.html', 'qa'), label: 'QA Model' }],
+          tags: ['Interactive', 'Must-know', 'RNN'],
+        },
+        {
+          title: 'LSTM Gates & a Next-Word Predictor',
+          notes: 'Plain RNN gradients vanish exponentially; the LSTM’s additive cell state, scaled by a forget gate near 1, carries them across many steps. Drive an LSTM unit’s gates by hand, turn a corpus into left-padded n-gram training data, and generate text with greedy or temperature sampling.',
+          formulas: [
+            '\\(c_t = f_t \\odot c_{t-1} + i_t \\odot \\tilde g_t,\; h_t = o_t \\odot \\tanh(c_t)\\)',
+          ],
+          interactive: { file: pt('pt-13-lstm.html', 'gates'), label: 'LSTM Cell' },
+          extras: [
+            { file: pt('pt-13-lstm.html', 'vanish'), label: 'Vanishing Gradients' },
+            { file: pt('pt-13-lstm.html', 'data'), label: 'N-gram Dataset Builder' },
+            { file: pt('pt-13-lstm.html', 'predict'), label: 'Text Generator' },
+          ],
+          tags: ['Interactive', 'Must-know', 'LSTM'],
+        },
+      ],
+    },
+    {
+      id: 'pt-production',
+      title: 'Production & Revision',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>',
+      topics: [
+        {
+          title: 'Saving, Reproducibility, Mixed Precision & torch.compile',
+          notes: 'Save state_dicts, not pickled models; checkpoints need the optimizer and epoch to resume. Seed every RNG for repeatable runs. See bit-by-bit why float16 gradients underflow (GradScaler) while bfloat16 doesn’t, and what torch.compile does to your model.',
+          formulas: [],
+          interactive: { file: pt('pt-14-essentials.html', 'save'), label: 'Checkpoint Builder' },
+          extras: [
+            { file: pt('pt-14-essentials.html', 'repro'), label: 'Seed Lab' },
+            { file: pt('pt-14-essentials.html', 'amp'), label: 'Float Formats' },
+            { file: pt('pt-14-essentials.html', 'compile'), label: 'torch.compile' },
+          ],
+          tags: ['Interactive', 'Must-know', 'state_dict', 'AMP'],
+        },
+        {
+          title: 'Debugging Common PyTorch Errors',
+          notes: 'Most errors are shape, dtype or device errors. Paste an error message — mat1 and mat2, same device, Long vs Float, target size, inplace operation, CUDA OOM, missing state_dict keys — and get the cause and the fix.',
+          formulas: [],
+          interactive: { file: pt('pt-14-essentials.html', 'errors'), label: 'Error Decoder' },
+          tags: ['Interactive', 'Must-know', 'Debugging'],
+        },
+        {
+          title: 'Q&A Bank, Flashcards & Cheat Sheet',
+          notes: 'All 116 questions from every module in one searchable place, with a must-know filter and flashcard mode, plus a starred cheat sheet of everyday functions and a one-screen training template. Modules follow CampusX’s Practical Deep Learning using PyTorch playlist.',
+          formulas: [],
+          interactive: { file: pt('pt-15-qa-bank.html', 'all'), label: 'Q&A Bank' },
+          extras: [
+            { file: pt('pt-15-qa-bank.html', 'flash'), label: 'Flashcards' },
+            { file: pt('pt-15-qa-bank.html', 'cheat'), label: 'Cheat Sheet' },
+            { file: pt('pt-15-qa-bank.html', 'map'), label: 'Course Map' },
+          ],
+          tags: ['Interactive', 'Revision', 'Interview prep'],
+        },
+      ],
+    },
+  ];
+
+  /* ----------------------------------------------------------
      SUBJECTS — each wraps its concept groups
      ---------------------------------------------------------- */
   const SUBJECTS = [
+    {
+      id: 'pytorch',
+      title: 'PyTorch for Deep Learning',
+      code: 'PyTorch — Practical DL',
+      description: 'A complete PyTorch learning hub: tensors, autograd, the training loop, nn.Module, DataLoader, GPU training, regularisation, Optuna, CNNs, transfer learning, RNNs and LSTMs — with interactive labs, code, theory and 116 Q&As (must-know ones starred).',
+      emoji: '🔥',
+      accent: 'ember',
+      folder: 'Subject_4_PyTorch',
+      conceptGroups: PYTORCH_CONCEPTS,
+    },
     {
       id: 'seml',
       title: 'Software Engineering for ML',
@@ -1608,6 +1925,12 @@
     }
   }
 
+  function tagHtml(t) {
+    return t === 'Must-know'
+      ? '<span class="tag tag-imp" title="Frequently asked / essential">★ Must-know</span>'
+      : '<span class="tag">' + t + '</span>';
+  }
+
   function createTopicCard(subject, topic) {
     const labs = labsOf(topic);
     const hasInteractive = labs.length > 0;
@@ -1638,7 +1961,7 @@
       : '<a class="card-action" href="' + href + '">' + ICONS.book + '<span>Read notes</span></a>';
 
     card.innerHTML =
-      '<div class="tag-row">' + statusTag + tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
+      '<div class="tag-row">' + statusTag + tags.map(tagHtml).join('') + '</div>' +
       '<h4>' + topic.title + '</h4>' +
       '<p class="topic-notes">' + topic.notes + '</p>' +
       formulasHtml +
@@ -1775,7 +2098,7 @@
     let html = '<article class="theory-card accent-' + subject.accent + '">';
     html += '<span class="section-eyebrow">' + subject.code + '</span>';
     html += '<h2>' + topic.title + '</h2>';
-    html += '<div class="tag-row">' + topic.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>';
+    html += '<div class="tag-row">' + topic.tags.map(tagHtml).join('') + '</div>';
     html += '<p class="theory-notes">' + topic.notes + '</p>';
     if (topic.formulas.length) {
       html += '<h4>Key formulas</h4><div class="topic-formulas">';

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What is PyTorch? — History, Dynamic Graphs &amp; Ecosystem</title>
+  <meta name="description" content="Introduction to PyTorch: where it came from, define-by-run dynamic graphs, PyTorch vs TensorFlow, core modules and the ecosystem.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .timeline { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; position: relative; }
+    .tl-item { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); text-align: left; transition: border-color .2s, background .2s; }
+    .tl-item:hover { border-color: var(--line-strong); }
+    .tl-item.on { border-color: rgba(255,122,89,.6); background: rgba(255,122,89,.08); }
+    .tl-item .y { font: 700 15px var(--font-mono); color: var(--ember); }
+    .tl-item .n { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+    .tl-detail { margin-top: 12px; min-height: 84px; }
+    .feat { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); }
+    .feat b { display: block; font-size: 14px; margin-bottom: 3px; }
+    .feat span { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .graph-svg text { font: 600 11.5px var(--font-mono); }
+    .mod-tile { text-align: left; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); transition: border-color .2s, background .2s; }
+    .mod-tile:hover { border-color: var(--line-strong); }
+    .mod-tile.on { border-color: rgba(255,122,89,.6); background: rgba(255,122,89,.08); }
+    .mod-tile code { font-size: 12px; }
+    .mod-tile span { display: block; margin-top: 5px; color: var(--muted); font-size: 12.3px; line-height: 1.45; }
+    .ring { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 900px) { .timeline { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 01 · FOUNDATIONS</span>
+      <h1>What is <span class="grad">PyTorch?</span></h1>
+      <p class="desc">Before writing a single tensor, get the mental model right: what PyTorch actually is, why "define-by-run" graphs changed deep learning, how it compares with TensorFlow, and which modules you will use every day.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Timeline · Graph builder · Module map</span><span class="imp">Must-know items marked like this</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="what"><span class="n">1</span>What &amp; why</button>
+      <button class="tab" data-tab="graphs"><span class="n">2</span>Dynamic graphs</button>
+      <button class="tab" data-tab="compare"><span class="n">3</span>PyTorch vs TensorFlow</button>
+      <button class="tab" data-tab="ecosystem"><span class="n">4</span>Core modules &amp; ecosystem</button>
+    </div></div>
+
+    <!-- ============ WHAT ============ -->
+    <section class="tab-panel" data-panel="what">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A tensor library with automatic differentiation <span class="imp">Must-know</span></h3>
+        <p class="lead">At its core PyTorch is two ideas: <strong>tensors</strong> — NumPy-like arrays that can run on a GPU — and <strong>autograd</strong> — a system that records operations on those tensors and computes gradients automatically.</p>
+        <p>Everything else is built on top of those two pieces: <code>torch.nn</code> gives you layers and losses, <code>torch.optim</code> gives you optimizers, and <code>torch.utils.data</code> streams batches of data. Because a model is just a Python class and the forward pass is just a Python function, you debug it like any other Python code.</p>
+        <div class="grid-3 mt2">
+          <div class="feat"><b>Pythonic &amp; eager</b><span>Operations run immediately. <code>print(x.shape)</code> anywhere, step through with a debugger.</span></div>
+          <div class="feat"><b>GPU acceleration</b><span><code>.to("cuda")</code> moves tensors and models to NVIDIA GPUs; <code>"mps"</code> on Apple silicon.</span></div>
+          <div class="feat"><b>Autograd</b><span>Call <code>loss.backward()</code> and every parameter gets its gradient — no calculus by hand.</span></div>
+          <div class="feat"><b>Dynamic graphs</b><span>The graph is rebuilt every forward pass, so loops and if-statements just work.</span></div>
+          <div class="feat"><b>Research → production</b><span><code>torch.compile</code>, ONNX export, distributed training (DDP, FSDP).</span></div>
+          <div class="feat"><b>Huge ecosystem</b><span>torchvision, Hugging Face, Lightning, Optuna — most new models ship in PyTorch first.</span></div>
+        </div>
+      </div>
+
+      <div class="block-title"><i data-icon="flask"></i>Try it · click through the history</div>
+      <div class="card card-pad">
+        <div class="timeline" id="timeline"></div>
+        <div class="tl-detail callout blue" id="tl-detail"></div>
+      </div>
+
+      <div class="block-title"><i data-icon="code"></i>Code · your first lines of PyTorch</div>
+      <textarea class="py" data-title="hello_pytorch.py" data-imp>
+import torch
+
+print(torch.__version__)                 # e.g. 2.x
+x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+y = (x ** 2).sum()                       # y = x1² + x2² + x3²
+y.backward()                             # autograd computes dy/dx
+print(x.grad)                            # 2x
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("running on", device)
+      </textarea>
+      <textarea class="py-out">
+2.x.x
+tensor([2., 4., 6.])
+running on cuda
+      </textarea>
+
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="intro:what"></div>
+    </section>
+
+    <!-- ============ GRAPHS ============ -->
+    <section class="tab-panel" data-panel="graphs" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Define-by-run: the graph is your Python code <span class="imp">Must-know</span></h3>
+        <p>To compute gradients, a framework needs a <strong>computation graph</strong>: nodes are operations, edges are tensors flowing between them. The question is <em>when</em> that graph is built.</p>
+        <div class="grid-2 mt">
+          <div class="callout"><i data-icon="layers"></i><div><b>Static (define-then-run)</b><br>Build the whole graph first, compile it, then push data through. Easy to optimise ahead of time, but control flow needs special ops (<code>tf.cond</code>, <code>tf.while_loop</code>) and errors surface far from your code. TensorFlow 1.x worked this way.</div></div>
+          <div class="callout green"><i data-icon="zap"></i><div><b>Dynamic (define-by-run)</b><br>The graph is recorded <em>as the code runs</em> and thrown away after <code>backward()</code>. Every forward pass can take a different path. This is PyTorch's model — and the reason RNNs over variable-length sentences feel natural.</div></div>
+        </div>
+      </div>
+
+      <div class="block-title"><i data-icon="flask"></i>Try it · the graph changes with the data</div>
+      <div class="card">
+        <div class="card-head"><h3><i data-icon="git"></i>Graph recorded on this forward pass</h3><span class="chip" id="g-count"></span></div>
+        <div class="card-pad split">
+          <div class="controls">
+            <div class="field"><span class="label-t">Input value x</span>
+              <div class="range-row"><input type="range" id="g-x" min="-3" max="3" step="0.5" value="1.5"><span class="val" id="g-x-v"></span></div></div>
+            <div class="field"><span class="label-t">Loop iterations n (e.g. sentence length)</span>
+              <div class="range-row"><input type="range" id="g-n" min="1" max="5" step="1" value="2"><span class="val" id="g-n-v"></span></div></div>
+            <div id="g-code"></div>
+            <p class="small muted">Change <b>x</b> and the <code>if</code> takes a different branch; change <b>n</b> and the loop records more nodes. In a static framework you would have to build both branches and the longest loop up front.</p>
+          </div>
+          <div class="svg-scroll"><svg class="graph-svg" id="g-svg" width="100%" height="290" viewBox="0 0 520 290"></svg></div>
+        </div>
+      </div>
+
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="intro:graphs"></div>
+    </section>
+
+    <!-- ============ COMPARE ============ -->
+    <section class="tab-panel" data-panel="compare" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>PyTorch vs TensorFlow in 2026 <span class="imp">Must-know</span></h3>
+        <p>The famous "dynamic vs static" split no longer holds — TensorFlow 2 is eager by default and PyTorch 2 compiles. What differs is style and ecosystem.</p>
+        <div class="tbl-wrap mt"><table class="tbl">
+          <thead><tr><th>Aspect</th><th>PyTorch</th><th>TensorFlow / Keras</th></tr></thead>
+          <tbody>
+            <tr><td>Execution</td><td>Eager by default; <code>torch.compile</code> for speed</td><td>Eager by default; <code>tf.function</code> builds graphs</td></tr>
+            <tr><td>Training loop</td><td>You write it (full control), or use Lightning</td><td>Usually <code>model.fit()</code> via Keras</td></tr>
+            <tr><td>Debugging</td><td>Standard Python debugger, prints anywhere</td><td>Easy in eager; harder inside <code>tf.function</code></td></tr>
+            <tr><td>Research share</td><td>Dominant; most new papers and Hugging Face models</td><td>Smaller and shrinking</td></tr>
+            <tr><td>Mobile / web</td><td>ExecuTorch, ONNX</td><td>TF Lite (LiteRT), TF.js — mature</td></tr>
+            <tr><td>Serving</td><td>Triton, TorchServe, vLLM, ONNX Runtime</td><td>TF Serving, TFX pipelines</td></tr>
+            <tr><td>Distributed</td><td>DDP, FSDP, <code>torchrun</code></td><td><code>tf.distribute</code> strategies</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Same model, two frameworks</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="pytorch.py">
+import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Linear(784, 128), nn.ReLU(),
+    nn.Linear(128, 10),
+)
+opt = torch.optim.Adam(model.parameters(), 1e-3)
+loss_fn = nn.CrossEntropyLoss()
+
+for xb, yb in loader:            # explicit loop
+    loss = loss_fn(model(xb), yb)
+    opt.zero_grad()
+    loss.backward()
+    opt.step()
+        </textarea></div>
+        <div><textarea class="py" data-title="keras.py">
+import keras
+
+model = keras.Sequential([
+    keras.layers.Dense(128, activation="relu"),
+    keras.layers.Dense(10),
+])
+model.compile(
+    optimizer="adam",
+    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+)
+model.fit(x_train, y_train, batch_size=64, epochs=5)
+        </textarea></div>
+      </div>
+      <div class="callout amber mt"><i data-icon="info"></i><div>Notice what PyTorch makes explicit: the forward pass, the loss, clearing gradients, back-propagation and the update. That is more code, but nothing is hidden — and it is exactly what interviewers ask you to write.</div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="intro:compare"></div>
+    </section>
+
+    <!-- ============ ECOSYSTEM ============ -->
+    <section class="tab-panel" data-panel="ecosystem" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The modules you will import every day <span class="imp">Must-know</span></h3>
+        <p>Click a module to see what it is for and the one line you will most often write with it. The modules on the top row are the ones the rest of this hub is built around.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · module map</div>
+      <div class="card card-pad">
+        <div class="grid-4" id="mods"></div>
+        <div class="mt2" id="mod-detail"></div>
+      </div>
+      <div class="block-title"><i data-icon="grid"></i>Around PyTorch</div>
+      <div class="card card-pad">
+        <div class="ring">
+          <span class="chip blue">torchvision — images, pretrained CNNs</span>
+          <span class="chip blue">torchaudio — audio</span>
+          <span class="chip purple">Hugging Face Transformers</span>
+          <span class="chip purple">PyTorch Lightning</span>
+          <span class="chip green">torchmetrics</span>
+          <span class="chip green">Optuna — tuning</span>
+          <span class="chip amber">ONNX Runtime · TensorRT</span>
+          <span class="chip amber">ExecuTorch — edge</span>
+          <span class="chip">torchtext — no longer developed</span>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="intro:ecosystem"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, esc, codeBlock } = PT;
+
+  /* ---- Timeline ---- */
+  const TL = [
+    { y: '2002', n: 'Torch (Lua)', d: '<b>Torch</b> is released: a scientific-computing framework written in Lua with fast C/CUDA back-ends. Popular in research labs, but few people wanted to learn Lua.' },
+    { y: '2017', n: 'PyTorch 0.1', d: 'Facebook AI Research rebuilds Torch for <b>Python</b> with dynamic computation graphs and autograd. Public release in January 2017; researchers adopt it quickly because it feels like NumPy.' },
+    { y: '2018', n: 'PyTorch 1.0', d: '<b>Caffe2 merges into PyTorch</b> to bring production features. TorchScript lets you export models that run without Python.' },
+    { y: '2019–21', n: 'Ecosystem boom', d: 'Hugging Face Transformers, PyTorch Lightning, TorchServe, mobile support. PyTorch becomes the most-used framework in papers with code.' },
+    { y: '2022', n: 'Foundation', d: 'The <b>PyTorch Foundation</b> is formed under the Linux Foundation, moving governance from Meta to a vendor-neutral body (AMD, AWS, Google, Microsoft, NVIDIA and others).' },
+    { y: '2023+', n: 'PyTorch 2.x', d: '<b>torch.compile</b> arrives: one line that captures and optimises your model (TorchDynamo + TorchInductor) while you keep writing eager Python. Later releases add <code>torch.export</code>, FSDP2 and ExecuTorch for edge devices.' },
+  ];
+  const tl = $('#timeline');
+  tl.innerHTML = TL.map((t, i) => '<button class="tl-item" data-i="' + i + '"><div class="y">' + t.y + '</div><div class="n">' + t.n + '</div></button>').join('');
+  function pickTL(i) {
+    tl.querySelectorAll('.tl-item').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    $('#tl-detail').innerHTML = PT.icon('info') + '<div>' + TL[i].d + '</div>';
+  }
+  tl.addEventListener('click', (e) => { const b = e.target.closest('.tl-item'); if (b) pickTL(+b.dataset.i); });
+  pickTL(1);
+
+  /* ---- Dynamic graph ---- */
+  function drawGraph() {
+    const x = +$('#g-x').value, n = +$('#g-n').value;
+    $('#g-x-v').textContent = x.toFixed(1);
+    $('#g-n-v').textContent = n;
+    const pos = x > 0;
+    const code = 'x = torch.tensor(' + x.toFixed(1) + ', requires_grad=True)\n' +
+      'if x > 0:            # ' + (pos ? 'TAKEN' : 'skipped') + '\n    h = x * 2\nelse:                # ' + (pos ? 'skipped' : 'TAKEN') + '\n    h = -x\n' +
+      'for i in range(' + n + '):   # recorded ' + n + 'x\n    h = torch.tanh(h * w)\nloss = h ** 2';
+    const host = $('#g-code'); host.innerHTML = ''; host.appendChild(codeBlock(code, { title: 'forward pass' }));
+
+    // nodes
+    const nodes = [{ t: 'x (leaf)', c: '#5fb3f9' }, { t: pos ? 'MulBackward (x·2)' : 'NegBackward (−x)', c: '#fbbf24' }];
+    for (let i = 0; i < n; i++) { nodes.push({ t: 'Mul (h·w)', c: '#b18cff' }); nodes.push({ t: 'TanhBackward', c: '#b18cff' }); }
+    nodes.push({ t: 'PowBackward → loss', c: '#ff7a59' });
+    $('#g-count').textContent = nodes.length + ' nodes recorded';
+    const svg = $('#g-svg');
+    const cols = 4, bw = 112, bh = 34, gx = 20, gy = 30;
+    const rows = Math.ceil(nodes.length / cols);
+    const H = rows * (bh + gy) + 20;
+    svg.setAttribute('viewBox', '0 0 520 ' + H); svg.setAttribute('height', H);
+    let html = '<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#646d82"/></marker></defs>';
+    const P = nodes.map((_, i) => { const r = Math.floor(i / cols); let c = i % cols; if (r % 2) c = cols - 1 - c; return { x: 10 + c * (bw + gx), y: 10 + r * (bh + gy) }; });
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const a = P[i], b = P[i + 1];
+      let x1, y1, x2, y2;
+      if (a.y === b.y) { const dir = b.x > a.x ? 1 : -1; x1 = a.x + (dir > 0 ? bw : 0); y1 = a.y + bh / 2; x2 = b.x + (dir > 0 ? 0 : bw); y2 = y1; }
+      else { x1 = a.x + bw / 2; y1 = a.y + bh; x2 = b.x + bw / 2; y2 = b.y; }
+      html += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#646d82" stroke-width="1.5" marker-end="url(#ar)"/>';
+    }
+    nodes.forEach((nd, i) => {
+      const p = P[i];
+      html += '<g><rect x="' + p.x + '" y="' + p.y + '" width="' + bw + '" height="' + bh + '" rx="9" fill="' + nd.c + '22" stroke="' + nd.c + '" stroke-width="1.3"/>' +
+        '<text x="' + (p.x + bw / 2) + '" y="' + (p.y + bh / 2 + 4) + '" text-anchor="middle" fill="#f2f4fa" style="font-size:' + (nd.t.length > 15 ? 9.5 : 11) + 'px">' + esc(nd.t) + '</text></g>';
+    });
+    svg.innerHTML = html;
+  }
+  $('#g-x').addEventListener('input', drawGraph);
+  $('#g-n').addEventListener('input', drawGraph);
+  drawGraph();
+
+  /* ---- Module map ---- */
+  const MODS = [
+    { n: 'torch', d: 'Tensors, maths, random numbers, device handling. The base of everything.', c: 'x = torch.randn(64, 784, device="cuda")' },
+    { n: 'torch.nn', d: 'Layers (Linear, Conv2d, LSTM), activations, losses and the nn.Module base class for models.', c: 'class Net(nn.Module): ...' },
+    { n: 'torch.optim', d: 'Optimizers (SGD, Adam, AdamW) and learning-rate schedulers.', c: 'opt = torch.optim.AdamW(model.parameters(), lr=3e-4)' },
+    { n: 'torch.utils.data', d: 'Dataset, DataLoader, samplers — batching, shuffling and parallel loading.', c: 'loader = DataLoader(ds, batch_size=64, shuffle=True)' },
+    { n: 'torch.autograd', d: 'Automatic differentiation engine behind loss.backward(); also torch.autograd.grad for higher-order gradients.', c: 'g, = torch.autograd.grad(y, x, create_graph=True)' },
+    { n: 'torch.nn.functional', d: 'Stateless functions: F.relu, F.cross_entropy, F.conv2d, F.softmax.', c: 'probs = F.softmax(logits, dim=1)' },
+    { n: 'torch.cuda / mps', d: 'GPU queries and memory tools: is_available, device_count, memory_allocated, empty_cache.', c: 'torch.cuda.is_available()' },
+    { n: 'torch.distributed', d: 'Multi-GPU and multi-node training: DistributedDataParallel, FSDP, collectives. Launched with torchrun.', c: 'model = DDP(model, device_ids=[rank])' },
+    { n: 'torch.compile', d: 'Captures the model into graphs and generates fused kernels. One line, no code changes.', c: 'model = torch.compile(model)' },
+    { n: 'torch.amp', d: 'Automatic mixed precision: autocast + GradScaler for float16/bfloat16 training.', c: 'with torch.autocast("cuda", dtype=torch.bfloat16): ...' },
+    { n: 'torch.export / onnx', d: 'Export a model for deployment: torch.export for a full graph, torch.onnx for ONNX Runtime/TensorRT.', c: 'torch.onnx.export(model, x, "model.onnx")' },
+    { n: 'torch.jit (legacy)', d: 'TorchScript: older way to export models without Python. Still works; new projects prefer torch.export.', c: 'scripted = torch.jit.script(model)' },
+  ];
+  const mods = $('#mods');
+  mods.innerHTML = MODS.map((m, i) => '<button class="mod-tile" data-i="' + i + '"><code>' + m.n + '</code><span>' + m.d.split('.')[0] + '.</span></button>').join('');
+  function pickMod(i) {
+    mods.querySelectorAll('.mod-tile').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    const m = MODS[i];
+    const host = $('#mod-detail');
+    host.innerHTML = '<div class="callout blue">' + PT.icon('info') + '<div><b>' + m.n + '</b> — ' + m.d + '</div></div>';
+    const cb = codeBlock(m.c, { title: m.n }); cb.classList.add('mt'); host.appendChild(cb);
+  }
+  mods.addEventListener('click', (e) => { const b = e.target.closest('.mod-tile'); if (b) pickMod(+b.dataset.i); });
+  pickMod(0);
+
+  PT.init('intro');
+})();
+</script>
+</body>
+</html>

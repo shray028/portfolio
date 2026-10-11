@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>nn.Module, Loss Functions &amp; Optimizers — PyTorch</title>
+  <meta name="description" content="Build models with nn.Module and nn.Sequential, see shapes and parameter counts, explore MSE / cross-entropy / BCE losses, and race SGD, Momentum, RMSprop and Adam on a loss surface.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .layer-row { display: grid; grid-template-columns: 26px minmax(0, 1.4fr) minmax(0, 0.8fr) 130px 34px; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); }
+    .layer-row .i { color: var(--dim); }
+    .layer-row .p { text-align: right; color: var(--muted); white-space: nowrap; font-size: 11.5px; }
+    .layer-row input { width: 64px; min-height: 26px; padding: 2px 6px; font-size: 12px; }
+    .layer-row .x { color: var(--dim); display: grid; place-items: center; height: 26px; border-radius: 6px; }
+    .layer-row .x:hover { color: var(--red); background: rgba(248,113,113,.1); }
+    .layer-row.inp { background: rgba(95,179,249,.06); border-color: rgba(95,179,249,.3); }
+    .probs { display: grid; gap: 6px; }
+    .prob { display: grid; grid-template-columns: 70px 1fr 64px; gap: 8px; align-items: center; font: 12px var(--font-mono); }
+    .prob .bar { height: 16px; }
+    .prob.tgt .bar > span { background: var(--ember) !important; }
+    @media (max-width: 700px) { .layer-row { grid-template-columns: 22px 1fr 1fr 30px; } .layer-row .p { display: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 05 · TRAINING WORKFLOW</span>
+      <h1><span class="grad">nn.Module</span>, losses &amp; optimizers</h1>
+      <p class="desc">The three abstractions that turn the from-scratch loop into idiomatic PyTorch: <code>nn.Module</code> to hold layers and parameters, <code>torch.nn</code> losses to measure error, and <code>torch.optim</code> to update weights.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Model builder · Loss explorer · Optimizer race</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="module"><span class="n">1</span>nn.Module &amp; layers</button>
+      <button class="tab" data-tab="loss"><span class="n">2</span>Loss functions</button>
+      <button class="tab" data-tab="optim"><span class="n">3</span>Optimizers</button>
+      <button class="tab" data-tab="refactor"><span class="n">4</span>The refactored pipeline</button>
+    </div></div>
+
+    <!-- ============ MODULE ============ -->
+    <section class="tab-panel" data-panel="module">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>nn.Module: a class that knows its parameters <span class="imp">Must-know</span></h3>
+        <p>Subclass <code>nn.Module</code>, call <code>super().__init__()</code>, assign layers as attributes in <code>__init__</code>, and describe the computation in <code>forward</code>. Because the layers are attributes, PyTorch registers their weights automatically — so <code>model.parameters()</code>, <code>model.to(device)</code>, <code>model.eval()</code> and <code>model.state_dict()</code> all just work.</p>
+        <dl class="kv">
+          <dt>nn.Linear(in, out)</dt><dd>y = xWᵀ + b. Weight shape <code>(out, in)</code>, bias <code>(out,)</code>; <code>in·out + out</code> parameters.</dd>
+          <dt>nn.ReLU / Sigmoid / Tanh / GELU</dt><dd>Activations — no parameters. Without them, stacked Linear layers collapse into one linear map.</dd>
+          <dt>nn.Sequential(...)</dt><dd>Chains modules in order; perfect for straight pipelines.</dd>
+          <dt>nn.ModuleList / ModuleDict</dt><dd>Containers that register sub-modules — never use a plain Python list. <span class="imp">Must-know</span></dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · model builder</div>
+      <div class="card card-pad split">
+        <div>
+          <div class="btn-row" id="mb-add"></div>
+          <div class="mt" style="display:grid;gap:6px" id="mb-layers"></div>
+          <div class="grid-2 mt"><div class="stat"><div class="v" id="mb-total"></div><div class="k">trainable parameters</div></div><div class="stat"><div class="v" id="mb-mem"></div><div class="k">float32 weight memory</div></div></div>
+        </div>
+        <div>
+          <div class="seg" id="mb-style"><button data-v="seq" class="on">nn.Sequential</button><button data-v="cls">Custom nn.Module</button></div>
+          <div id="mb-code" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="custom_module.py" data-imp>
+import torch
+import torch.nn as nn
+
+class Net(nn.Module):
+    def __init__(self, in_features, hidden=64, n_classes=3):
+        super().__init__()                        # never forget this
+        self.fc1 = nn.Linear(in_features, hidden)
+        self.act = nn.ReLU()
+        self.fc2 = nn.Linear(hidden, n_classes)
+
+    def forward(self, x):
+        return self.fc2(self.act(self.fc1(x)))    # logits
+
+model = Net(10)
+out = model(torch.randn(32, 10))                  # call the module, not .forward
+print(out.shape)                                  # torch.Size([32, 3])
+print(sum(p.numel() for p in model.parameters())) # 10*64+64 + 64*3+3 = 899
+for name, p in model.named_parameters():
+    print(name, tuple(p.shape))
+      </textarea>
+      <textarea class="py-out">
+torch.Size([32, 3])
+899
+fc1.weight (64, 10)
+fc1.bias (64,)
+fc2.weight (3, 64)
+fc2.bias (3,)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="nn:module"></div>
+    </section>
+
+    <!-- ============ LOSS ============ -->
+    <section class="tab-panel" data-panel="loss" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Pick the loss from the task <span class="imp">Must-know</span></h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Task</th><th>Model output</th><th>Loss</th><th>Target</th></tr></thead>
+          <tbody>
+            <tr><td>Regression</td><td>(N, 1) real values</td><td><code>nn.MSELoss</code> / <code>nn.L1Loss</code> / <code>nn.HuberLoss</code></td><td>float, same shape</td></tr>
+            <tr><td>Binary classification</td><td>(N, 1) <b>logits</b></td><td><code>nn.BCEWithLogitsLoss</code></td><td>float 0./1., same shape</td></tr>
+            <tr><td>Multi-label</td><td>(N, L) logits</td><td><code>nn.BCEWithLogitsLoss</code></td><td>float multi-hot (N, L)</td></tr>
+            <tr><td>Multi-class</td><td>(N, C) <b>logits</b></td><td><code>nn.CrossEntropyLoss</code></td><td>int64 class ids (N,)</td></tr>
+          </tbody>
+        </table></div>
+        <div class="callout red mt"><i data-icon="alert"></i><div><b>No softmax or sigmoid before these losses.</b> <code>CrossEntropyLoss</code> applies log-softmax itself and <code>BCEWithLogitsLoss</code> applies sigmoid itself, in a numerically stable way. <span class="imp">Must-know</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · regression losses vs error size</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">prediction − target</span><div class="range-row"><input type="range" id="lr-e" min="-4" max="4" step="0.1" value="1.5"><span class="val" id="lr-e-v"></span></div></div>
+          <div class="grid-3" id="lr-vals"></div>
+          <p class="small muted">MSE grows quadratically, so one outlier with error 10 counts as much as 100 samples with error 1. L1 grows linearly (robust); Huber (δ=1) is quadratic near 0 and linear far away.</p>
+        </div>
+        <canvas class="viz" id="lr-chart"></canvas>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · cross-entropy from logits</div>
+      <div class="card card-pad split">
+        <div class="controls" id="ce-sliders"></div>
+        <div>
+          <div class="probs" id="ce-probs"></div>
+          <div class="grid-2 mt"><div class="stat"><div class="v" id="ce-loss"></div><div class="k">CrossEntropyLoss = −log p(target)</div></div><div class="stat"><div class="v" id="ce-pred"></div><div class="k">logits.argmax() → predicted class</div></div></div>
+          <p class="small muted mt">Click a class name to make it the target. A confident wrong answer costs far more than an unsure one.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="losses.py" data-imp>
+logits = model(x)                                   # (N, C), raw scores
+loss = nn.CrossEntropyLoss()(logits, y.long())      # y: (N,) class ids
+probs = logits.softmax(dim=1)                       # only for reporting
+pred = logits.argmax(dim=1)
+
+bin_logit = model_b(x)                              # (N, 1)
+loss_b = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([3.0]))(bin_logit, y_b.float().view(-1, 1))
+
+reg = nn.MSELoss()(y_hat.squeeze(1), y_reg)         # shapes must match exactly
+cw = nn.CrossEntropyLoss(weight=torch.tensor([1., 5., 2.]), label_smoothing=0.1)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="nn:loss"></div>
+    </section>
+
+    <!-- ============ OPTIM ============ -->
+    <section class="tab-panel" data-panel="optim" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Same gradients, different update rules <span class="imp">Must-know</span></h3>
+        <dl class="kv">
+          <dt>SGD</dt><dd>w ← w − lr·g. Zig-zags across narrow valleys.</dd>
+          <dt>SGD + momentum</dt><dd>v ← βv + g; w ← w − lr·v. Builds speed along consistent directions, damps oscillation.</dd>
+          <dt>RMSprop</dt><dd>Divides each parameter's step by the running RMS of its gradients — equalises step sizes.</dd>
+          <dt>Adam</dt><dd>Momentum + RMSprop + bias correction. Robust default, <code>lr=1e-3</code>.</dd>
+          <dt>AdamW</dt><dd>Adam with decoupled weight decay — the standard for transformers.</dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · optimizer race on a narrow valley</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">Learning rate</span><div class="range-row"><input type="range" id="o-lr" min="-3" max="-0.5" step="0.05" value="-1.4"><span class="val" id="o-lr-v"></span></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="o-run"><i data-icon="play"></i>Race</button><button class="btn" id="o-reset"><i data-icon="reset"></i>Reset</button></div>
+          <div id="o-table"></div>
+          <p class="small muted">Loss surface f(x, y) = 0.1x² + 2y² is 20× steeper in y than in x — like features on different scales. Click the plot to choose a new starting point.</p>
+        </div>
+        <canvas class="viz" id="o-board" style="cursor:crosshair"></canvas>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="optimizers.py" data-imp>
+opt = torch.optim.SGD(model.parameters(), lr=0.1)
+opt = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+opt = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.01)
+
+sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
+for epoch in range(epochs):
+    for xb, yb in loader:
+        loss = loss_fn(model(xb), yb)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    sched.step()                     # once per epoch
+print(opt.param_groups[0]["lr"])
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="nn:optim"></div>
+    </section>
+
+    <!-- ============ REFACTOR ============ -->
+    <section class="tab-panel" data-panel="refactor" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>From hand-written to idiomatic</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Module 04 (by hand)</th><th>Module 05 (PyTorch way)</th></tr></thead>
+          <tbody>
+            <tr><td><code>self.w = torch.zeros(n, 1, requires_grad=True)</code></td><td><code>self.linear = nn.Linear(n, 1)</code></td></tr>
+            <tr><td><code>torch.sigmoid(X @ w + b)</code> + manual BCE</td><td>return logits; <code>nn.BCEWithLogitsLoss()</code></td></tr>
+            <tr><td><code>with no_grad(): w -= lr * w.grad</code></td><td><code>optimizer.step()</code></td></tr>
+            <tr><td><code>w.grad.zero_(); b.grad.zero_()</code></td><td><code>optimizer.zero_grad()</code></td></tr>
+            <tr><td><code>model.forward(X)</code></td><td><code>model(X)</code></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="pipeline_with_nn.py" data-imp>
+import torch, torch.nn as nn
+
+class LogReg(nn.Module):
+    def __init__(self, n_features):
+        super().__init__()
+        self.linear = nn.Linear(n_features, 1)
+
+    def forward(self, x):
+        return self.linear(x)                 # logits
+
+model = LogReg(X_tr.shape[1])
+loss_fn = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+
+for epoch in range(25):
+    logits = model(X_tr)
+    loss = loss_fn(logits, y_tr)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+model.eval()
+with torch.no_grad():
+    acc = ((model(X_te) > 0).float() == y_te).float().mean()   # logit > 0  <=>  p > 0.5
+print(f"accuracy {acc:.3f}")
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="nn:refactor"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, fmt, esc, codeBlock } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+
+  /* ===== Model builder ===== */
+  let inF = 784, style = 'seq';
+  let layers = [{ t: 'Linear', u: 128 }, { t: 'ReLU' }, { t: 'Dropout', p: 0.2 }, { t: 'Linear', u: 64 }, { t: 'ReLU' }, { t: 'Linear', u: 10 }];
+  const ADD = [['Linear', { t: 'Linear', u: 32 }], ['ReLU', { t: 'ReLU' }], ['Sigmoid', { t: 'Sigmoid' }], ['Tanh', { t: 'Tanh' }], ['Dropout', { t: 'Dropout', p: 0.3 }], ['BatchNorm1d', { t: 'BatchNorm1d' }]];
+  $('#mb-add').innerHTML = ADD.map((a, i) => '<button class="btn btn-sm" data-i="' + i + '">' + PT.icon('plus') + a[0] + '</button>').join('');
+  $('#mb-add').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; layers.push(Object.assign({}, ADD[+b.dataset.i][1])); build(); });
+  $('#mb-style').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#mb-style button').forEach((x) => x.classList.toggle('on', x === b)); style = b.dataset.v; build(); });
+  function build() {
+    let f = inF, total = 0;
+    const rows = ['<div class="layer-row inp"><span class="i">in</span><span>input features</span><span><input class="input mono" id="mb-in" type="number" min="1" value="' + inF + '"></span><span class="p">(N, ' + inF + ')</span><span></span></div>'];
+    const desc = layers.map((L, i) => {
+      let p = 0, name, inF2 = f;
+      if (L.t === 'Linear') { p = f * L.u + L.u; name = 'nn.Linear(' + f + ', ' + L.u + ')'; f = L.u; }
+      else if (L.t === 'BatchNorm1d') { p = 2 * f; name = 'nn.BatchNorm1d(' + f + ')'; }
+      else if (L.t === 'Dropout') name = 'nn.Dropout(' + L.p + ')';
+      else name = 'nn.' + L.t + '()';
+      total += p;
+      rows.push('<div class="layer-row"><span class="i">' + i + '</span><span>' + esc(name) + '</span><span>' + (L.t === 'Linear' ? 'out <input class="input mono" data-u="' + i + '" type="number" min="1" value="' + L.u + '">' : (p ? '' : '<span class="dim">' + (L.t === 'Dropout' ? 'train-only' : 'no params') + '</span>')) + '</span><span class="p">' + (p ? p.toLocaleString() : '0') + ' · (N, ' + f + ')</span><button class="x" data-del="' + i + '" aria-label="Remove layer">' + PT.icon('trash') + '</button></div>');
+      return { name, L, inF2, f };
+    });
+    $('#mb-layers').innerHTML = rows.join('');
+    $('#mb-total').textContent = total.toLocaleString();
+    const mb = total * 4 / 1024 / 1024;
+    $('#mb-mem').textContent = mb >= 1 ? mb.toFixed(2) + ' MB' : (total * 4 / 1024).toFixed(1) + ' KB';
+    $('#mb-in').addEventListener('change', (e) => { inF = Math.max(1, +e.target.value || 1); build(); });
+    $$('#mb-layers input[data-u]').forEach((el) => el.addEventListener('change', () => { layers[+el.dataset.u].u = Math.max(1, +el.value || 1); build(); }));
+    $$('#mb-layers [data-del]').forEach((el) => el.addEventListener('click', () => { layers.splice(+el.dataset.del, 1); build(); }));
+    let code;
+    if (style === 'seq') code = 'model = nn.Sequential(\n' + desc.map((d) => '    ' + d.name + ',').join('\n') + '\n)\n\nx = torch.randn(32, ' + inF + ')\nprint(model(x).shape)   # torch.Size([32, ' + f + '])';
+    else {
+      let n = 0; const attrs = desc.map((d) => { const nm = d.L.t === 'Linear' ? 'fc' + (++n) : d.L.t.toLowerCase() + desc.slice(0, desc.indexOf(d)).filter((x) => x.L.t === d.L.t).length; return { nm, d }; });
+      code = 'class Net(nn.Module):\n    def __init__(self):\n        super().__init__()\n' + attrs.map((a) => '        self.' + a.nm + ' = ' + a.d.name).join('\n') +
+        '\n\n    def forward(self, x):\n' + attrs.map((a) => '        x = self.' + a.nm + '(x)').join('\n') + '\n        return x\n\nmodel = Net()';
+    }
+    setCode($('#mb-code'), code, style === 'seq' ? 'sequential.py' : 'module.py');
+  }
+  build();
+
+  /* ===== Regression losses ===== */
+  const huber = (e) => (Math.abs(e) <= 1 ? 0.5 * e * e : Math.abs(e) - 0.5);
+  function regLoss() {
+    const e = +$('#lr-e').value; $('#lr-e-v').textContent = e.toFixed(1);
+    $('#lr-vals').innerHTML = [['MSE', e * e, '#ff7a59'], ['L1', Math.abs(e), '#5fb3f9'], ['Huber', huber(e), '#4ade80']].map(([k, v, c]) => '<div class="stat"><div class="v" style="color:' + c + ';font-size:17px">' + v.toFixed(2) + '</div><div class="k">' + k + '</div></div>').join('');
+    const xs = []; for (let k = -40; k <= 40; k++) xs.push(k / 10);
+    const cv = $('#lr-chart');
+    PT.lineChart(cv, [{ data: xs.map((x) => x * x), color: '#ff7a59' }, { data: xs.map(Math.abs), color: '#5fb3f9' }, { data: xs.map(huber), color: '#4ade80' }], { h: 240, ymin: 0, ymax: 16, marker: Math.round((e + 4) * 10), xlabel: 'error −4 … 4' });
+  }
+  $('#lr-e').addEventListener('input', regLoss);
+
+  /* ===== Cross-entropy ===== */
+  const CLS = ['cat', 'dog', 'bird'];
+  let logits = [2.0, 0.5, -1.0], tgt = 0;
+  $('#ce-sliders').innerHTML = CLS.map((c, i) => '<div class="field"><span class="label-t">logit for ' + c + '</span><div class="range-row"><input type="range" data-l="' + i + '" min="-4" max="4" step="0.1" value="' + logits[i] + '"><span class="val" id="ce-v' + i + '"></span></div></div>').join('');
+  $$('#ce-sliders input').forEach((el) => el.addEventListener('input', () => { logits[+el.dataset.l] = +el.value; ce(); }));
+  function ce() {
+    const m = Math.max(...logits), ex = logits.map((l) => Math.exp(l - m)), s = ex.reduce((a, b) => a + b, 0), p = ex.map((v) => v / s);
+    logits.forEach((l, i) => { $('#ce-v' + i).textContent = l.toFixed(1); });
+    $('#ce-probs').innerHTML = CLS.map((c, i) => '<div class="prob' + (i === tgt ? ' tgt' : '') + '"><button class="btn btn-sm" data-t="' + i + '" style="justify-content:flex-start">' + c + (i === tgt ? ' ★' : '') + '</button><div class="bar"><span style="width:' + (p[i] * 100).toFixed(1) + '%;background:#5fb3f9"></span></div><span>' + (p[i] * 100).toFixed(1) + '%</span></div>').join('');
+    $$('#ce-probs [data-t]').forEach((b) => b.addEventListener('click', () => { tgt = +b.dataset.t; ce(); }));
+    const L = -Math.log(p[tgt]);
+    $('#ce-loss').textContent = L.toFixed(3);
+    $('#ce-loss').style.color = L > 1.5 ? 'var(--red)' : L < 0.3 ? 'var(--green)' : 'var(--text)';
+    const am = logits.indexOf(Math.max(...logits));
+    $('#ce-pred').textContent = CLS[am] + (am === tgt ? ' ✓' : ' ✗');
+  }
+  ce();
+
+  /* ===== Optimizer race ===== */
+  const f = (x, y) => 0.1 * x * x + 2 * y * y;
+  const grad = (x, y) => [0.2 * x, 4 * y];
+  const OPTS = [
+    { n: 'SGD', c: '#f87171' }, { n: 'Momentum 0.9', c: '#fbbf24' }, { n: 'RMSprop', c: '#5fb3f9' }, { n: 'Adam', c: '#4ade80' },
+  ];
+  let start = [-4.2, 1.6], paths, raf = null, it = 0;
+  function oReset() {
+    if (raf) cancelAnimationFrame(raf); raf = null; it = 0; $('#o-run').innerHTML = PT.icon('play') + 'Race';
+    paths = OPTS.map(() => ({ p: [start.slice()], v: [0, 0], s: [0, 0], m: [0, 0] }));
+    oDraw();
+  }
+  function oStep() {
+    const lr = Math.pow(10, +$('#o-lr').value); it++;
+    paths.forEach((P, k) => {
+      const [x, y] = P.p[P.p.length - 1]; const g = grad(x, y); let nx, ny;
+      if (Math.abs(x) > 50 || Math.abs(y) > 50 || !isFinite(x)) { P.p.push([x, y]); return; }
+      if (k === 0) { nx = x - lr * g[0]; ny = y - lr * g[1]; }
+      else if (k === 1) { P.v = [0.9 * P.v[0] + g[0], 0.9 * P.v[1] + g[1]]; nx = x - lr * P.v[0]; ny = y - lr * P.v[1]; }
+      else if (k === 2) { P.s = P.s.map((s, i) => 0.9 * s + 0.1 * g[i] * g[i]); nx = x - lr * g[0] / (Math.sqrt(P.s[0]) + 1e-8); ny = y - lr * g[1] / (Math.sqrt(P.s[1]) + 1e-8); }
+      else { P.m = P.m.map((m, i) => 0.9 * m + 0.1 * g[i]); P.s = P.s.map((s, i) => 0.999 * s + 0.001 * g[i] * g[i]); const mh = P.m.map((m) => m / (1 - Math.pow(0.9, it))), sh = P.s.map((s) => s / (1 - Math.pow(0.999, it))); nx = x - lr * mh[0] / (Math.sqrt(sh[0]) + 1e-8); ny = y - lr * mh[1] / (Math.sqrt(sh[1]) + 1e-8); }
+      P.p.push([nx, ny]);
+    });
+  }
+  const X0 = -5, X1 = 5, Y0 = -2.5, Y1 = 2.5;
+  function oDraw() {
+    const cv = $('#o-board'); const { ctx, w, h } = PT.canvas(cv, 300);
+    const tx = (x) => ((x - X0) / (X1 - X0)) * w, ty = (y) => h - ((y - Y0) / (Y1 - Y0)) * h;
+    const cell = 5;
+    for (let px = 0; px < w; px += cell) for (let py = 0; py < h; py += cell) {
+      const x = X0 + (px / w) * (X1 - X0), y = Y1 - (py / h) * (Y1 - Y0); const v = Math.log(1 + f(x, y));
+      const band = Math.floor(v * 4) % 2;
+      ctx.fillStyle = 'rgba(177,140,255,' + (0.03 + Math.min(0.22, v * 0.06) + band * 0.025) + ')'; ctx.fillRect(px, py, cell, cell);
+    }
+    ctx.fillStyle = '#f2f4fa'; ctx.beginPath(); ctx.arc(tx(0), ty(0), 4, 0, 6.283); ctx.fill();
+    paths.forEach((P, k) => {
+      ctx.strokeStyle = OPTS[k].c; ctx.lineWidth = 2; ctx.beginPath();
+      P.p.forEach(([x, y], i) => { const cx = tx(Math.max(X0 - 1, Math.min(X1 + 1, x))), cy = ty(Math.max(Y0 - 1, Math.min(Y1 + 1, y))); i ? ctx.lineTo(cx, cy) : ctx.moveTo(cx, cy); });
+      ctx.stroke();
+      const [x, y] = P.p[P.p.length - 1]; ctx.fillStyle = OPTS[k].c; ctx.beginPath(); ctx.arc(tx(x), ty(y), 4.5, 0, 6.283); ctx.fill();
+    });
+    $('#o-table').innerHTML = '<table class="tbl"><thead><tr><th>optimizer</th><th>loss after ' + it + ' steps</th></tr></thead><tbody>' +
+      paths.map((P, k) => { const [x, y] = P.p[P.p.length - 1]; const L = f(x, y); return '<tr><td><span style="color:' + OPTS[k].c + '">●</span> ' + OPTS[k].n + '</td><td class="mono">' + (isFinite(L) && L < 1e4 ? L.toFixed(4) : 'diverged') + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  function oLoop() { oStep(); oDraw(); if (it >= 150) { raf = null; $('#o-run').innerHTML = PT.icon('play') + 'Race'; return; } raf = requestAnimationFrame(() => setTimeout(oLoop, 30)); }
+  $('#o-run').addEventListener('click', () => { if (raf) { cancelAnimationFrame(raf); raf = null; $('#o-run').innerHTML = PT.icon('play') + 'Race'; return; } if (it >= 150) oReset(); $('#o-run').innerHTML = PT.icon('pause') + 'Pause'; oLoop(); });
+  $('#o-reset').addEventListener('click', oReset);
+  const lrLab = () => { $('#o-lr-v').textContent = Math.pow(10, +$('#o-lr').value).toPrecision(2); };
+  $('#o-lr').addEventListener('input', () => { lrLab(); oReset(); }); lrLab();
+  $('#o-board').addEventListener('click', (e) => { const r = e.target.getBoundingClientRect(); start = [X0 + ((e.clientX - r.left) / r.width) * (X1 - X0), Y1 - ((e.clientY - r.top) / r.height) * (Y1 - Y0)]; oReset(); });
+
+  let cur = '';
+  PT.init('nn', (id) => { cur = id; if (id === 'loss') requestAnimationFrame(regLoss); if (id === 'optim') requestAnimationFrame(oReset); });
+  window.addEventListener('resize', () => { if (cur === 'loss') regLoss(); if (cur === 'optim') oDraw(); });
+})();
+</script>
+</body>
+</html>

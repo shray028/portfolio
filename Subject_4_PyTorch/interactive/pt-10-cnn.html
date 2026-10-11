@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNNs in PyTorch — Convolution, Padding, Stride, Pooling &amp; Shapes</title>
+  <meta name="description" content="Interactive convolution playground with kernels, padding and stride, max and average pooling, and a CNN shape and parameter calculator, plus a Fashion-MNIST CNN in PyTorch.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .conv-wrap { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+    .g { display: inline-grid; gap: 2px; }
+    .g span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 5px; font: 600 10.5px var(--font-mono); border: 1px solid transparent; transition: outline-color .15s; }
+    .g span.rf { outline: 2px solid var(--ember); outline-offset: -1px; }
+    .g span.pad { border: 1px dashed var(--line-strong); color: var(--dim); }
+    .g span.sel { outline: 2px solid var(--amber); outline-offset: -1px; }
+    .kern input { width: 44px; min-height: 30px; padding: 2px; text-align: center; font: 600 12px var(--font-mono); }
+    .kern { display: inline-grid; grid-template-columns: repeat(3, 44px); gap: 3px; }
+    .lr { display: grid; grid-template-columns: 30px 120px repeat(4, minmax(0, 1fr)) 30px; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font: 12px var(--font-mono); }
+    .lr input, .lr select { min-height: 28px; padding: 2px 6px; font-size: 12px; }
+    .lr .x { color: var(--dim); display: grid; place-items: center; height: 26px; border-radius: 6px; }
+    .lr .x:hover { color: var(--red); }
+    .lr.bad { border-color: rgba(248,113,113,.6); }
+    @media (max-width: 700px) { .g span { width: 24px; height: 24px; font-size: 9px; } .lr { grid-template-columns: 1fr 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 10 · COMPUTER VISION</span>
+      <h1>Convolutional <span class="grad">neural networks</span></h1>
+      <p class="desc">A CNN slides small learned filters over an image, so it sees local patterns — edges, corners, textures — with a tiny number of shared weights. Get the convolution, pooling and shape arithmetic right and building CNNs becomes mechanical.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Convolution playground · pooling · shape calculator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="conv"><span class="n">1</span>Convolution</button>
+      <button class="tab" data-tab="pool"><span class="n">2</span>Pooling</button>
+      <button class="tab" data-tab="shapes"><span class="n">3</span>Shape &amp; parameter calculator</button>
+      <button class="tab" data-tab="code"><span class="n">4</span>CNN on Fashion-MNIST</button>
+    </div></div>
+
+    <!-- ============ CONV ============ -->
+    <section class="tab-panel" data-panel="conv">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A filter slides, multiplies and sums <span class="imp">Must-know</span></h3>
+        <p>At each position the 3×3 kernel is multiplied element-wise with the patch under it and summed (plus a bias) to produce one output value. The kernel's weights are <strong>learned</strong> — the network discovers its own edge and texture detectors. <strong>Padding</strong> adds a border of zeros so edges get covered and size can be preserved; <strong>stride</strong> is the step between positions.</p>
+        <p><strong>out = ⌊(N − K + 2P) / S⌋ + 1</strong> &nbsp;—&nbsp; and a Conv2d has <strong>out_c × (in_c × K × K + 1)</strong> parameters, whatever the image size.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · convolution playground</div>
+      <div class="card card-pad">
+        <div class="btn-row">
+          <div class="seg" id="k-pre"><button data-v="vedge" class="on">vertical edge</button><button data-v="hedge">horizontal edge</button><button data-v="blur">blur</button><button data-v="sharp">sharpen</button><button data-v="id">identity</button></div>
+          <div class="seg" id="k-pad"><button data-v="0" class="on">padding=0</button><button data-v="1">padding=1</button></div>
+          <div class="seg" id="k-str"><button data-v="1" class="on">stride=1</button><button data-v="2">stride=2</button></div>
+          <button class="btn btn-sm" id="k-play"><i data-icon="play"></i>Animate</button>
+        </div>
+        <div class="conv-wrap mt2">
+          <div><div class="label" style="margin-bottom:4px" id="k-in-cap">input 7×7</div><div class="g" id="k-in"></div></div>
+          <div><div class="label" style="margin-bottom:4px">kernel 3×3 (editable)</div><div class="kern" id="k-k"></div></div>
+          <div><div class="label" style="margin-bottom:4px" id="k-out-cap"></div><div class="g" id="k-out"></div></div>
+        </div>
+        <div class="callout blue mt2" id="k-msg"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="conv2d.py" data-imp>
+conv = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1)
+x = torch.randn(64, 1, 28, 28)          # (N, C, H, W)
+print(conv(x).shape)                    # torch.Size([64, 32, 28, 28])  "same" size
+print(conv.weight.shape)                # torch.Size([32, 1, 3, 3])
+print(sum(p.numel() for p in conv.parameters()))   # 32*(1*3*3) + 32 = 320
+
+# A hand-set edge detector with the functional API
+k = torch.tensor([[[[-1., 0., 1.], [-1., 0., 1.], [-1., 0., 1.]]]])   # (out, in, 3, 3)
+edges = F.conv2d(img.unsqueeze(0), k, padding=1)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="cnn:conv"></div>
+    </section>
+
+    <!-- ============ POOL ============ -->
+    <section class="tab-panel" data-panel="pool" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Downsample by summarising windows</h3>
+        <p><code>nn.MaxPool2d(2)</code> keeps the largest value in each 2×2 window (stride defaults to the kernel size), halving height and width. It has no parameters, reduces compute for later layers, and makes the network a little tolerant to small shifts. Average pooling takes the mean instead; <code>nn.AdaptiveAvgPool2d((1, 1))</code> pools any size down to 1×1 per channel ("global average pooling").</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · pool a 6×6 feature map</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="seg" id="p-type"><button data-v="max" class="on">MaxPool2d(2)</button><button data-v="avg">AvgPool2d(2)</button><button data-v="max3">MaxPool2d(3, stride=3)</button></div><button class="btn btn-sm" id="p-new"><i data-icon="reset"></i>New feature map</button></div>
+        <div class="conv-wrap mt2"><div><div class="label" style="margin-bottom:4px">feature map 6×6</div><div class="g" id="p-in"></div></div><div><div class="label" style="margin-bottom:4px" id="p-cap"></div><div class="g" id="p-out"></div></div></div>
+        <p class="small muted mt">Hover an output cell to see its window.</p>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="pooling.py">
+x = torch.randn(8, 32, 28, 28)
+nn.MaxPool2d(2)(x).shape                 # (8, 32, 14, 14)
+nn.AvgPool2d(2)(x).shape                 # (8, 32, 14, 14)
+nn.AdaptiveAvgPool2d((1, 1))(x).shape    # (8, 32, 1, 1) -> flatten -> (8, 32)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="cnn:pool"></div>
+    </section>
+
+    <!-- ============ SHAPES ============ -->
+    <section class="tab-panel" data-panel="shapes" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Track (C, H, W) layer by layer <span class="imp">Must-know</span></h3>
+        <p>Convolutions change C to <code>out_channels</code> and shrink or keep H×W according to the formula; pooling divides H×W; activations and BatchNorm keep the shape. Before the classifier, <code>nn.Flatten()</code> turns <code>(C, H, W)</code> into <code>C·H·W</code> features — that number must be the <code>in_features</code> of the first Linear layer, and getting it wrong is the classic <em>"mat1 and mat2 shapes cannot be multiplied"</em> error.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · CNN shape calculator</div>
+      <div class="card card-pad">
+        <div class="btn-row">
+          <span class="small muted">input</span>
+          <input class="input mono" id="sc-c" type="number" value="1" min="1" style="width:64px" title="channels">
+          <input class="input mono" id="sc-h" type="number" value="28" min="1" style="width:72px" title="height">
+          <input class="input mono" id="sc-w" type="number" value="28" min="1" style="width:72px" title="width">
+          <button class="btn btn-sm" data-add="conv"><i data-icon="plus"></i>Conv2d</button>
+          <button class="btn btn-sm" data-add="pool"><i data-icon="plus"></i>MaxPool2d</button>
+          <button class="btn btn-sm" data-add="bn"><i data-icon="plus"></i>BatchNorm2d + ReLU</button>
+          <div class="seg" id="sc-pre"><button data-v="fm">Fashion-MNIST CNN</button><button data-v="vgg">VGG-style 224</button></div>
+        </div>
+        <div class="mt" style="display:grid;gap:6px" id="sc-rows"></div>
+        <div class="split mt2"><div class="grid-2" id="sc-stats"></div><div id="sc-code"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="cnn:shapes"></div>
+    </section>
+
+    <!-- ============ CODE ============ -->
+    <section class="tab-panel" data-panel="code" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Feature extractor + classifier</h3>
+        <p>The standard layout: blocks of <code>Conv → BatchNorm → ReLU → MaxPool</code> extract increasingly abstract features while halving resolution and growing channels (32 → 64 → 128). Then <code>Flatten → Linear → ReLU → Dropout → Linear</code> classifies. Everything else — DataLoader, loop, GPU, evaluation — is identical to the ANN in module 07.</p>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="cnn_fashion_mnist.py" data-imp>
+import torch, torch.nn as nn
+
+class MyCNN(nn.Module):
+    def __init__(self, n_classes=10):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(),
+            nn.MaxPool2d(2),                                  # 28 -> 14
+            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
+            nn.MaxPool2d(2),                                  # 14 -> 7
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),                                     # 64 * 7 * 7 = 3136
+            nn.Linear(64 * 7 * 7, 128), nn.ReLU(), nn.Dropout(0.4),
+            nn.Linear(128, n_classes),
+        )
+
+    def forward(self, x):
+        return self.classifier(self.features(x))
+
+model = MyCNN().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+loss_fn = nn.CrossEntropyLoss()
+# training / evaluation loop: identical to module 07
+
+# Data augmentation for images (training set only)
+from torchvision import transforms
+train_tf = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(10),
+    transforms.ToTensor(),
+    transforms.Normalize((0.2860,), (0.3530,)),   # Fashion-MNIST mean/std
+])
+      </textarea>
+      <div class="callout green mt"><i data-icon="check"></i><div>Compared with the 109k-parameter MLP, this CNN has far more of its parameters in the classifier than in the convolutions — the convolutional layers themselves are tiny because their weights are shared across every position.</div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="cnn:code"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, rng, fmt } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const shade = (v, mx) => { const t = Math.max(-1, Math.min(1, v / (mx || 1))); return t >= 0 ? 'rgba(255,122,89,' + (0.08 + t * 0.7) + ')' : 'rgba(95,179,249,' + (0.08 - t * 0.7) + ')'; };
+
+  /* ===== Convolution ===== */
+  const IMG = [
+    [0, 0, 0, 0, 0, 0, 0], [0, 0, 9, 9, 9, 0, 0], [0, 0, 9, 0, 9, 0, 0], [0, 0, 9, 0, 9, 0, 0], [0, 0, 9, 0, 9, 0, 0], [0, 0, 9, 9, 9, 0, 0], [0, 0, 0, 0, 0, 0, 0],
+  ];
+  const PRE = { vedge: [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]], hedge: [[-1, -1, -1], [0, 0, 0], [1, 1, 1]], blur: [[1, 1, 1], [1, 1, 1], [1, 1, 1]].map((r) => r.map((v) => +(v / 9).toFixed(3))), sharp: [[0, -1, 0], [-1, 5, -1], [0, -1, 0]], id: [[0, 0, 0], [0, 1, 0], [0, 0, 0]] };
+  let K = PRE.vedge.map((r) => r.slice()), P = 0, S = 1, sel = [0, 0], anim = null;
+  function padded() { const n = 7 + 2 * P; return Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => { const a = i - P, b = j - P; return a >= 0 && b >= 0 && a < 7 && b < 7 ? IMG[a][b] : null; })); }
+  function conv() { const X = padded(); const n = X.length; const o = Math.floor((n - 3) / S) + 1; const out = []; for (let i = 0; i < o; i++) { const r = []; for (let j = 0; j < o; j++) { let s = 0; for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) s += (X[i * S + a][j * S + b] || 0) * K[a][b]; r.push(s); } out.push(r); } return out; }
+  function kernelUI() {
+    $('#k-k').innerHTML = K.flat().map((v, i) => '<input class="input" data-k="' + i + '" value="' + v + '">').join('');
+    $$('#k-k input').forEach((el) => el.addEventListener('input', () => { const i = +el.dataset.k; const v = parseFloat(el.value); K[Math.floor(i / 3)][i % 3] = isNaN(v) ? 0 : v; $$('#k-pre button').forEach((b) => b.classList.remove('on')); drawConv(); }));
+  }
+  function drawConv() {
+    const X = padded(), out = conv(), o = out.length; if (sel[0] >= o || sel[1] >= o) sel = [0, 0];
+    const mx = Math.max(1, ...out.flat().map(Math.abs));
+    const [si, sj] = sel; const r0 = si * S, c0 = sj * S;
+    $('#k-in').style.gridTemplateColumns = 'repeat(' + X.length + ', auto)';
+    $('#k-in').innerHTML = X.map((row, i) => row.map((v, j) => { const rf = i >= r0 && i < r0 + 3 && j >= c0 && j < c0 + 3; return '<span class="' + (v === null ? 'pad' : '') + (rf ? ' rf' : '') + '" style="background:' + (v === null ? 'transparent' : v ? 'rgba(255,236,226,.75);color:#07080d' : 'var(--surface)') + '">' + (v === null ? '0' : v) + '</span>'; }).join('')).join('');
+    $('#k-out').style.gridTemplateColumns = 'repeat(' + o + ', auto)';
+    $('#k-out').innerHTML = out.map((row, i) => row.map((v, j) => '<span data-o="' + i + ',' + j + '" class="' + (i === si && j === sj ? 'sel' : '') + '" style="background:' + shade(v, mx) + '">' + fmt(v, 1) + '</span>').join('')).join('');
+    $$('#k-out span').forEach((el) => { const h = () => { if (anim) return; sel = el.dataset.o.split(',').map(Number); drawConv(); }; el.addEventListener('mouseenter', h); el.addEventListener('click', h); });
+    $('#k-in-cap').textContent = 'input 7×7' + (P ? ' + padding → ' + X.length + '×' + X.length : '');
+    $('#k-out-cap').textContent = 'output ' + o + '×' + o;
+    const terms = []; for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) { const v = X[r0 + a][c0 + b] || 0; if (v && K[a][b]) terms.push(v + '·' + K[a][b]); }
+    $('#k-msg').innerHTML = PT.icon('info') + '<div>Output size = ⌊(7 − 3 + 2·' + P + ') / ' + S + '⌋ + 1 = <b>' + o + '</b>. Cell [' + si + ', ' + sj + '] = Σ(patch ⊙ kernel) = ' + (terms.length ? terms.join(' + ') : '0') + ' = <b>' + fmt(out[si][sj], 2) + '</b>. ' +
+      ({ vedge: 'Positive where brightness rises left→right, negative where it falls — a vertical-edge detector.', hedge: 'Responds to horizontal edges (top/bottom of the shape).', blur: 'Averages each neighbourhood — smoothing.', sharp: 'Boosts the centre against its neighbours.', id: 'Copies the input — with padding=1, the output equals the image.' }[$('#k-pre .on') ? $('#k-pre .on').dataset.v : ''] || 'Custom kernel.') + '</div>';
+  }
+  segc('k-pre', (v) => { K = PRE[v].map((r) => r.slice()); kernelUI(); drawConv(); });
+  segc('k-pad', (v) => { P = +v; drawConv(); });
+  segc('k-str', (v) => { S = +v; drawConv(); });
+  $('#k-play').addEventListener('click', () => {
+    if (anim) { clearInterval(anim); anim = null; $('#k-play').innerHTML = PT.icon('play') + 'Animate'; return; }
+    $('#k-play').innerHTML = PT.icon('pause') + 'Stop';
+    let k = 0; const o = conv().length;
+    anim = setInterval(() => { sel = [Math.floor(k / o), k % o]; const a = anim; anim = null; drawConv(); anim = a; k++; if (k >= o * o) { clearInterval(anim); anim = null; $('#k-play').innerHTML = PT.icon('play') + 'Animate'; } }, 260);
+  });
+  kernelUI(); drawConv();
+
+  /* ===== Pooling ===== */
+  let pseed = 3, ptype = 'max', psel = [0, 0];
+  function drawPool() {
+    const r = rng(pseed); const F = Array.from({ length: 6 }, () => Array.from({ length: 6 }, () => Math.floor(r() * 10)));
+    const k = ptype === 'max3' ? 3 : 2; const o = 6 / k;
+    const out = []; for (let i = 0; i < o; i++) { const row = []; for (let j = 0; j < o; j++) { const win = []; for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) win.push(F[i * k + a][j * k + b]); row.push(ptype === 'avg' ? win.reduce((s, v) => s + v, 0) / win.length : Math.max(...win)); } out.push(row); }
+    if (psel[0] >= o || psel[1] >= o) psel = [0, 0];
+    const [si, sj] = psel;
+    const winColor = (i, j) => ((Math.floor(i / k) + Math.floor(j / k)) % 2 ? 'var(--surface)' : 'var(--panel-2)');
+    $('#p-in').style.gridTemplateColumns = 'repeat(6, auto)';
+    $('#p-in').innerHTML = F.map((row, i) => row.map((v, j) => { const inWin = Math.floor(i / k) === si && Math.floor(j / k) === sj; const isMax = inWin && ptype !== 'avg' && v === out[si][sj]; return '<span class="' + (inWin ? 'rf' : '') + '" style="background:' + (isMax ? 'rgba(255,122,89,.55)' : winColor(i, j)) + '">' + v + '</span>'; }).join('')).join('');
+    $('#p-out').style.gridTemplateColumns = 'repeat(' + o + ', auto)';
+    $('#p-out').innerHTML = out.map((row, i) => row.map((v, j) => '<span data-o="' + i + ',' + j + '" class="' + (i === si && j === sj ? 'sel' : '') + '" style="background:rgba(255,122,89,' + (0.1 + v / 14) + ')">' + fmt(v, 2) + '</span>').join('')).join('');
+    $$('#p-out span').forEach((el) => { const h = () => { psel = el.dataset.o.split(',').map(Number); drawPool(); }; el.addEventListener('mouseenter', h); el.addEventListener('click', h); });
+    $('#p-cap').textContent = 'output ' + o + '×' + o + ' (' + (ptype === 'avg' ? 'mean' : 'max') + ' of each ' + k + '×' + k + ' window)';
+  }
+  segc('p-type', (v) => { ptype = v; drawPool(); });
+  $('#p-new').addEventListener('click', () => { pseed++; drawPool(); });
+  drawPool();
+
+  /* ===== Shape calculator ===== */
+  const PRESETS = {
+    fm: { in: [1, 28, 28], L: [{ t: 'conv', o: 32, k: 3, s: 1, p: 1 }, { t: 'bn' }, { t: 'pool', k: 2, s: 2 }, { t: 'conv', o: 64, k: 3, s: 1, p: 1 }, { t: 'bn' }, { t: 'pool', k: 2, s: 2 }] },
+    vgg: { in: [3, 224, 224], L: [{ t: 'conv', o: 64, k: 3, s: 1, p: 1 }, { t: 'conv', o: 64, k: 3, s: 1, p: 1 }, { t: 'pool', k: 2, s: 2 }, { t: 'conv', o: 128, k: 3, s: 1, p: 1 }, { t: 'conv', o: 128, k: 3, s: 1, p: 1 }, { t: 'pool', k: 2, s: 2 }, { t: 'conv', o: 256, k: 3, s: 1, p: 1 }, { t: 'pool', k: 2, s: 2 }] },
+  };
+  let L = PRESETS.fm.L.map((x) => Object.assign({}, x));
+  function loadPreset(v) { const p = PRESETS[v]; $('#sc-c').value = p.in[0]; $('#sc-h').value = p.in[1]; $('#sc-w').value = p.in[2]; L = p.L.map((x) => Object.assign({}, x)); shapes(); }
+  segc('sc-pre', loadPreset);
+  $$('[data-add]').forEach((b) => b.addEventListener('click', () => { const t = b.dataset.add; L.push(t === 'conv' ? { t, o: 32, k: 3, s: 1, p: 1 } : t === 'pool' ? { t, k: 2, s: 2 } : { t }); shapes(); }));
+  ['sc-c', 'sc-h', 'sc-w'].forEach((id) => $('#' + id).addEventListener('input', shapes));
+  function shapes() {
+    let C = +$('#sc-c').value || 1, H = +$('#sc-h').value || 1, W = +$('#sc-w').value || 1; let total = 0; let broken = false;
+    const out = (n, k, s, p) => Math.floor((n - k + 2 * p) / s) + 1;
+    const code = [];
+    const rows = L.map((l, i) => {
+      let name, params = 0, inC = C;
+      if (l.t === 'conv') { params = l.o * (C * l.k * l.k + 1); H = out(H, l.k, l.s, l.p); W = out(W, l.k, l.s, l.p); name = 'Conv2d'; code.push('nn.Conv2d(' + C + ', ' + l.o + ', kernel_size=' + l.k + (l.s !== 1 ? ', stride=' + l.s : '') + (l.p ? ', padding=' + l.p : '') + ')'); C = l.o; }
+      else if (l.t === 'pool') { H = out(H, l.k, l.s, 0); W = out(W, l.k, l.s, 0); name = 'MaxPool2d'; code.push('nn.MaxPool2d(' + l.k + (l.s !== l.k ? ', stride=' + l.s : '') + ')'); }
+      else { params = 2 * C; name = 'BatchNorm2d+ReLU'; code.push('nn.BatchNorm2d(' + C + '), nn.ReLU()'); }
+      const bad = H < 1 || W < 1; if (bad) broken = true; total += params;
+      const fields = l.t === 'conv' ? ['o', 'k', 's', 'p'] : l.t === 'pool' ? ['k', 's'] : [];
+      const lab = { o: 'out', k: 'k', s: 's', p: 'pad' };
+      return '<div class="lr' + (bad ? ' bad' : '') + '"><span class="dim">' + i + '</span><span>' + name + '</span>' + [0, 1, 2, 3].map((q) => fields[q] ? '<label class="small muted" style="display:flex;gap:4px;align-items:center">' + lab[fields[q]] + '<input class="input mono" data-i="' + i + '" data-f="' + fields[q] + '" type="number" min="' + (fields[q] === 'p' ? 0 : 1) + '" value="' + l[fields[q]] + '" style="width:58px"></label>' : '<span></span>').join('') + '<button class="x" data-del="' + i + '" aria-label="Remove">' + PT.icon('trash') + '</button>' +
+        '<span></span><span class="small" style="grid-column: 2 / -1;color:' + (bad ? 'var(--red)' : 'var(--muted)') + '">→ (' + C + ', ' + H + ', ' + W + ')' + (params ? ' · ' + params.toLocaleString() + ' params' : '') + (bad ? ' · output size < 1!' : '') + '</span></div>';
+    });
+    $('#sc-rows').innerHTML = rows.join('') || '<p class="small muted">Add layers above.</p>';
+    $$('#sc-rows input').forEach((el) => el.addEventListener('change', () => { L[+el.dataset.i][el.dataset.f] = Math.max(el.dataset.f === 'p' ? 0 : 1, +el.value || 0); shapes(); }));
+    $$('#sc-rows [data-del]').forEach((el) => el.addEventListener('click', () => { L.splice(+el.dataset.del, 1); shapes(); }));
+    const flat = C * H * W;
+    $('#sc-stats').innerHTML = [[broken ? '—' : '(' + C + ', ' + H + ', ' + W + ')', 'feature-map shape'], [broken ? '—' : flat.toLocaleString(), 'Flatten → in_features'], [total.toLocaleString(), 'conv-stack parameters'], [broken ? '—' : (flat * 128 + 128).toLocaleString(), 'params in Linear(' + flat + ', 128)']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:16px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    setCode($('#sc-code'), 'features = nn.Sequential(\n' + code.map((c) => '    ' + c + ',').join('\n') + '\n)\nclassifier = nn.Sequential(\n    nn.Flatten(),\n    nn.Linear(' + (broken ? '???' : flat) + ', 128), nn.ReLU(),\n    nn.Linear(128, 10),\n)', 'generated');
+  }
+  shapes();
+
+  PT.init('cnn');
+})();
+</script>
+</body>
+</html>

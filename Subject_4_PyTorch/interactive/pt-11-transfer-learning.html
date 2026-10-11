@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transfer Learning in PyTorch — Freezing, New Heads &amp; Fine-tuning</title>
+  <meta name="description" content="Transfer learning with torchvision: what pretrained layers learn, an interactive freeze/unfreeze explorer for ResNet-18 and VGG16 with real parameter counts, strategy by dataset size and similarity, and fine-tuning code.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .hier { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .hier div { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); }
+    .hier b { display: block; font-size: 13.5px; } .hier span { color: var(--muted); font-size: 12.5px; }
+    .hier small { font: 700 10.5px var(--font-mono); color: var(--ember); letter-spacing: .06em; }
+    .blk { display: grid; grid-template-columns: 110px 1fr 120px 110px; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); cursor: pointer; transition: border-color .2s, background .2s; }
+    .blk .bar { height: 10px; }
+    .blk.frozen { background: rgba(95,179,249,.06); border-color: rgba(95,179,249,.35); }
+    .blk.train { background: rgba(255,122,89,.07); border-color: rgba(255,122,89,.5); }
+    .blk .st { text-align: right; font-weight: 700; }
+    .blk.frozen .st { color: var(--blue); } .blk.train .st { color: var(--ember); }
+    .matrix { display: grid; grid-template-columns: 90px 1fr 1fr; grid-template-rows: auto 1fr 1fr; gap: 8px; }
+    .matrix .ax { font: 600 11px var(--font-mono); color: var(--dim); display: grid; place-items: center; text-align: center; }
+    .matrix .q { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); min-height: 120px; transition: border-color .25s, background .25s; }
+    .matrix .q.on { border-color: rgba(255,122,89,.7); background: rgba(255,122,89,.08); }
+    .matrix .q b { display: block; font-size: 14px; margin-bottom: 4px; } .matrix .q span { color: var(--muted); font-size: 12.8px; }
+    @media (max-width: 800px) { .hier { grid-template-columns: repeat(2, minmax(0, 1fr)); } .blk { grid-template-columns: 1fr 1fr; } .blk .bar { display: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 11 · COMPUTER VISION</span>
+      <h1><span class="grad">Transfer learning</span> — stand on ImageNet's shoulders</h1>
+      <p class="desc">Training a CNN from scratch needs millions of images. A network pretrained on ImageNet already knows edges, textures and object parts — reuse that knowledge, replace the last layer, and train on a few thousand images of your own.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Freeze explorer with real ResNet-18 / VGG16 counts</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="why"><span class="n">1</span>Why it works</button>
+      <button class="tab" data-tab="freeze"><span class="n">2</span>Freeze &amp; replace the head</button>
+      <button class="tab" data-tab="strategy"><span class="n">3</span>Choosing a strategy</button>
+      <button class="tab" data-tab="code"><span class="n">4</span>Fine-tuning code</button>
+    </div></div>
+
+    <!-- ============ WHY ============ -->
+    <section class="tab-panel" data-panel="why">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Features are reusable <span class="imp">Must-know</span></h3>
+        <p>Layers of a CNN trained on ImageNet (1.2M images, 1,000 classes) form a hierarchy. The early layers are almost universal; the last layers are specific to ImageNet's classes. So we keep the general part (the <strong>backbone</strong>) and swap the specific part (the <strong>head</strong>).</p>
+        <div class="hier mt">
+          <div><small>EARLY LAYERS</small><b>Edges &amp; colours</b><span>Oriented lines, colour blobs — useful for any image.</span></div>
+          <div><small>MIDDLE</small><b>Textures &amp; patterns</b><span>Fur, grids, stripes, simple shapes.</span></div>
+          <div><small>DEEP</small><b>Object parts</b><span>Eyes, wheels, petals — more dataset-specific.</span></div>
+          <div><small>HEAD</small><b>1,000 ImageNet classes</b><span>Throw away; replace with your own classes.</span></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transfer:why"></div>
+    </section>
+
+    <!-- ============ FREEZE ============ -->
+    <section class="tab-panel" data-panel="freeze" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Frozen = <code>requires_grad=False</code> <span class="imp">Must-know</span></h3>
+        <p>A frozen layer still runs in the forward pass but gets no gradients and is never updated — so it costs no optimizer memory and its knowledge is preserved. <strong>Feature extraction</strong> freezes the whole backbone and trains only the new head. <strong>Fine-tuning</strong> also unfreezes the deepest blocks, with a small learning rate.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · click blocks to freeze or unfreeze</div>
+      <div class="card card-pad">
+        <div class="btn-row">
+          <div class="seg" id="f-model"><button data-v="resnet" class="on">ResNet-18</button><button data-v="vgg">VGG16</button></div>
+          <div class="seg" id="f-pre"><button data-v="fe" class="on">Feature extraction</button><button data-v="ft1">Fine-tune last block</button><button data-v="full">Full fine-tune</button></div>
+          <label class="small muted" style="display:flex;gap:6px;align-items:center">your classes <input class="input mono" id="f-n" type="number" min="2" value="5" style="width:70px"></label>
+        </div>
+        <div class="mt" style="display:grid;gap:6px" id="f-blocks"></div>
+        <div class="split mt2"><div class="grid-2" id="f-stats"></div><div id="f-code"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transfer:freeze"></div>
+    </section>
+
+    <!-- ============ STRATEGY ============ -->
+    <section class="tab-panel" data-panel="strategy" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Two questions decide how much to unfreeze</h3>
+        <p>How much labelled data do you have? And how similar are your images to ImageNet photos? More data lets you safely update more weights; less similar images need deeper layers to adapt.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · strategy picker</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">labelled images per class</span><div class="range-row"><input type="range" id="st-n" min="1" max="4" step="0.1" value="1.7"><span class="val" id="st-n-v"></span></div></div>
+          <div class="field"><span class="label-t">similarity to ImageNet</span><div class="range-row"><input type="range" id="st-s" min="0" max="1" step="0.05" value="0.8"><span class="val" id="st-s-v"></span></div></div>
+          <div class="btn-row" id="st-ex"></div>
+        </div>
+        <div class="matrix" id="st-m"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transfer:strategy"></div>
+    </section>
+
+    <!-- ============ CODE ============ -->
+    <section class="tab-panel" data-panel="code" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A two-phase recipe that works</h3>
+        <ol>
+          <li>Load pretrained weights <em>and their matching transforms</em>.</li>
+          <li>Freeze the backbone, replace the head, train a few epochs (lr ≈ 1e-3).</li>
+          <li>Unfreeze the last block(s), train a few more epochs with a smaller lr for the backbone (≈ 1e-4).</li>
+        </ol>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="transfer_learning.py" data-imp>
+import torch, torch.nn as nn
+from torchvision import datasets, transforms
+from torchvision.models import resnet18, ResNet18_Weights
+
+weights = ResNet18_Weights.DEFAULT
+train_tf = transforms.Compose([
+    transforms.RandomResizedCrop(224),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),   # ImageNet stats
+])
+val_tf = weights.transforms()              # resize 256 -> centre crop 224 -> normalise
+
+train_ds = datasets.ImageFolder("data/train", transform=train_tf)   # one folder per class
+val_ds = datasets.ImageFolder("data/val", transform=val_tf)
+num_classes = len(train_ds.classes)
+
+model = resnet18(weights=weights)
+for p in model.parameters():               # phase 1: freeze everything
+    p.requires_grad = False
+model.fc = nn.Linear(model.fc.in_features, num_classes)   # new head, trainable
+model = model.to(device)
+
+opt = torch.optim.Adam(model.fc.parameters(), lr=1e-3)
+train(model, opt, epochs=5)
+
+for p in model.layer4.parameters():        # phase 2: unfreeze the last block
+    p.requires_grad = True
+opt = torch.optim.AdamW([
+    {"params": model.layer4.parameters(), "lr": 1e-4},
+    {"params": model.fc.parameters(), "lr": 1e-3},
+], weight_decay=1e-4)
+train(model, opt, epochs=5)
+
+# VGG16 variant (as in many tutorials): replace the last classifier layer
+# vgg = torchvision.models.vgg16(weights="DEFAULT"); vgg.classifier[6] = nn.Linear(4096, num_classes)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transfer:code"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Freeze explorer (real torchvision parameter counts) ===== */
+  const MODELS = {
+    resnet: { name: 'resnet18', head: 'fc', headIn: 512, blocks: [['conv1', 9408], ['bn1', 128], ['layer1', 147968], ['layer2', 525568], ['layer3', 2099712], ['layer4', 8393728]] },
+    vgg: { name: 'vgg16', head: 'classifier[6]', headIn: 4096, blocks: [['features[0:5]', 38720], ['features[5:10]', 221440], ['features[10:17]', 1475328], ['features[17:24]', 5899776], ['features[24:31]', 7079424], ['classifier[0]', 102764544], ['classifier[3]', 16781312]] },
+  };
+  let mk = 'resnet', train = new Set();
+  function preset(v) {
+    const B = MODELS[mk].blocks.map((b) => b[0]); train = new Set();
+    if (v === 'ft1') { if (mk === 'resnet') train.add('layer4'); else { train.add('features[24:31]'); train.add('classifier[0]'); train.add('classifier[3]'); } }
+    if (v === 'full') B.forEach((b) => train.add(b));
+    freeze();
+  }
+  function freeze() {
+    const M = MODELS[mk]; const n = Math.max(2, +$('#f-n').value || 2);
+    const headP = M.headIn * n + n;
+    const all = M.blocks.concat([[M.head + ' (new)', headP]]);
+    const mx = Math.max(...all.map((b) => b[1]));
+    let total = 0, tr = 0;
+    $('#f-blocks').innerHTML = all.map(([nm, p], i) => {
+      const isHead = i === all.length - 1; const t = isHead || train.has(nm);
+      total += p; if (t) tr += p;
+      return '<div class="blk ' + (t ? 'train' : 'frozen') + '" data-b="' + esc(nm) + '"' + (isHead ? ' style="cursor:default"' : '') + '><span>' + esc(nm) + '</span><div class="bar"><span style="width:' + Math.max(1, p / mx * 100) + '%;background:' + (t ? 'var(--ember)' : 'var(--blue)') + '"></span></div><span style="text-align:right">' + p.toLocaleString() + '</span><span class="st">' + (isHead ? 'TRAIN (new)' : t ? 'TRAIN' : 'FROZEN') + '</span></div>';
+    }).join('');
+    $$('#f-blocks .blk').forEach((el, i) => { if (i === all.length - 1) return; el.addEventListener('click', () => { const b = el.dataset.b; train.has(b) ? train.delete(b) : train.add(b); $$('#f-pre button').forEach((x) => x.classList.remove('on')); freeze(); }); });
+    $('#f-stats').innerHTML = [[tr.toLocaleString(), 'trainable parameters'], [(tr / total * 100).toFixed(tr / total < 0.01 ? 2 : 1) + '%', 'of the whole model'], [(tr * 12 / 1048576 >= 1 ? (tr * 12 / 1048576).toFixed(1) + ' MB' : (tr * 12 / 1024).toFixed(0) + ' KB'), 'grads + Adam state (fp32)'], [total.toLocaleString(), 'total parameters']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:16px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    const unf = [...train];
+    const W = mk === 'resnet' ? 'ResNet18_Weights' : 'VGG16_Weights';
+    let code = 'from torchvision.models import ' + M.name + ', ' + W + '\nmodel = ' + M.name + '(weights=' + W + '.DEFAULT)\n\nfor p in model.parameters():\n    p.requires_grad = False\n';
+    unf.forEach((b) => { const ref = b.startsWith('features[') ? 'model.features[' + b.slice(9, -1).replace(':', ':') + ']' : 'model.' + b; code += 'for p in ' + ref + '.parameters():\n    p.requires_grad = True\n'; });
+    code += 'model.' + M.head + ' = nn.Linear(' + M.headIn + ', ' + n + ')\n\nparams = [p for p in model.parameters() if p.requires_grad]\nopt = torch.optim.Adam(params, lr=' + (unf.length ? '1e-4' : '1e-3') + ')';
+    setCode($('#f-code'), code, 'setup');
+  }
+  segc('f-model', (v) => { mk = v; $$('#f-pre button').forEach((x, i) => x.classList.toggle('on', i === 0)); preset('fe'); });
+  segc('f-pre', preset);
+  $('#f-n').addEventListener('input', freeze);
+  preset('fe');
+
+  /* ===== Strategy matrix ===== */
+  const EX = [['Cats vs dogs, 50/class', 1.7, 0.95], ['Retail products, 5k/class', 3.7, 0.75], ['Chest X-rays, 100/class', 2.0, 0.15], ['Satellite tiles, 20k/class', 4.0, 0.2]];
+  $('#st-ex').innerHTML = EX.map((e, i) => '<button class="btn btn-sm" data-i="' + i + '">' + e[0] + '</button>').join('');
+  $('#st-ex').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const x = EX[+b.dataset.i]; $('#st-n').value = x[1]; $('#st-s').value = x[2]; strat(); });
+  function strat() {
+    const n = Math.round(Math.pow(10, +$('#st-n').value)), s = +$('#st-s').value;
+    $('#st-n-v').textContent = n.toLocaleString(); $('#st-s-v').textContent = s < 0.35 ? 'low' : s < 0.65 ? 'medium' : 'high';
+    const big = n >= 1000, sim = s >= 0.5;
+    const Q = [
+      { k: 'small-sim', b: 'Feature extraction', d: 'Freeze the backbone, train only the new head. Little data can\'t safely move millions of weights.' },
+      { k: 'big-sim', b: 'Fine-tune later blocks (or all)', d: 'Enough data to adapt deep features with a small learning rate.' },
+      { k: 'small-dif', b: 'Head + last block or two', d: 'Early generic features still transfer; adapt the deep, specific ones carefully. Use heavy augmentation.' },
+      { k: 'big-dif', b: 'Fine-tune everything', d: 'Pretrained weights are still a good initialisation; with lots of data you can even train from scratch.' },
+    ];
+    const on = (big ? 'big' : 'small') + '-' + (sim ? 'sim' : 'dif');
+    const q = (k) => { const x = Q.find((z) => z.k === k); return '<div class="q' + (k === on ? ' on' : '') + '"><b>' + x.b + '</b><span>' + x.d + '</span></div>'; };
+    $('#st-m').innerHTML = '<span></span><span class="ax">small dataset</span><span class="ax">large dataset</span><span class="ax">similar to ImageNet</span>' + q('small-sim') + q('big-sim') + '<span class="ax">different</span>' + q('small-dif') + q('big-dif');
+  }
+  ['st-n', 'st-s'].forEach((id) => $('#' + id).addEventListener('input', strat)); strat();
+
+  PT.init('transfer');
+})();
+</script>
+</body>
+</html>

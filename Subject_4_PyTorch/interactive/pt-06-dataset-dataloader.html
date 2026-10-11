@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dataset &amp; DataLoader — Batching, Shuffling, collate_fn &amp; Samplers</title>
+  <meta name="description" content="Interactive PyTorch Dataset and DataLoader lab: custom datasets, batch visualiser with shuffle and drop_last, padding with collate_fn, WeightedRandomSampler for imbalance and num_workers timelines.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="pt-lab.css?v=2026-10-11">
+  <style>
+    .rows { display: grid; gap: 6px; }
+    .brow { display: grid; grid-template-columns: 74px 1fr 60px; gap: 10px; align-items: center; font: 12px var(--font-mono); }
+    .brow .lab { color: var(--dim); }
+    .brow .n { text-align: right; color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 3px; }
+    .s { min-width: 26px; height: 24px; padding: 0 4px; display: grid; place-items: center; border-radius: 6px; font: 600 10.5px var(--font-mono); color: #07080d; }
+    .s.c0 { background: #5fb3f9; } .s.c1 { background: #ff7a59; } .s.c2 { background: #4ade80; } .s.drop { opacity: .3; outline: 1px dashed var(--red); }
+    .csv { width: 100%; border-collapse: collapse; font: 12px var(--font-mono); }
+    .csv td, .csv th { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+    .csv th { color: var(--dim); font-size: 10.5px; }
+    .csv tr.on td { background: rgba(255,122,89,.12); }
+    .tok { display: inline-grid; place-items: center; min-width: 52px; height: 28px; padding: 0 6px; border-radius: 7px; font: 600 11px var(--font-mono); background: var(--surface); border: 1px solid var(--line); }
+    .tok.pad { opacity: .45; border-style: dashed; }
+    .gantt { display: grid; gap: 6px; }
+    .lane { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: center; font: 11.5px var(--font-mono); color: var(--muted); }
+    .track { position: relative; height: 22px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .track span { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; font: 600 9.5px/18px var(--font-mono); color: #07080d; text-align: center; overflow: hidden; }
+    .track .ld { background: #fbbf24; } .track .gp { background: #4ade80; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 06 · TRAINING WORKFLOW</span>
+      <h1><span class="grad">Dataset &amp; DataLoader</span></h1>
+      <p class="desc">A <code>Dataset</code> answers two questions — how many samples, and what is sample <em>i</em>? A <code>DataLoader</code> turns that into shuffled, batched, parallel-loaded tensors. Together they decouple "where data comes from" from "how the model trains".</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Batch visualiser · padding · samplers · workers timeline</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="why"><span class="n">1</span>Why mini-batches</button>
+      <button class="tab" data-tab="dataset"><span class="n">2</span>Custom Dataset</button>
+      <button class="tab" data-tab="loader"><span class="n">3</span>DataLoader</button>
+      <button class="tab" data-tab="collate"><span class="n">4</span>collate_fn &amp; padding</button>
+      <button class="tab" data-tab="sampler"><span class="n">5</span>Samplers &amp; workers</button>
+    </div></div>
+
+    <!-- ============ WHY ============ -->
+    <section class="tab-panel" data-panel="why">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Full batch, single sample, or mini-batch?</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th></th><th>Batch GD</th><th>Stochastic GD</th><th>Mini-batch GD</th></tr></thead>
+          <tbody>
+            <tr><td>Samples per update</td><td>all N</td><td>1</td><td>B (32–256)</td></tr>
+            <tr><td>Updates per epoch</td><td>1</td><td>N</td><td>⌈N / B⌉</td></tr>
+            <tr><td>Memory</td><td>whole dataset on GPU</td><td>tiny</td><td>one batch</td></tr>
+            <tr><td>Gradient noise</td><td>none</td><td>very high</td><td>moderate — helps escape sharp minima</td></tr>
+            <tr><td>GPU utilisation</td><td>good if it fits</td><td>poor</td><td>good</td></tr>
+          </tbody>
+        </table></div>
+        <p class="mt">In the from-scratch pipeline we pushed all 455 training rows through at once. That stops working the moment your data is 60,000 images — or 6 million. Mini-batches are the standard; <code>DataLoader</code> produces them.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · iterations per epoch</div>
+      <div class="card card-pad grid-2">
+        <div class="controls">
+          <div class="field"><span class="label-t">dataset size N</span><div class="range-row"><input type="range" id="w-n" min="100" max="100000" step="100" value="60000"><span class="val" id="w-n-v"></span></div></div>
+          <div class="field"><span class="label-t">batch size B</span><div class="range-row"><input type="range" id="w-b" min="0" max="10" step="1" value="6"><span class="val" id="w-b-v"></span></div></div>
+          <div class="field"><span class="label-t">epochs</span><div class="range-row"><input type="range" id="w-e" min="1" max="50" step="1" value="10"><span class="val" id="w-e-v"></span></div></div>
+        </div>
+        <div class="grid-2" id="w-stats"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="data:why"></div>
+    </section>
+
+    <!-- ============ DATASET ============ -->
+    <section class="tab-panel" data-panel="dataset" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Two methods: <code>__len__</code> and <code>__getitem__</code> <span class="imp">Must-know</span></h3>
+        <p>Subclass <code>torch.utils.data.Dataset</code>. In <code>__init__</code>, load the cheap stuff (a dataframe, a list of file paths). In <code>__getitem__(idx)</code>, do the per-sample work — read the image, apply transforms, convert to tensors — and return one sample. Lazy loading keeps memory low and lets DataLoader workers do the work in parallel.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · what does ds[i] return?</div>
+      <div class="card card-pad split">
+        <div>
+          <table class="csv" id="d-csv"></table>
+          <div class="field mt"><span class="label-t">index i</span><div class="range-row"><input type="range" id="d-i" min="0" max="7" step="1" value="2"><span class="val" id="d-i-v"></span></div></div>
+          <label class="small mt" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="d-tf" checked> apply transform (standardise features)</label>
+        </div>
+        <div><div id="d-code"></div><div id="d-out" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="custom_dataset.py" data-imp>
+import torch, pandas as pd
+from torch.utils.data import Dataset
+
+class TabularDataset(Dataset):
+    def __init__(self, csv_path, transform=None):
+        df = pd.read_csv(csv_path)
+        self.X = torch.tensor(df.drop(columns="label").values, dtype=torch.float32)
+        self.y = torch.tensor(df["label"].values, dtype=torch.long)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        x = self.X[idx]
+        if self.transform:
+            x = self.transform(x)
+        return x, self.y[idx]
+
+class ImageFolderDataset(Dataset):            # lazy: read files on demand
+    def __init__(self, paths, labels, transform):
+        self.paths, self.labels, self.transform = paths, labels, transform
+    def __len__(self):
+        return len(self.paths)
+    def __getitem__(self, i):
+        img = Image.open(self.paths[i]).convert("RGB")
+        return self.transform(img), self.labels[i]
+
+# Built-ins: TensorDataset(X, y), torchvision.datasets.FashionMNIST, ImageFolder
+# Split:     train_ds, val_ds = torch.utils.data.random_split(ds, [0.8, 0.2])
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="data:dataset"></div>
+    </section>
+
+    <!-- ============ LOADER ============ -->
+    <section class="tab-panel" data-panel="loader" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>DataLoader = sampler + batching + collate + workers <span class="imp">Must-know</span></h3>
+        <p>Each epoch the DataLoader asks a sampler for an order of indices (shuffled or sequential), groups them into batches of <code>batch_size</code>, calls <code>dataset[i]</code> for each index (in worker processes if <code>num_workers &gt; 0</code>), and stacks the samples into batch tensors with <code>collate_fn</code>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · batch visualiser</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">len(dataset)</span><div class="range-row"><input type="range" id="b-n" min="5" max="40" step="1" value="22"><span class="val" id="b-n-v"></span></div></div>
+          <div class="field"><span class="label-t">batch_size</span><div class="range-row"><input type="range" id="b-bs" min="1" max="16" step="1" value="5"><span class="val" id="b-bs-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="b-sh" checked> shuffle=True</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="b-dl"> drop_last=True</label>
+          <button class="btn btn-primary" id="b-ep"><i data-icon="play"></i>Next epoch</button>
+          <div id="b-code"></div>
+        </div>
+        <div><div class="rows" id="b-rows"></div><div id="b-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="dataloader.py" data-imp>
+from torch.utils.data import DataLoader
+
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True,
+                          num_workers=4, pin_memory=True, drop_last=True)
+val_loader = DataLoader(val_ds, batch_size=256, shuffle=False, num_workers=4)
+
+xb, yb = next(iter(train_loader))      # peek at one batch
+print(xb.shape, yb.shape)              # torch.Size([64, 1, 28, 28]) torch.Size([64])
+print(len(train_loader))               # number of batches per epoch
+
+for epoch in range(epochs):
+    for xb, yb in train_loader:        # reshuffled every epoch
+        ...
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="data:loader"></div>
+    </section>
+
+    <!-- ============ COLLATE ============ -->
+    <section class="tab-panel" data-panel="collate" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>When samples don't have the same shape <span class="imp">Must-know</span></h3>
+        <p>The default <code>collate_fn</code> calls <code>torch.stack</code>, which needs equal shapes. Sentences have different lengths, so stacking fails with <em>"stack expects each tensor to be equal size"</em>. A custom <code>collate_fn</code> pads each batch to its <strong>own</strong> longest sequence — cheaper than padding the whole dataset to the global maximum — and returns the true lengths.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · pad a batch</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="seg" id="p-side"><button data-v="right" class="on">pad right</button><button data-v="left">pad left</button></div><button class="btn btn-sm" id="p-new"><i data-icon="reset"></i>New batch</button></div>
+        <div class="mt2" id="p-rows" style="display:grid;gap:6px"></div>
+        <div class="grid-3 mt2" id="p-stats"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="collate_padding.py" data-imp>
+from torch.nn.utils.rnn import pad_sequence
+
+def collate_batch(batch):
+    seqs, labels = zip(*batch)                       # tuples of tensors
+    lengths = torch.tensor([len(s) for s in seqs])
+    padded = pad_sequence(seqs, batch_first=True, padding_value=0)   # (B, max_len)
+    return padded, torch.tensor(labels), lengths
+
+loader = DataLoader(text_ds, batch_size=32, shuffle=True, collate_fn=collate_batch)
+emb = nn.Embedding(vocab_size, 64, padding_idx=0)    # PAD id 0 stays a zero vector
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="data:collate"></div>
+    </section>
+
+    <!-- ============ SAMPLER ============ -->
+    <section class="tab-panel" data-panel="sampler" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Controlling order and throughput</h3>
+        <p>A <strong>sampler</strong> decides which indices are drawn and in what order. <code>WeightedRandomSampler</code> oversamples rare classes so each batch is roughly balanced. <strong>Workers</strong> load the next batches in background processes while the GPU trains on the current one.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · imbalanced data (90% / 10%)</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="seg" id="sm-mode"><button data-v="rand" class="on">shuffle=True</button><button data-v="weighted">WeightedRandomSampler</button></div>
+          <button class="btn btn-sm" id="sm-draw"><i data-icon="reset"></i>Draw again</button>
+          <div class="grid-2" id="sm-stats"></div>
+        </div>
+        <div class="rows" id="sm-rows"></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · num_workers timeline</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">num_workers</span><div class="range-row"><input type="range" id="nw" min="0" max="4" step="1" value="0"><span class="val" id="nw-v"></span></div></div>
+          <div class="field"><span class="label-t">load time per batch (ms)</span><div class="range-row"><input type="range" id="nw-l" min="5" max="60" step="5" value="30"><span class="val" id="nw-l-v"></span></div></div>
+          <div class="field"><span class="label-t">GPU time per batch (ms)</span><div class="range-row"><input type="range" id="nw-g" min="5" max="60" step="5" value="15"><span class="val" id="nw-g-v"></span></div></div>
+          <div class="grid-2" id="nw-stats"></div>
+        </div>
+        <div class="gantt" id="nw-gantt"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="samplers.py">
+from torch.utils.data import WeightedRandomSampler
+
+counts = torch.bincount(train_labels)                 # e.g. tensor([900, 100])
+sample_w = 1.0 / counts[train_labels].float()         # rare class -> big weight
+sampler = WeightedRandomSampler(sample_w, num_samples=len(sample_w), replacement=True)
+loader = DataLoader(train_ds, batch_size=32, sampler=sampler)   # no shuffle with a sampler
+
+loader = DataLoader(train_ds, batch_size=64, shuffle=True,
+                    num_workers=4, pin_memory=True, persistent_workers=True, prefetch_factor=2)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="data:sampler"></div>
+    </section>
+  </div>
+</main>
+
+<script src="pt-qa.js?v=2026-10-11"></script>
+<script src="pt-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, rng } = PT;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== why ===== */
+  const BS = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+  function why() {
+    const N = +$('#w-n').value, B = BS[+$('#w-b').value], E = +$('#w-e').value;
+    $('#w-n-v').textContent = N.toLocaleString(); $('#w-b-v').textContent = B; $('#w-e-v').textContent = E;
+    const it = Math.ceil(N / B), last = N % B || B;
+    $('#w-stats').innerHTML = [[it.toLocaleString(), 'iterations / epoch'], [(it * E).toLocaleString(), 'optimizer steps in total'], [last, 'size of last batch'], [(B * 784 * 4 / 1024).toFixed(0) + ' KB', 'one MNIST batch (float32)']].map(([v, k]) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  ['w-n', 'w-b', 'w-e'].forEach((id) => $('#' + id).addEventListener('input', why)); why();
+
+  /* ===== dataset ===== */
+  const ROWS = [[5.1, 3.5, 0], [6.2, 2.9, 1], [4.7, 3.2, 0], [6.9, 3.1, 2], [5.8, 2.7, 1], [6.3, 3.3, 2], [5.0, 3.6, 0], [6.1, 2.8, 1]];
+  const mu = [0, 1].map((j) => ROWS.reduce((s, r) => s + r[j], 0) / ROWS.length);
+  const sd = [0, 1].map((j) => Math.sqrt(ROWS.reduce((s, r) => s + (r[j] - mu[j]) ** 2, 0) / ROWS.length));
+  function ds() {
+    const i = +$('#d-i').value; $('#d-i-v').textContent = i;
+    $('#d-csv').innerHTML = '<tr><th>idx</th><th>sepal_len</th><th>sepal_wid</th><th>label</th></tr>' + ROWS.map((r, k) => '<tr class="' + (k === i ? 'on' : '') + '"><td>' + k + '</td><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('');
+    const tf = $('#d-tf').checked; const r = ROWS[i];
+    const x = tf ? [0, 1].map((j) => ((r[j] - mu[j]) / sd[j]).toFixed(4)) : [r[0].toFixed(4), r[1].toFixed(4)];
+    setCode($('#d-code'), 'len(ds)        # -> 8   (__len__)\nx, y = ds[' + i + ']   # -> __getitem__(' + i + ')' + (tf ? '\n# transform: (x - mean) / std' : ''), 'usage');
+    $('#d-out').innerHTML = '<div class="ok-box">x = tensor([' + x.join(', ') + '])   # float32, shape (2,)\ny = tensor(' + r[2] + ')                    # int64 class id</div>';
+  }
+  $('#d-i').addEventListener('input', ds); $('#d-tf').addEventListener('change', ds); ds();
+
+  /* ===== loader ===== */
+  let epoch = 1;
+  function loader() {
+    const N = +$('#b-n').value, B = +$('#b-bs').value, sh = $('#b-sh').checked, dl = $('#b-dl').checked;
+    $('#b-n-v').textContent = N; $('#b-bs-v').textContent = B;
+    const r = rng(epoch * 97 + N);
+    const idx = [...Array(N).keys()];
+    if (sh) for (let i = N - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    const batches = []; for (let k = 0; k < N; k += B) batches.push(idx.slice(k, k + B));
+    const lastSmall = batches.length && batches[batches.length - 1].length < B;
+    $('#b-rows').innerHTML = '<div class="label" style="margin-bottom:4px">epoch ' + epoch + ' — chips are dataset indices, colour = class</div>' + batches.map((b, k) => {
+      const dropped = dl && lastSmall && k === batches.length - 1;
+      return '<div class="brow"><span class="lab">batch ' + k + '</span><span class="chips">' + b.map((i) => '<span class="s c' + (i % 3) + (dropped ? ' drop' : '') + '">' + i + '</span>').join('') + '</span><span class="n">' + (dropped ? 'dropped' : b.length) + '</span></div>';
+    }).join('');
+    const nb = dl ? Math.floor(N / B) : Math.ceil(N / B);
+    $('#b-note').innerHTML = '<div class="callout blue">' + PT.icon('info') + '<div><code>len(loader)</code> = ' + (dl ? '⌊' : '⌈') + N + ' / ' + B + (dl ? '⌋' : '⌉') + ' = <b>' + nb + '</b> batches.' + (lastSmall ? (dl ? ' The last ' + (N % B) + ' samples are skipped this epoch (a different few each epoch when shuffling).' : ' The last batch has only ' + (N % B) + ' samples — fine, unless a layer like BatchNorm gets a batch of 1.') : ' N divides evenly.') + (sh ? ' Press <b>Next epoch</b>: the order changes every epoch.' : ' Without shuffle the order is identical every epoch.') + '</div></div>';
+    setCode($('#b-code'), 'DataLoader(ds, batch_size=' + B + ', shuffle=' + (sh ? 'True' : 'False') + (dl ? ', drop_last=True' : '') + ')', 'loader');
+  }
+  ['b-n', 'b-bs'].forEach((id) => $('#' + id).addEventListener('input', loader));
+  ['b-sh', 'b-dl'].forEach((id) => $('#' + id).addEventListener('change', loader));
+  $('#b-ep').addEventListener('click', () => { epoch++; loader(); });
+  loader();
+
+  /* ===== collate ===== */
+  const SENTS = ['i love pytorch', 'tensors are just arrays', 'hello', 'autograd computes gradients for me', 'batch it', 'dataloaders shuffle every single epoch', 'pad me please', 'short'];
+  const vocab = {}; let nextId = 2;
+  const id = (w) => (vocab[w] || (vocab[w] = nextId++));
+  let side = 'right', pick = [0, 1, 2, 3];
+  function collate() {
+    const seqs = pick.map((k) => SENTS[k].split(' '));
+    const L = Math.max(...seqs.map((s) => s.length));
+    $('#p-rows').innerHTML = seqs.map((s, k) => {
+      const pads = Array(L - s.length).fill('<span class="tok pad">PAD·0</span>');
+      const toks = s.map((w) => '<span class="tok" title="id ' + id(w) + '">' + esc(w) + '·' + id(w) + '</span>');
+      const row = side === 'right' ? toks.concat(pads) : pads.concat(toks);
+      return '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span class="mono dim" style="width:70px;font-size:11px">len ' + s.length + '</span>' + row.join('') + '</div>';
+    }).join('');
+    const real = seqs.reduce((a, s) => a + s.length, 0);
+    $('#p-stats').innerHTML = [['(' + seqs.length + ', ' + L + ')', 'padded batch shape'], [((1 - real / (seqs.length * L)) * 100).toFixed(0) + '%', 'padding (wasted compute)'], ['[' + seqs.map((s) => s.length).join(', ') + ']', 'lengths returned']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:16px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  segc('p-side', (v) => { side = v; collate(); });
+  $('#p-new').addEventListener('click', () => { const r = Math.random; const s = new Set(); while (s.size < 4) s.add(Math.floor(r() * SENTS.length)); pick = [...s]; collate(); });
+  collate();
+
+  /* ===== sampler ===== */
+  let mode = 'rand', seed = 1;
+  function sampler() {
+    const r = rng(seed * 31 + (mode === 'rand' ? 0 : 7));
+    const labels = Array.from({ length: 200 }, (_, i) => (i < 180 ? 0 : 1));
+    const rows = []; let minor = 0, total = 0;
+    for (let b = 0; b < 8; b++) {
+      const batch = [];
+      for (let k = 0; k < 16; k++) {
+        let i;
+        if (mode === 'rand') i = Math.floor(r() * 200);
+        else { const cls = r() < 0.5 ? 1 : 0; i = cls ? 180 + Math.floor(r() * 20) : Math.floor(r() * 180); }
+        batch.push(i); if (labels[i]) minor++; total++;
+      }
+      rows.push('<div class="brow"><span class="lab">batch ' + b + '</span><span class="chips">' + batch.map((i) => '<span class="s c' + (labels[i] ? 1 : 0) + '" style="min-width:16px">' + (labels[i] ? '1' : '0') + '</span>').join('') + '</span><span class="n">' + batch.filter((i) => labels[i]).length + '/16</span></div>');
+    }
+    $('#sm-rows').innerHTML = rows.join('');
+    $('#sm-stats').innerHTML = '<div class="stat"><div class="v">' + (minor / total * 100).toFixed(0) + '%</div><div class="k">minority class in batches</div></div><div class="stat"><div class="v">10%</div><div class="k">minority class in dataset</div></div>';
+  }
+  segc('sm-mode', (v) => { mode = v; sampler(); });
+  $('#sm-draw').addEventListener('click', () => { seed++; sampler(); });
+  sampler();
+
+  function workers() {
+    const W = +$('#nw').value, Lt = +$('#nw-l').value, Gt = +$('#nw-g').value;
+    $('#nw-v').textContent = W; $('#nw-l-v').textContent = Lt; $('#nw-g-v').textContent = Gt;
+    const nB = 6; const lanes = []; let gpuFree = 0; const gpu = [];
+    if (W === 0) {
+      let t = 0; const main = [];
+      for (let b = 0; b < nB; b++) { main.push(['ld', t, Lt, 'L' + b]); t += Lt; gpu.push(['gp', t, Gt, 'B' + b]); t += Gt; }
+      lanes.push(['main proc', main]); lanes.push(['GPU', gpu]); gpuFree = t;
+    } else {
+      const wl = Array.from({ length: W }, () => []); const ready = [];
+      const wFree = Array(W).fill(0);
+      for (let b = 0; b < nB; b++) { const w = b % W; const s = wFree[w]; wl[w].push(['ld', s, Lt, 'L' + b]); wFree[w] = s + Lt; ready.push(s + Lt); }
+      let t = 0; for (let b = 0; b < nB; b++) { const s = Math.max(t, ready[b]); gpu.push(['gp', s, Gt, 'B' + b]); t = s + Gt; }
+      wl.forEach((l, k) => lanes.push(['worker ' + k, l])); lanes.push(['GPU', gpu]); gpuFree = t;
+    }
+    const total = gpuFree, busy = nB * Gt;
+    $('#nw-gantt').innerHTML = lanes.map(([n, segs]) => '<div class="lane"><span>' + n + '</span><div class="track">' + segs.map(([c, s, d, l]) => '<span class="' + c + '" style="left:' + (s / total * 100) + '%;width:' + (d / total * 100) + '%">' + l + '</span>').join('') + '</div></div>').join('') + '<div class="legend mt"><span><i style="background:#fbbf24"></i>loading a batch</span><span><i style="background:#4ade80"></i>GPU training on a batch</span></div>';
+    $('#nw-stats').innerHTML = '<div class="stat"><div class="v">' + total + ' ms</div><div class="k">time for 6 batches</div></div><div class="stat"><div class="v" style="color:' + (busy / total > 0.8 ? 'var(--green)' : 'var(--amber)') + '">' + (busy / total * 100).toFixed(0) + '%</div><div class="k">GPU utilisation</div></div>';
+  }
+  ['nw', 'nw-l', 'nw-g'].forEach((id) => $('#' + id).addEventListener('input', workers)); workers();
+
+  PT.init('data');
+})();
+</script>
+</body>
+</html>
