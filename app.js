@@ -1033,6 +1033,227 @@
   ];
 
   /* ----------------------------------------------------------
+     FASTAPI — learning hub (CampusX "FastAPI for Machine Learning")
+     Labs live in Subject_5_FastAPI/interactive and share
+     fa-lab.css/js + fa-qa.js.
+     ---------------------------------------------------------- */
+  const FA_V = '?v=2026-10-11';
+  const fa = (file, hash) => file + FA_V + (hash ? '#' + hash : '');
+  const FA_ICON = {
+    web: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>',
+    cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 10 5-10 5L2 7l10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  };
+  const FASTAPI_CONCEPTS = [
+    {
+      id: 'fa-foundations',
+      title: 'APIs, HTTP & FastAPI',
+      icon: FA_ICON.web,
+      topics: [
+        {
+          title: 'The Big Picture: APIs & Why ML Needs Them',
+          notes: 'The whole course in one story: a model in a notebook becomes a service anyone can call. An API is a contract between programs; a web API speaks HTTP and JSON. Monolith vs API-driven design (the IRCTC example), why models are served behind APIs, and an interview heat map of where questions land.',
+          formulas: [],
+          interactive: { file: fa('fa-01-apis.html', 'journey'), label: 'Course Journey & Heat Map' },
+          extras: [
+            { file: fa('fa-01-apis.html', 'apis'), label: 'Monolith vs API' },
+            { file: fa('fa-01-apis.html', 'ml'), label: 'The Final System' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Architecture'],
+        },
+        {
+          title: 'HTTP Essentials: URLs, Methods & Status Codes',
+          notes: 'Anatomy of a URL, request and response; GET/POST/PUT/PATCH/DELETE; safe vs idempotent methods (why DELETE twice is fine and POST twice is not); and the status codes you must choose deliberately — 201, 204, 400, 401, 404, 409, 422, 500, 503.',
+          formulas: [],
+          interactive: { file: fa('fa-02-http.html', 'url'), label: 'URL & Request Anatomy' },
+          extras: [
+            { file: fa('fa-02-http.html', 'methods'), label: 'Idempotency Simulator' },
+            { file: fa('fa-02-http.html', 'status'), label: 'Status-Code Quiz' },
+          ],
+          tags: ['Interactive', 'Must-know', 'HTTP'],
+        },
+        {
+          title: 'What Is FastAPI? Starlette, Pydantic, ASGI',
+          notes: 'FastAPI is a thin type-hint-driven layer: Uvicorn serves, Starlette routes, Pydantic validates. WSGI handles one request per worker at a time; ASGI lets one worker juggle many while they wait on I/O. FastAPI vs Flask vs Django, honestly — including when "faster" doesn\'t matter.',
+          formulas: [],
+          interactive: { file: fa('fa-03-fastapi.html', 'stack'), label: 'Stack Explorer' },
+          extras: [
+            { file: fa('fa-03-fastapi.html', 'asgi'), label: 'WSGI vs ASGI Simulator' },
+            { file: fa('fa-03-fastapi.html', 'compare'), label: 'Flask vs FastAPI' },
+          ],
+          tags: ['Interactive', 'Must-know', 'ASGI'],
+        },
+      ],
+    },
+    {
+      id: 'fa-core',
+      title: 'Building Endpoints',
+      icon: FA_ICON.bolt,
+      topics: [
+        {
+          title: 'First App, Request Lifecycle & /docs',
+          notes: 'Decorators map paths and methods to functions; uvicorn main:app --reload runs them. Follow one request through the seven lifecycle steps and see exactly where 404, 405 and 422 come from. Every model becomes an OpenAPI schema, so /docs and /redoc are free.',
+          formulas: [],
+          interactive: { file: fa('fa-04-first-app.html', 'hello'), label: 'uvicorn Command Builder' },
+          extras: [
+            { file: fa('fa-04-first-app.html', 'lifecycle'), label: 'Lifecycle Stepper' },
+            { file: fa('fa-04-first-app.html', 'docs'), label: 'Model → OpenAPI Schema' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Lifecycle'],
+        },
+        {
+          title: 'Path & Query Parameters',
+          notes: 'Path parameters identify a resource; query parameters filter, sort and paginate it. Path() and Query() add bounds and docs, Literal restricts values, HTTPException returns errors, and route order decides whether /patients/me ever matches. Includes the course\'s inverted-sort bug.',
+          formulas: [],
+          interactive: { file: fa('fa-05-params.html', 'path'), label: 'Route Matcher' },
+          extras: [
+            { file: fa('fa-05-params.html', 'query'), label: '/sort Simulator' },
+            { file: fa('fa-05-params.html', 'source'), label: 'Where Parameters Come From' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Parameters'],
+        },
+        {
+          title: 'Pydantic: Validation, Validators & Computed Fields',
+          notes: 'Type hints become runtime guarantees. Field constraints, required vs optional (Optional[int] is not the same as = None), lax vs strict coercion, extra="forbid", field and model validators in before/after mode, computed fields (BMI and verdict) and model_dump options including exclude_unset.',
+          formulas: [],
+          interactive: { file: fa('fa-06-pydantic.html', 'why'), label: 'Validation Playground' },
+          extras: [
+            { file: fa('fa-06-pydantic.html', 'fields'), label: 'Required/Optional Quiz' },
+            { file: fa('fa-06-pydantic.html', 'validators'), label: 'Validator Pipeline' },
+            { file: fa('fa-06-pydantic.html', 'computed'), label: 'Computed Fields' },
+            { file: fa('fa-06-pydantic.html', 'serialize'), label: 'model_dump Lab' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Pydantic'],
+        },
+        {
+          title: 'CRUD: POST, PUT/PATCH & DELETE',
+          notes: 'Request bodies, 201 vs 409 vs 422, and the partial-update algorithm: dump with exclude_unset, merge, rebuild the model so computed fields refresh. PUT vs PATCH, REST naming, and a live console for the course\'s Patient API — including the create endpoint that never saved anything.',
+          formulas: [],
+          interactive: { file: fa('fa-07-crud.html', 'post'), label: 'POST Simulator' },
+          extras: [
+            { file: fa('fa-07-crud.html', 'update'), label: 'Update Algorithm Stepper' },
+            { file: fa('fa-07-crud.html', 'delete'), label: 'PUT vs PATCH & REST' },
+            { file: fa('fa-07-crud.html', 'playground'), label: 'Live API Console' },
+          ],
+          tags: ['Interactive', 'Must-know', 'CRUD'],
+        },
+      ],
+    },
+    {
+      id: 'fa-ml',
+      title: 'Serving ML in Production',
+      icon: FA_ICON.cpu,
+      topics: [
+        {
+          title: 'Serving an ML Model: Insurance Premium Predictor',
+          notes: 'Users send raw facts; the model needs engineered features. Computed fields derive BMI, age group, lifestyle risk and city tier in the schema; the /predict flow goes Streamlit → FastAPI → Pydantic → DataFrame → predict_proba → JSON. Load the model once, never per request.',
+          formulas: [],
+          interactive: { file: fa('fa-08-ml-serving.html', 'features'), label: 'Live Feature Engineering' },
+          extras: [
+            { file: fa('fa-08-ml-serving.html', 'predict'), label: '/predict Flow' },
+            { file: fa('fa-08-ml-serving.html', 'loadonce'), label: 'Load-Once Simulator' },
+          ],
+          tags: ['Interactive', 'Must-know', 'ML serving'],
+        },
+        {
+          title: 'Production-Ready: Structure, /health, response_model, Errors',
+          notes: 'Separation of concerns (which files change when you swap the model?), /health for load balancers with liveness vs readiness, response_model as the output contract (and how JSONResponse bypasses it), and the right status code for every failure without leaking str(e).',
+          formulas: [],
+          interactive: { file: fa('fa-09-production.html', 'structure'), label: 'Change-Impact Quiz' },
+          extras: [
+            { file: fa('fa-09-production.html', 'health'), label: 'Load-Balancer Simulator' },
+            { file: fa('fa-09-production.html', 'response'), label: 'Contract Checker' },
+            { file: fa('fa-09-production.html', 'errors'), label: 'Status-Code Drill' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Production'],
+        },
+        {
+          title: 'Docker & AWS EC2 Deployment',
+          notes: 'Image vs container, Dockerfile layer caching (why requirements.txt is copied first), -p HOST:CONTAINER and why uvicorn must bind 0.0.0.0, the six-step Docker Hub → EC2 pipeline, and a troubleshooter for "it runs but the browser times out" — security groups and arm64 vs amd64 images.',
+          formulas: [],
+          interactive: { file: fa('fa-10-docker-aws.html', 'docker'), label: 'Layer-Cache Simulator' },
+          extras: [
+            { file: fa('fa-10-docker-aws.html', 'ports'), label: 'Port-Mapping Tester' },
+            { file: fa('fa-10-docker-aws.html', 'deploy'), label: 'EC2 Pipeline & Troubleshooter' },
+          ],
+          tags: ['Interactive', 'Docker', 'AWS'],
+        },
+      ],
+    },
+    {
+      id: 'fa-beyond',
+      title: 'Beyond the Course',
+      icon: FA_ICON.layers,
+      topics: [
+        {
+          title: 'async def vs def: The Event Loop',
+          notes: 'async def runs on the single event loop; def runs in a thread pool. One time.sleep or requests.get inside async def freezes every user, including /health. An event-loop simulator, the decision rule (async libraries → async def; sync or CPU work → def), and run_in_threadpool for mixing.',
+          formulas: [],
+          interactive: { file: fa('fa-11-async.html', 'loop'), label: 'Event-Loop Simulator' },
+          extras: [{ file: fa('fa-11-async.html', 'rules'), label: 'async or def? Drill' }],
+          tags: ['Interactive', 'Must-know', 'Concurrency'],
+        },
+        {
+          title: 'Dependencies, Lifespan & APIRouter',
+          notes: 'Depends resolves a graph of reusable functions per request — pagination, API-key auth (401), DB sessions with yield teardown — with per-request caching and dependency_overrides for tests. lifespan loads the model once and cleans up; APIRouter splits a big app and versions it.',
+          formulas: [],
+          interactive: { file: fa('fa-12-dependencies.html', 'depends'), label: 'Dependency Resolver' },
+          extras: [
+            { file: fa('fa-12-dependencies.html', 'lifespan'), label: 'Lifespan Timeline' },
+            { file: fa('fa-12-dependencies.html', 'routers'), label: 'Prefix Composer' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Depends'],
+        },
+        {
+          title: 'Middleware, CORS, BackgroundTasks, Testing & Auth',
+          notes: 'The middleware onion and exception handlers, a CORS checker (why the browser blocks what curl and Streamlit don\'t), BackgroundTasks vs a real queue, a TestClient suite that catches the course bugs with round-trip tests, and API keys vs OAuth2 + JWT with a token decoder.',
+          formulas: [],
+          interactive: { file: fa('fa-13-middleware-testing.html', 'middleware'), label: 'Middleware Onion' },
+          extras: [
+            { file: fa('fa-13-middleware-testing.html', 'cors'), label: 'CORS Checker' },
+            { file: fa('fa-13-middleware-testing.html', 'background'), label: 'BackgroundTasks' },
+            { file: fa('fa-13-middleware-testing.html', 'testing'), label: 'Test Runner' },
+            { file: fa('fa-13-middleware-testing.html', 'auth'), label: 'JWT Decoder' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Testing', 'Auth'],
+        },
+      ],
+    },
+    {
+      id: 'fa-revision',
+      title: 'Bug Hunt & Revision',
+      icon: FA_ICON.book,
+      topics: [
+        {
+          title: 'Bug Hunt: 12 Real Bugs from the Course Code',
+          notes: 'Silent data loss, an inverted sort, a copy-pasted verdict, schema drift, a bypassed response_model, a client/server contract mismatch, CWD-relative paths and leaked exceptions. Click the line you think is wrong, then reveal the cause, the fix and the interview lesson.',
+          formulas: [],
+          interactive: { file: fa('fa-14-bug-hunt.html', 'list'), label: 'Spot the Bug' },
+          extras: [],
+          tags: ['Interactive', 'Code review', 'Interview prep'],
+        },
+        {
+          title: 'Q&A Bank, Flashcards, Cheat Sheet & Practice Plan',
+          notes: 'All 81 questions in one searchable place with a must-know filter and flashcards, a starred FastAPI + Pydantic cheat sheet, a complete service on one screen, and a practice plan: ten drills, a fix-my-code round and the AdServe capstone. Modules follow CampusX\'s FastAPI for Machine Learning playlist.',
+          formulas: [],
+          interactive: { file: fa('fa-15-qa-bank.html', 'all'), label: 'Q&A Bank' },
+          extras: [
+            { file: fa('fa-15-qa-bank.html', 'flash'), label: 'Flashcards' },
+            { file: fa('fa-15-qa-bank.html', 'cheat'), label: 'Cheat Sheet' },
+            { file: fa('fa-15-qa-bank.html', 'exercises'), label: 'Practice Plan' },
+            { file: fa('fa-15-qa-bank.html', 'map'), label: 'Course Map' },
+          ],
+          tags: ['Interactive', 'Revision', 'Interview prep'],
+        },
+      ],
+    },
+  ];
+
+  /* ----------------------------------------------------------
      SUBJECTS — each wraps its concept groups
      ---------------------------------------------------------- */
   const SUBJECTS = [
@@ -1045,6 +1266,16 @@
       accent: 'ember',
       folder: 'Subject_4_PyTorch',
       conceptGroups: PYTORCH_CONCEPTS,
+    },
+    {
+      id: 'fastapi',
+      title: 'FastAPI for Machine Learning',
+      code: 'FastAPI — APIs for ML',
+      description: 'A complete FastAPI learning hub: HTTP, path and query parameters, Pydantic, CRUD, serving an ML model, production patterns, Docker and AWS, async, dependencies, testing and auth — with interactive labs, a bug hunt, a cheat sheet and 81 Q&As (must-know ones starred).',
+      emoji: '🚀',
+      accent: 'jade',
+      folder: 'Subject_5_FastAPI',
+      conceptGroups: FASTAPI_CONCEPTS,
     },
     {
       id: 'seml',

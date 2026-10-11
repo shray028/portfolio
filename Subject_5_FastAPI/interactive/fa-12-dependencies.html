@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastAPI Dependencies, Lifespan & APIRouter — Interactive</title>
+  <meta name="description" content="Dependency injection with Depends (resolution order, per-request caching, yield teardown, 401 auth), lifespan start-up and shutdown, and composing APIRouter prefixes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .graph { display: grid; gap: 10px; }
+    .glevel { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .gnode { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(167,139,250,.5); background: rgba(167,139,250,.07); font: 12px var(--font-mono); text-align: center; transition: all .25s; min-width: 130px; }
+    .gnode small { display: block; color: var(--dim); font-size: 10.5px; margin-top: 2px; }
+    .gnode.ep { border-color: rgba(61,220,151,.55); background: rgba(61,220,151,.07); }
+    .gnode.run { box-shadow: 0 0 0 2px var(--acc); }
+    .gnode.fail { border-color: rgba(248,113,113,.8); background: rgba(248,113,113,.12); }
+    .gnode.done { opacity: .7; }
+    .log { font: 12.5px/1.8 var(--font-mono); padding: 12px 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); min-height: 120px; white-space: pre-wrap; }
+    .log .t { color: var(--dim); }
+    .timeline { position: relative; height: 54px; border-radius: 12px; overflow: hidden; display: flex; border: 1px solid var(--line); }
+    .timeline div { display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #04110b; transition: opacity .3s; text-align: center; padding: 0 6px; }
+    .timeline div.off { opacity: .25; }
+    .route-out { font: 700 20px var(--font-mono); padding: 14px; border-radius: 12px; border: 1px solid rgba(61,220,151,.5); background: rgba(61,220,151,.06); word-break: break-all; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 12 · BEYOND THE COURSE</span>
+      <h1>Dependencies, lifespan <span class="grad">&amp; routers</span></h1>
+      <p class="desc">The three tools that turn a single-file demo into a maintainable service: <code>Depends</code> to share logic (auth, DB sessions, pagination, the model), <code>lifespan</code> to load and release resources once, and <code>APIRouter</code> to split routes into files.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Dependency resolver · lifespan timeline · prefix composer</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="depends"><span class="n">1</span>Depends</button>
+      <button class="tab" data-tab="lifespan"><span class="n">2</span>Lifespan</button>
+      <button class="tab" data-tab="routers"><span class="n">3</span>APIRouter</button>
+    </div></div>
+
+    <!-- ============ DEPENDS ============ -->
+    <section class="tab-panel" data-panel="depends">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A dependency is a function FastAPI calls for you and injects <span class="imp">Must-know</span></h3>
+        <p>FastAPI resolves the dependency's <em>own</em> parameters (query, header, other dependencies) and documents them; a <code>yield</code> dependency gives setup and teardown; results are <strong>cached within one request</strong>; and in tests <code>app.dependency_overrides[get_db] = fake_db</code> swaps it without touching the endpoint.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · resolve GET /orders</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="d-key">X-API-Key header</label><input class="input mono" id="d-key" value="secret"></div>
+          <div class="field"><label for="d-limit">?limit=</label><input class="input mono" id="d-limit" value="10"></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="d-cache" checked> <span>use_cache=True (default) for <code>get_settings</code></span></label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="d-boom"> endpoint raises an exception</label>
+          <div class="btn-row"><button class="btn btn-primary" id="d-send"><i data-icon="play"></i>Send request</button></div>
+          <div id="d-res"></div>
+        </div>
+        <div>
+          <div class="graph" id="d-graph"></div>
+          <div class="log mt" id="d-log"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="deps.py + route" data-imp>
+from typing import Annotated
+from fastapi import Depends, Header, HTTPException, Query
+
+def get_settings():
+    return Settings()                          # cached per request
+
+def pagination(limit: Annotated[int, Query(ge=1, le=100)] = 10, offset: int = 0):
+    return {"limit": limit, "offset": offset}
+
+def current_user(x_api_key: Annotated[str | None, Header()] = None,
+                 settings = Depends(get_settings)) -> str:
+    if x_api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return "shray"
+
+def get_db(settings = Depends(get_settings)):  # "yield dependency"
+    db = SessionLocal(settings.db_url)
+    try:
+        yield db                               # injected into the endpoint
+    finally:
+        db.close()                             # teardown after the endpoint finishes
+
+@app.get("/orders")
+def list_orders(page: Annotated[dict, Depends(pagination)],
+                user: Annotated[str, Depends(current_user)],
+                db = Depends(get_db)):
+    return db.orders(user, **page)
+        </textarea></div>
+        <div><textarea class="py" data-title="other ways to use it">
+# run a dependency for its side effect only (auth), ignore its value
+@app.delete("/orders/{oid}", dependencies=[Depends(current_user)])
+def delete_order(oid: int): ...
+
+# apply to every route of a router
+router = APIRouter(prefix="/admin", dependencies=[Depends(current_user)])
+
+# reusable type alias
+CurrentUser = Annotated[str, Depends(current_user)]
+def me(user: CurrentUser): return {"user": user}
+
+# testing: swap the real DB for a fake, no endpoint changes
+app.dependency_overrides[get_db] = lambda: FakeDB()
+...
+app.dependency_overrides.clear()
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="di:depends"></div>
+    </section>
+
+    <!-- ============ LIFESPAN ============ -->
+    <section class="tab-panel" data-panel="lifespan" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Code before <code>yield</code> runs before the first request; code after runs after the last <span class="imp">Must-know</span></h3>
+        <p><code>lifespan</code> replaces the deprecated <code>@app.on_event("startup")</code>. Compared with the course's module-level <code>pickle.load</code>: the app can still start (and report <code>model_loaded: false</code>) if the file is missing, cleanup is possible, and tests decide when it runs (<code>with TestClient(app)</code>).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · start the server</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">where the model is loaded</span><div class="seg" id="l-where"><button data-v="module" class="on">module level (course)</button><button data-v="lifespan">lifespan</button></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="l-missing"> model.pkl is missing in the image</label>
+          <div class="btn-row"><button class="btn btn-primary" id="l-step"><i data-icon="step"></i>Next event</button><button class="btn" id="l-reset"><i data-icon="reset"></i>Reset</button></div>
+          <div id="l-res"></div>
+        </div>
+        <div>
+          <div class="timeline" id="l-tl"></div>
+          <div class="log mt" id="l-log"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="lifespan" data-imp>
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        app.state.model = joblib.load(settings.model_path)    # BEFORE the first request
+    except FileNotFoundError:
+        logger.error("model file missing; serving 503 until fixed")
+        app.state.model = None
+    app.state.http = httpx.AsyncClient()
+    yield                                                     # ---- app serves requests ----
+    await app.state.http.aclose()                             # AFTER the last request
+
+app = FastAPI(lifespan=lifespan)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="di:lifespan"></div>
+    </section>
+
+    <!-- ============ ROUTERS ============ -->
+    <section class="tab-panel" data-panel="routers" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>One router per resource, assembled in <code>main.py</code></h3>
+        <p><code>APIRouter</code> is a mini-app: routes, prefix, tags and dependencies. <code>app.include_router(router, prefix="/v1")</code> stacks another prefix on top, which is how API versioning is usually done. The final path is <em>include prefix + router prefix + route path</em>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · compose the final path</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="r-inc">app.include_router(..., prefix=)</label><input class="input mono" id="r-inc" value="/v1"></div>
+          <div class="field"><label for="r-pre">APIRouter(prefix=)</label><input class="input mono" id="r-pre" value="/patients"></div>
+          <div class="field"><label for="r-path">@router.get(path)</label><input class="input mono" id="r-path" value="/{pid}"></div>
+          <div class="field"><label for="r-tag">tags=</label><input class="input mono" id="r-tag" value="patients"></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:6px">final route</div>
+          <div class="route-out" id="r-out"></div>
+          <div id="r-warn" class="mt"></div>
+          <div id="r-code" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · a typical layout</div>
+      <textarea class="py" data-title="app/ layout">
+app/
+├── main.py              # app = FastAPI(lifespan=...); include_router(...)
+├── deps.py              # get_db, current_user, get_model
+├── config.py            # Settings(BaseSettings) from env vars
+├── schemas/             # Pydantic models
+└── routers/
+    ├── patients.py      # router = APIRouter(prefix="/patients", tags=["patients"])
+    └── predict.py       # router = APIRouter(tags=["ml"])
+
+# main.py
+app.include_router(patients.router)
+app.include_router(predict.router, prefix="/v1")     # -> /v1/predict
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="di:routers"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Depends ===== */
+  const NODES = { settings: ['get_settings()', 'Settings'], page: ['pagination()', '?limit &offset'], user: ['current_user()', 'X-API-Key header'], db: ['get_db()', 'yield'], ep: ['list_orders()', 'endpoint'] };
+  let state = {};
+  function graph() {
+    const n = (k) => '<div class="gnode ' + (k === 'ep' ? 'ep ' : '') + (state[k] || '') + '">' + NODES[k][0] + '<small>' + NODES[k][1] + '</small></div>';
+    $('#d-graph').innerHTML = '<div class="glevel">' + n('settings') + '</div><div class="glevel">' + n('page') + n('user') + n('db') + '</div><div class="glevel">' + n('ep') + '</div>';
+  }
+  let timer = null;
+  function send() {
+    clearTimeout(timer); state = {}; graph();
+    const key = $('#d-key').value, limRaw = $('#d-limit').value.trim(), cache = $('#d-cache').checked, boom = $('#d-boom').checked;
+    const ev = [];
+    let t = 0; const L = (msg, k, s) => ev.push([t += 1, msg, k, s]);
+    const lim = Number(limRaw);
+    L('GET /orders?limit=' + limRaw + '  X-API-Key: ' + (key || '(none)'));
+    const limOk = Number.isInteger(lim) && lim >= 1 && lim <= 100;
+    if (limOk) L('pagination(limit=' + lim + ', offset=0) → {"limit": ' + lim + ', "offset": 0}', 'page', 'done');
+    else L('pagination: limit=' + limRaw + ' fails validation → error recorded, pagination() NOT called', 'page', 'fail');
+    L('current_user needs get_settings → call get_settings()', 'settings', 'done');
+    if (key !== 'secret') {
+      L('current_user(x_api_key=' + JSON.stringify(key) + ')  ✗ raise HTTPException(401)', 'user', 'fail');
+      ev.push([t += 1, '→ 401 Unauthorized {"detail": "Invalid API key"}. get_db and the endpoint never ran.', null, null, '401']);
+    } else {
+      L('current_user(...) → "shray"', 'user', 'done');
+      L((cache ? 'get_db needs get_settings → reuse the cached value (no 2nd call)' : 'get_db needs get_settings → call get_settings() AGAIN (use_cache=False)'), 'settings', 'done');
+      L('get_db(): db = SessionLocal() … yield db', 'db', 'run');
+      if (!limOk) {
+        L('validation errors were collected → endpoint NOT called', 'ep', 'fail');
+        L('get_db finally: db.close()', 'db', 'done');
+        ev.push([t += 1, '→ 422 Unprocessable Content: limit must be an integer 1–100.', null, null, '422']);
+      } else if (boom) {
+        L('list_orders(page, user, db)  ✗ raises RuntimeError', 'ep', 'fail');
+        L('get_db finally: db.close()  ← teardown still runs', 'db', 'done');
+        ev.push([t += 1, '→ 500 Internal Server Error (session closed cleanly thanks to try/finally)', null, null, '500']);
+      } else {
+        L('list_orders(page={"limit": ' + lim + ', …}, user="shray", db=<Session>)', 'ep', 'done');
+        L('get_db finally: db.close()  ← teardown', 'db', 'done');
+        ev.push([t += 1, '→ 200 OK [...orders...]', null, null, '200']);
+      }
+    }
+    const calls = ev.filter((e) => /call get_settings\(\)/.test(e[1])).length;
+    let i = 0; const lines = [];
+    (function tick() {
+      if (i >= ev.length) {
+        const last = ev[ev.length - 1][4];
+        $('#d-res').innerHTML = '<div class="' + (last === '200' ? 'ok-box' : 'err-box') + '">' + esc(ev[ev.length - 1][1]) + '</div><div class="small muted mt">get_settings() was called ' + calls + '× in this request.</div>';
+        return;
+      }
+      const [n, msg, k, s] = ev[i++];
+      lines.push('<span class="t">' + String(n).padStart(2, '0') + '</span>  ' + esc(msg));
+      $('#d-log').innerHTML = lines.join('\n');
+      if (k) { Object.keys(state).forEach((x) => { if (state[x] === 'run') state[x] = 'done'; }); state[k] = s === 'done' ? 'run' : s; graph(); }
+      timer = setTimeout(tick, 380);
+    })();
+    $('#d-res').innerHTML = '';
+  }
+  $('#d-send').addEventListener('click', send);
+  graph(); $('#d-log').innerHTML = '<span class="t">Press Send. Try a wrong key, limit=500, or turning off the cache.</span>';
+
+  /* ===== Lifespan ===== */
+  let where = 'module', ls = -1;
+  function lEvents() {
+    const miss = $('#l-missing').checked;
+    if (where === 'module') {
+      if (miss) return [['import app.py → model/predict.py runs pickle.load(...)', 'start'], ['FileNotFoundError: model/model.pkl  — import fails', 'start', 'fail'], ['uvicorn exits; the container restarts in a loop. No /health, no logs from your app.', 'start', 'fail']];
+      return [['import app.py → pickle.load(model.pkl) at import time', 'start'], ['Application startup complete. Uvicorn running on 0.0.0.0:8000', 'serve'], ['POST /predict → 200 (model already in memory)', 'serve'], ['Ctrl+C / SIGTERM → nothing to clean up (no hook)', 'stop']];
+    }
+    if (miss) return [['lifespan(): joblib.load(...) → FileNotFoundError caught, model = None', 'start'], ['yield → Application startup complete', 'serve'], ['GET /health/ready → 503 "Model not loaded" (LB holds traffic)', 'serve'], ['POST /predict → 503, logs say exactly what is wrong', 'serve'], ['SIGTERM → after yield: await http.aclose()', 'stop']];
+    return [['lifespan(): app.state.model = joblib.load(...)', 'start'], ['app.state.http = httpx.AsyncClient()', 'start'], ['yield → Application startup complete', 'serve'], ['POST /predict → 200 using request.app.state.model', 'serve'], ['SIGTERM → code after yield: await app.state.http.aclose()', 'stop'], ['Application shutdown complete.', 'stop']];
+  }
+  function lDraw() {
+    const E = lEvents(), cur = E[ls];
+    const phase = cur ? cur[1] : null, failed = E.slice(0, ls + 1).some((e) => e[2] === 'fail');
+    const P = [['start', 'start-up', '#fbbf24', 22], ['serve', 'serving requests', '#3ddc97', 56], ['stop', 'shutdown', '#f87171', 22]];
+    $('#l-tl').innerHTML = P.map(([k, label, c, w]) => '<div style="flex:' + w + ';background:' + (failed && k !== 'start' ? '#374151' : c) + '" class="' + (phase === k ? '' : 'off') + '">' + label + (k === 'start' ? ' (before yield)' : k === 'stop' ? ' (after yield)' : '') + '</div>').join('');
+    $('#l-log').innerHTML = ls < 0 ? '<span class="t">Press Next event.</span>' : E.slice(0, ls + 1).map((e, i) => '<span class="t">' + String(i + 1).padStart(2, '0') + '</span>  ' + (e[2] === 'fail' ? '<span style="color:#f87171">' + esc(e[0]) + '</span>' : esc(e[0]))).join('\n');
+    $('#l-step').disabled = ls >= E.length - 1;
+    $('#l-res').innerHTML = ls === E.length - 1 ? (failed ? '<div class="err-box">A missing file at import time takes the whole service down.</div>' : $('#l-missing').checked ? '<div class="ok-box">Degraded but alive: the service reports exactly what is wrong.</div>' : '<div class="ok-box">Model loaded once, resources released on shutdown.</div>') : '';
+  }
+  $('#l-step').addEventListener('click', () => { ls++; lDraw(); });
+  $('#l-reset').addEventListener('click', () => { ls = -1; lDraw(); });
+  $('#l-missing').addEventListener('change', () => { ls = -1; lDraw(); });
+  segc('l-where', (v) => { where = v; ls = -1; lDraw(); });
+  lDraw();
+
+  /* ===== Routers ===== */
+  function rDraw() {
+    const inc = $('#r-inc').value.trim(), pre = $('#r-pre').value.trim(), path = $('#r-path').value.trim(), tag = $('#r-tag').value.trim();
+    const full = (inc + pre + path) || '/';
+    const warns = [];
+    [['include prefix', inc], ['router prefix', pre]].forEach(([n, v]) => { if (v && !v.startsWith('/')) warns.push(n + ' must start with "/"'); if (v.endsWith('/')) warns.push(n + ' must not end with "/" (FastAPI raises an assertion error)'); });
+    if (path && !path.startsWith('/')) warns.push('route path should start with "/"');
+    if (/\/\//.test(full)) warns.push('double slash in the final path');
+    $('#r-out').textContent = 'GET ' + full;
+    $('#r-warn').innerHTML = warns.length ? '<div class="err-box">' + warns.map(esc).join('\n') + '</div>' : '<div class="ok-box">Shows up in /docs under the "' + esc(tag || 'default') + '" tag.</div>';
+    const h = $('#r-code'); h.innerHTML = '';
+    h.appendChild(codeBlock('# routers/' + (pre.replace(/\W/g, '') || 'items') + '.py\nrouter = APIRouter(prefix="' + pre + '", tags=["' + tag + '"])\n\n@router.get("' + path + '")\ndef handler(...): ...\n\n# main.py\napp.include_router(router' + (inc ? ', prefix="' + inc + '"' : '') + ')   # -> ' + full, { title: 'generated' }));
+  }
+  ['r-inc', 'r-pre', 'r-path', 'r-tag'].forEach((id) => $('#' + id).addEventListener('input', rDraw));
+  rDraw();
+
+  FA.init('di', () => {});
+})();
+</script>
+</body>
+</html>

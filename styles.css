@@ -34,6 +34,7 @@
   --teal: #5fd0b4;
   --orange: #f8a959;
   --ember: #ff7a59;
+  --jade: #3ddc97;
   --green: #5bd08a;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -83,6 +84,7 @@
     --teal: #0f9d80;
     --orange: #d9730d;
     --ember: #e0461d;
+    --jade: #0f8a5f;
     --green: #16a34a;
     --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow: 0 10px 30px -14px rgba(15, 23, 42, 0.22);
@@ -119,6 +121,7 @@
   --teal: #0f9d80;
   --orange: #d9730d;
   --ember: #e0461d;
+  --jade: #0f8a5f;
   --green: #16a34a;
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow: 0 10px 30px -14px rgba(15, 23, 42, 0.22);
@@ -1015,6 +1018,10 @@ body.in-subject .hero {
 
 .accent-ember {
   --sub: var(--ember);
+}
+
+.accent-jade {
+  --sub: var(--jade);
 }
 
 .subject-cards-grid {

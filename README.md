@@ -6,6 +6,10 @@ Static portfolio published at [shray028.github.io/portfolio](https://shray028.gi
 
 [PyTorch for Deep Learning](https://shray028.github.io/portfolio/#subjects/pytorch) is an interactive subject under *Interactive labs*: 15 modules (tensors, autograd, the training loop, `nn.Module`, losses and optimizers, `Dataset`/`DataLoader`, GPU training, dropout/BatchNorm/weight decay, Optuna, CNNs, transfer learning, RNNs, LSTMs, production essentials) with theory, copyable code, in-browser labs and a 116-question Q&A bank with must-know questions starred. The pages live in `Subject_4_PyTorch/interactive/` and share `pt-lab.css`, `pt-lab.js` and `pt-qa.js` (the single source for every question). Modules 01–13 follow the arc of CampusX's [Practical Deep Learning using PyTorch](https://www.youtube.com/playlist?list=PLKnIA16_Rmvboy8bmDCjwNHgTaYH2puK7) playlist.
 
+## FastAPI learning hub
+
+[FastAPI for Machine Learning](https://shray028.github.io/portfolio/#subjects/fastapi) is an interactive subject under *Interactive labs*: 15 modules (APIs and HTTP, the FastAPI stack and ASGI, the request lifecycle, path and query parameters, Pydantic, CRUD, serving an ML model, production patterns, Docker and AWS EC2, `async def` vs `def`, dependencies and lifespan, middleware/CORS/testing/auth, a bug hunt and a revision module) with theory, copyable code, in-browser simulators, a cheat sheet, a practice plan and an 81-question Q&A bank with must-know questions starred. The pages live in `Subject_5_FastAPI/interactive/` and share `fa-lab.css`, `fa-lab.js` and `fa-qa.js`. Modules 01–10 follow CampusX's *FastAPI for Machine Learning* playlist; 11–13 cover common interview topics beyond it.
+
 ## Featured reinforcement learning and NLP case studies
 
 | Project | What the case study covers | Code |

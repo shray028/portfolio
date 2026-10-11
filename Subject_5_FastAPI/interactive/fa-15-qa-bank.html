@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastAPI Q&A Bank, Cheat Sheet & Practice Plan</title>
+  <meta name="description" content="Every FastAPI interview question from the hub in one searchable place, must-know flashcards, a FastAPI + Pydantic cheat sheet, a status-code table, a practice plan with drills and a capstone, and the course map.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .toolbar .input { max-width: 340px; }
+    .toolbar select.input { max-width: 260px; }
+    .tog { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font-size: 13px; cursor: pointer; }
+    .tog input { accent-color: var(--amber); }
+    .grp-h { margin: 22px 0 8px; font: 700 13px var(--font-mono); color: var(--acc); letter-spacing: .04em; }
+    .flash { padding: 22px; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--panel-2); }
+    .flash .q { font-size: 18px; font-weight: 700; line-height: 1.45; }
+    .flash .a { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); color: var(--text-2); font-size: 14.5px; line-height: 1.7; }
+    .flash .a ul, .flash .a ol { padding-left: 18px; }
+    .cheat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .cheat h4 { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+    .cheat h4 svg { width: 16px; height: 16px; color: var(--acc); }
+    .cheat table { width: 100%; border-collapse: collapse; }
+    .cheat td { padding: 7px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 12.8px; color: var(--text-2); }
+    .cheat td:first-child { width: 48%; font: 12px var(--font-mono); color: #a7f3d0; word-break: break-word; }
+    .cheat tr:last-child td { border-bottom: 0; }
+    .cheat tr.star td:first-child::before { content: '★ '; color: var(--amber); }
+    @media (max-width: 900px) { .cheat-grid { grid-template-columns: minmax(0, 1fr); } }
+      .lvl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .lvl .card { padding: 18px; }
+    .lvl h4 { font-size: 16px; margin-bottom: 4px; }
+    .lvl .big { font: 800 26px var(--font-mono); color: var(--acc); margin: 8px 0 2px; }
+    .ms { display: grid; gap: 8px; }
+    .ms label { display: grid; grid-template-columns: 22px 70px 1fr; gap: 8px; align-items: start; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13.5px; }
+    .ms label b { font-family: var(--font-mono); color: var(--acc); }
+    .ms input { accent-color: var(--acc); margin-top: 3px; }
+    @media (max-width: 900px) { .lvl { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 15 · REVISION</span>
+      <h1>Q&amp;A bank &amp; <span class="grad">cheat sheet</span></h1>
+      <p class="desc">Every question from the fourteen modules in one place — search it, filter to the must-know set, or drill yourself with flashcards. The cheat sheet fits the whole framework on one screen, and the practice plan turns reading into writing code.</p>
+      <div class="hero-meta"><span class="chip ember" id="h-count"></span><span class="imp" id="h-imp"></span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="all"><span class="n">1</span>All questions</button>
+      <button class="tab" data-tab="flash"><span class="n">2</span>Flashcards</button>
+      <button class="tab" data-tab="cheat"><span class="n">3</span>Cheat sheet</button>
+      <button class="tab" data-tab="exercises"><span class="n">4</span>Practice plan</button>
+      <button class="tab" data-tab="map"><span class="n">5</span>Course map</button>
+    </div></div>
+
+    <!-- ============ ALL ============ -->
+    <section class="tab-panel" data-panel="all">
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <input class="input" id="q-search" type="search" placeholder="Search questions and answers… e.g. 422, exclude_unset, Depends">
+          <select class="input" id="q-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="q-imp"> ★ Must-know only</label>
+          <button class="btn btn-sm" id="q-open">Expand all</button>
+          <button class="btn btn-sm" id="q-close">Collapse all</button>
+          <span class="small muted" id="q-n"></span>
+        </div>
+      </div>
+      <div id="q-list"></div>
+    </section>
+
+    <!-- ============ FLASH ============ -->
+    <section class="tab-panel" data-panel="flash" hidden>
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <select class="input" id="f-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="f-imp" checked> ★ Must-know only</label>
+          <span class="small muted" id="f-pos"></span>
+        </div>
+      </div>
+      <div class="flash mt" id="f-card"></div>
+      <div class="btn-row mt"><button class="btn" id="f-prev">← Previous</button><button class="btn btn-primary" id="f-show">Show answer</button><button class="btn" id="f-next">Next →</button><button class="btn" id="f-shuf"><i data-icon="reset"></i>Shuffle</button></div>
+      <p class="small muted mt">Keyboard: ← / → to move, space to reveal.</p>
+    </section>
+
+    <!-- ============ CHEAT ============ -->
+    <section class="tab-panel" data-panel="cheat" hidden>
+      <div class="card card-pad mt"><div class="toolbar"><input class="input" id="c-search" type="search" placeholder="Filter… e.g. Query, model_dump, 409, docker"><span class="small muted">★ = use it constantly</span></div></div>
+      <div class="cheat-grid mt" id="c-grid"></div>
+      <div class="block-title"><i data-icon="code"></i>A complete service on one screen</div>
+      <textarea class="py" data-title="main.py" data-imp>
+from contextlib import asynccontextmanager
+from typing import Annotated, Literal
+import joblib, pandas as pd
+from fastapi import FastAPI, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field, computed_field
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.model = joblib.load("model.joblib")       # load once
+    yield
+
+app = FastAPI(title="Insurance API", version="1.0.0", lifespan=lifespan)
+
+class UserInput(BaseModel):
+    age: Annotated[int, Field(gt=0, lt=120)]
+    weight: Annotated[float, Field(gt=0)]
+    height: Annotated[float, Field(gt=0, lt=2.5)]
+    smoker: bool
+    occupation: Literal["student", "private_job", "retired"]
+
+    @computed_field
+    @property
+    def bmi(self) -> float:
+        return self.weight / self.height ** 2
+
+class PredictionResponse(BaseModel):
+    predicted_category: str
+    confidence: Annotated[float, Field(ge=0, le=1)]
+
+def require_key(x_api_key: Annotated[str | None, Header()] = None):
+    if x_api_key != "secret":
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+@app.get("/health")
+def health(request: Request):
+    return {"status": "ok", "model_loaded": getattr(request.app.state, "model", None) is not None}
+
+@app.post("/predict", response_model=PredictionResponse, dependencies=[Depends(require_key)])
+def predict(data: UserInput, request: Request):                 # def: CPU-bound
+    model = request.app.state.model
+    df = pd.DataFrame([data.model_dump()])
+    probs = model.predict_proba(df)[0]
+    i = probs.argmax()
+    return {"predicted_category": model.classes_[i], "confidence": float(probs[i])}
+      </textarea>
+    </section>
+
+    <!-- ============ EXERCISES ============ -->
+    <section class="tab-panel" data-panel="exercises" hidden>
+      <div class="block-title"><i data-icon="book"></i>Read less, write more</div>
+      <div class="card lesson">
+        <p>Three levels, each with an automatic grader: write the code, run <code>pytest -k test_0X -v</code>, read the assertion message when it's red. Ticks below are saved in this browser.</p>
+      </div>
+      <div class="lvl mt">
+        <div class="card"><span class="chip">Level 1</span><h4 class="mt">Drills</h4><div class="big">10 · 47</div><p class="small muted">files · tests — syntax fluency, 2–3 hours</p></div>
+        <div class="card"><span class="chip amber">Level 2</span><h4 class="mt">Fix my code</h4><div class="big">11</div><p class="small muted">tests against the course <code>main.py</code> — bugs 1–6 of module 14, ~45 minutes</p></div>
+        <div class="card"><span class="chip ember">Level 3</span><h4 class="mt">Capstone · AdServe</h4><div class="big">45</div><p class="small muted">tests — a campaign CRUD + click-through-rate prediction API, 1–2 days</p></div>
+      </div>
+      <div class="block-title"><i data-icon="check"></i>Level 1 · drills</div>
+      <div class="ms" id="x-drills"></div>
+      <div class="block-title"><i data-icon="target"></i>Level 3 · capstone milestones</div>
+      <div class="card lesson"><p><strong>AdServe</strong> fuses the course's two projects — CRUD on a JSON store and serving a model — and upgrades them with modules 11–13: <code>main.py</code> (lifespan, middleware, /health), <code>routers/campaigns.py</code> and <code>routers/predict.py</code>, <code>schemas.py</code>, <code>storage.py</code>, <code>ml.py</code>, <code>deps.py</code> and <code>config.py</code>.</p></div>
+      <div class="ms mt" id="x-ms"></div>
+      <div class="block-title"><i data-icon="code"></i>The grading loop</div>
+      <div class="grid-2">
+        <textarea class="py" data-title="terminal">
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+pytest tests -k test_03 -v                  # grade one drill
+uvicorn drill_03_query_params:app --reload  # then play with it in /docs
+        </textarea>
+        <textarea class="py" data-title="AdServe schemas (shape)">
+class AdRequest(BaseModel):
+    hour_of_day: Annotated[int, Field(ge=0, le=23)]
+    device: Device                     # Literal[...] aliases
+    ad_position: Position
+    category: Category
+    user_age: Annotated[int, Field(ge=13, le=100)]
+    user_past_ctr: Annotated[float, Field(ge=0, le=1)]
+
+    @computed_field
+    @property
+    def is_peak_hour(self) -> int:
+        return int(18 <= self.hour_of_day <= 23)
+
+    @computed_field
+    @property
+    def age_group(self) -> str:
+        if self.user_age < 25: return "young"
+        if self.user_age < 45: return "adult"
+        return "senior"
+
+class PredictionResponse(BaseModel):
+    click_probability: Annotated[float, Field(ge=0, le=1)]
+    will_click: bool
+    model_version: str
+
+class BatchRequest(BaseModel):
+    requests: Annotated[list[AdRequest], Field(min_length=1, max_length=100)]
+        </textarea>
+      </div>
+      <div class="callout blue mt"><i data-icon="star"></i><div><b>The interview story it gives you.</b> "I built a FastAPI service that manages ad campaigns and serves a CTR model: Pydantic schemas with cross-field validation, feature engineering in computed fields, the model loaded once via lifespan with a 503 readiness guard, a vectorised batch endpoint, API-key auth through dependency injection, a 45-test pytest suite using dependency overrides, and Docker packaging." Every clause is a follow-up question you can now answer.</div></div>
+    </section>
+
+    <!-- ============ MAP ============ -->
+    <section class="tab-panel" data-panel="map" hidden>
+      <div class="block-title"><i data-icon="book"></i>How this hub is organised</div>
+      <div class="card lesson">
+        <p>Modules 01–10 follow CampusX's <em>FastAPI for Machine Learning</em> playlist — from "what is an API" to a Dockerised insurance-premium model on AWS EC2 — rewritten with interactive labs, extra theory and interview questions. Modules 11–13 cover what interviewers ask beyond the course. Module 14 is a code review of the course code; 15 is revision.</p>
+      </div>
+      <div class="mod-grid mt" id="m-grid"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, MODULES, qaItem } = FA;
+  const QA = window.FA_QA;
+  const modName = (id) => { const m = MODULES.find((x) => x.id === id); return m ? m.num + ' · ' + m.title : id; };
+  $('#h-count').textContent = QA.length + ' questions';
+  $('#h-imp').textContent = 'Must-know: ' + QA.filter((q) => q.imp).length;
+  const opts = MODULES.filter((m) => QA.some((q) => q.m === m.id)).map((m) => '<option value="' + m.id + '">' + m.num + ' · ' + esc(m.title) + '</option>').join('');
+  $('#q-mod').insertAdjacentHTML('beforeend', opts); $('#f-mod').insertAdjacentHTML('beforeend', opts);
+  const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').toLowerCase();
+
+  /* ===== All questions ===== */
+  function list() {
+    const q = $('#q-search').value.trim().toLowerCase(), mod = $('#q-mod').value, imp = $('#q-imp').checked;
+    const items = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp) && (!q || strip(x.q + ' ' + x.a + ' ' + (x.code || '')).includes(q)));
+    const host = $('#q-list'); host.innerHTML = '';
+    let n = 0;
+    MODULES.forEach((m) => {
+      const group = items.filter((x) => x.m === m.id); if (!group.length) return;
+      host.insertAdjacentHTML('beforeend', '<div class="grp-h">' + esc(modName(m.id)) + '</div>');
+      const box = document.createElement('div'); box.className = 'qa-list';
+      group.forEach((it) => box.appendChild(qaItem(it, ++n, true)));
+      host.appendChild(box);
+    });
+    if (!items.length) host.innerHTML = '<p class="muted mt">No questions match.</p>';
+    if (q) $$('#q-list details').forEach((d) => { d.open = true; });
+    $('#q-n').textContent = items.length + ' shown';
+  }
+  ['q-search', 'q-mod', 'q-imp'].forEach((id) => $('#' + id).addEventListener('input', list));
+  $('#q-open').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = true; }));
+  $('#q-close').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = false; }));
+  list();
+
+  /* ===== Flashcards ===== */
+  let deck = [], pos = 0, shown = false;
+  function buildDeck(shuffle) {
+    const mod = $('#f-mod').value, imp = $('#f-imp').checked;
+    deck = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp));
+    if (shuffle) for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    pos = 0; shown = false; card();
+  }
+  function card() {
+    const host = $('#f-card');
+    if (!deck.length) { host.innerHTML = '<p class="muted">No cards.</p>'; return; }
+    const it = deck[pos];
+    host.innerHTML = '<div class="label" style="margin-bottom:8px">' + esc(modName(it.m)) + (it.imp ? ' &nbsp;<span class="imp">Must-know</span>' : '') + '</div><div class="q">' + it.q + '</div>' + (shown ? '<div class="a">' + it.a + '</div>' : '');
+    if (shown && it.code) host.querySelector('.a').appendChild(FA.codeBlock(it.code, { title: 'python' }));
+    $('#f-pos').textContent = 'card ' + (pos + 1) + ' / ' + deck.length;
+    $('#f-show').textContent = shown ? 'Hide answer' : 'Show answer';
+  }
+  $('#f-show').addEventListener('click', () => { shown = !shown; card(); });
+  $('#f-next').addEventListener('click', () => { pos = (pos + 1) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-prev').addEventListener('click', () => { pos = (pos - 1 + deck.length) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-shuf').addEventListener('click', () => buildDeck(true));
+  ['f-mod', 'f-imp'].forEach((id) => $('#' + id).addEventListener('input', () => buildDeck(false)));
+  document.addEventListener('keydown', (e) => {
+    if (location.hash !== '#flash' || e.target.matches('input, select, textarea')) return;
+    if (e.key === 'ArrowRight') $('#f-next').click(); else if (e.key === 'ArrowLeft') $('#f-prev').click(); else if (e.key === ' ') { e.preventDefault(); $('#f-show').click(); }
+  });
+  buildDeck(false);
+
+  /* ===== Cheat sheet ===== */
+  const CHEAT = [
+    ['App & routes', 'zap', [
+      ['*app = FastAPI(title=, version=, lifespan=)', 'Create the app'],
+      ['*@app.get / post / put / patch / delete(path)', 'Route decorators'],
+      ['@app.post("/items", status_code=201)', 'Default status for success'],
+      ['*response_model=ItemOut', 'Validate, filter and document the output'],
+      ['tags=["items"] · summary= · description=', 'Organise /docs'],
+      ['router = APIRouter(prefix="/v1", tags=[...])', 'Split into files'],
+      ['app.include_router(router, prefix="/api")', 'Mount a router'],
+    ]],
+    ['Parameters', 'sliders', [
+      ['*pid: Annotated[int, Path(ge=1)]', 'Path parameter with bounds'],
+      ['*q: Annotated[str | None, Query(min_length=2)] = None', 'Optional query parameter'],
+      ['*order: Literal["asc", "desc"] = "asc"', 'Enum query — 422 on bad values'],
+      ['x_api_key: Annotated[str | None, Header()] = None', 'Reads header X-API-Key'],
+      ['*item: ItemIn', 'BaseModel parameter → JSON body'],
+      ['examples=["P001"]', 'Example in /docs (not example=)'],
+    ]],
+    ['Errors & responses', 'alert', [
+      ['*raise HTTPException(404, detail="Not found")', 'Stop and return an error'],
+      ['return JSONResponse(status_code=201, content={...})', 'Bypasses response_model!'],
+      ['return Response(status_code=204)', 'Empty body'],
+      ['@app.exception_handler(MyErr)', 'One handler for many routes'],
+      ['logger.exception(...) + generic 500', 'Never send str(e) to clients'],
+    ]],
+    ['Pydantic model', 'box', [
+      ['*class Patient(BaseModel): ...', 'Schema = validation + docs'],
+      ['*age: Annotated[int, Field(gt=0, lt=120)]', 'Constraints'],
+      ['note: str | None = None', 'Optional with default'],
+      ['model_config = ConfigDict(extra="forbid")', 'Reject unknown keys'],
+      ['*@field_validator("email") @classmethod', 'One-field rule / transform'],
+      ['*@model_validator(mode="after") def f(self)', 'Cross-field rule, returns self'],
+      ['*@computed_field @property def bmi(self)', 'Derived, included in output'],
+      ['address: Address', 'Nested model'],
+    ]],
+    ['Serialisation', 'layers', [
+      ['*Patient(**d) · Patient.model_validate(d)', 'dict → model'],
+      ['*p.model_dump()', 'model → dict (includes computed fields)'],
+      ['p.model_dump(exclude={"id"})', 'Drop fields (a set of strings!)'],
+      ['*p.model_dump(exclude_unset=True)', 'Only fields the client sent — PATCH'],
+      ['p.model_dump(mode="json") · p.model_dump_json()', 'JSON-safe dict / string'],
+    ]],
+    ['Dependencies', 'git', [
+      ['*def f(x = Depends(dep))', 'Inject a dependency'],
+      ['*def get_db(): db = ...; try: yield db finally: db.close()', 'Setup + teardown'],
+      ['dependencies=[Depends(require_key)]', 'Run for side effects only'],
+      ['CurrentUser = Annotated[str, Depends(user)]', 'Reusable alias'],
+      ['*app.dependency_overrides[dep] = fake', 'Swap in tests'],
+    ]],
+    ['Lifespan & ML serving', 'cpu', [
+      ['*@asynccontextmanager async def lifespan(app): ...; yield', 'Start-up / shutdown'],
+      ['*app.state.model = joblib.load(PATH)', 'Load the model once'],
+      ['Path(__file__).resolve().parent / "model.pkl"', 'Path not tied to the CWD'],
+      ['pd.DataFrame([features])', 'One named row for sklearn'],
+      ['*def predict(...)  # not async', 'CPU-bound → thread pool'],
+      ['raise HTTPException(503, "Model not loaded")', 'Readiness guard'],
+    ]],
+    ['async, middleware & more', 'grid', [
+      ['*async def + await (async libs only)', 'Never block the event loop'],
+      ['await run_in_threadpool(fn, *args)', 'Sync work from async code'],
+      ['@app.middleware("http") … await call_next(req)', 'Wrap every request'],
+      ['*app.add_middleware(CORSMiddleware, allow_origins=[...])', 'Browser cross-origin calls'],
+      ['background_tasks.add_task(fn, arg)', 'After the response is sent'],
+      ['*with TestClient(app) as client:', 'Tests (runs lifespan)'],
+    ]],
+    ['Run & ship', 'play', [
+      ['*uvicorn main:app --reload', 'Development'],
+      ['uvicorn main:app --host 0.0.0.0 --workers 4', 'Production-ish'],
+      ['*docker build -t api . && docker run -p 8000:8000 api', 'Build and run'],
+      ['docker buildx build --platform linux/amd64 ...', 'Apple-silicon → x86 server'],
+      ['/docs · /redoc · /openapi.json', 'Free documentation'],
+    ]],
+    ['Status codes', 'target', [
+      ['*200 OK · 201 Created · 204 No Content', 'Success'],
+      ['400 Bad Request', 'Generic client error'],
+      ['*401 Unauthenticated · 403 Forbidden', 'Who are you · you may not'],
+      ['*404 Not Found · 405 Method Not Allowed', 'No resource · wrong verb'],
+      ['409 Conflict', 'Duplicate / state clash'],
+      ['*422 Unprocessable Content', 'Validation failed (automatic)'],
+      ['429 Too Many Requests', 'Rate limited'],
+      ['*500 Server Error · 503 Not Ready', 'Bug · temporarily unavailable'],
+    ]],
+  ];
+  function cheat() {
+    const q = $('#c-search').value.trim().toLowerCase();
+    $('#c-grid').innerHTML = CHEAT.map(([title, ic, rows]) => {
+      const r = rows.filter(([f, d]) => !q || (f + ' ' + d).toLowerCase().includes(q));
+      if (!r.length) return '';
+      return '<div class="card cheat"><h4>' + FA.icon(ic) + esc(title) + '</h4><table>' + r.map(([f, d]) => '<tr class="' + (f.startsWith('*') ? 'star' : '') + '"><td>' + esc(f.replace(/^\*/, '')) + '</td><td>' + esc(d) + '</td></tr>').join('') + '</table></div>';
+    }).join('') || '<p class="muted">Nothing matches.</p>';
+  }
+  $('#c-search').addEventListener('input', cheat); cheat();
+
+  /* ===== Practice plan ===== */
+  const DRILLS = [
+    ['01', 'hello', 'App metadata, GET routes, tags, 405 vs 404', '04'],
+    ['02', 'path params', 'Path() bounds, 404 via HTTPException, route order', '05'],
+    ['03', 'query params', 'Required/optional, Literal, limits, filtering, correct sort direction', '05'],
+    ['04', 'pydantic basics', 'Types, Field constraints, defaults, EmailStr, strict', '06'],
+    ['05', 'validators', 'Field validators (before/after), model validator, computed fields', '06'],
+    ['06', 'nested + serialisation', 'Nested models, pattern, nested exclude, exclude_unset, JSON', '06'],
+    ['07', 'POST', 'Body, 201, 409, response_model hiding a password', '07, 09'],
+    ['08', 'PUT/DELETE', 'Partial update + recompute, 204', '07'],
+    ['09', 'Depends ★', 'Pagination dependency, API-key header, 401', '12'],
+    ['10', 'production ★', 'Lifespan, APIRouter, async, BackgroundTasks, exception handler', '11–13'],
+  ];
+  const MS = [
+    ['M1', 'Skeleton — app metadata, lifespan model loading, / and /health'],
+    ['M2', 'Campaigns — schemas with field/model validators and computed fields; create (201/409), read (404), list with filter/sort/paginate, PATCH with re-validation, DELETE behind an API key (204/401)'],
+    ['M3', 'Serving — AdRequest feature engineering, vectorised prediction, /predict and /predict/batch, 503 without a model'],
+    ['M4', 'Polish — router tags, timing middleware, dependency overrides in tests'],
+    ['M5', 'Docker — finish the Dockerfile; build, run, curl /health'],
+  ];
+  const KEY = 'fa-practice-v1';
+  let done = {}; try { done = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { done = {}; }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) { /* storage unavailable */ } };
+  function xDraw() {
+    $('#x-drills').innerHTML = DRILLS.map(([n, t, d, m]) => '<label><input type="checkbox" data-k="d' + n + '" ' + (done['d' + n] ? 'checked' : '') + '><b>' + n + '</b><span><strong>' + esc(t) + '</strong> — ' + esc(d) + ' <span class="small muted">· module ' + m + '</span></span></label>').join('');
+    $('#x-ms').innerHTML = MS.map(([n, d]) => '<label><input type="checkbox" data-k="' + n + '" ' + (done[n] ? 'checked' : '') + '><b>' + n + '</b><span>' + esc(d) + '</span></label>').join('');
+  }
+  document.querySelector('[data-panel="exercises"]').addEventListener('change', (e) => { const k = e.target.dataset.k; if (!k) return; done[k] = e.target.checked; save(); });
+  xDraw();
+
+  /* ===== Map ===== */
+  const PART = { apis: 'Course', http: 'Course', fastapi: 'Course', first: 'Course', params: 'Course', pydantic: 'Course', crud: 'Course', ml: 'Course project', production: 'Course', docker: 'Course', async: 'Beyond the course', di: 'Beyond the course', extras: 'Beyond the course', bugs: 'Code review', qa: 'Revision' };
+  $('#m-grid').innerHTML = MODULES.map((m) => '<a class="mod-card" href="' + m.file + '"><span class="num">' + m.num + ' · ' + PART[m.id] + '</span><h4>' + esc(m.title) + '</h4><p>' + esc(m.short) + '</p><span class="small muted">' + QA.filter((q) => q.m === m.id).length + ' questions</span></a>').join('');
+
+  FA.init('qa');
+})();
+</script>
+</body>
+</html>
