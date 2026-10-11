@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production-Ready FastAPI — Structure, Health Checks, response_model, Errors</title>
+  <meta name="description" content="Make a FastAPI ML service production-ready: separation of concerns, /health with liveness vs readiness, response_model validation and filtering, and the right status code for every failure.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .tree { font: 13px/1.9 var(--font-mono); }
+    .tree button { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 2px 10px; border-radius: 7px; color: var(--text-2); border: 1px solid transparent; }
+    .tree button:hover { background: var(--panel-2); }
+    .tree button.on { border-color: rgba(61,220,151,.55); background: rgba(61,220,151,.08); color: var(--text); }
+    .tree button.pick { border-color: rgba(251,191,36,.6); background: rgba(251,191,36,.1); }
+    .tree button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .tree button.miss { border-color: rgba(248,113,113,.7); border-style: dashed; }
+    .tree .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .inst { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .node { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); display: grid; gap: 8px; font-size: 12.5px; transition: all .25s; }
+    .node.up { border-color: rgba(74,222,128,.6); }
+    .node.down { border-color: rgba(248,113,113,.6); opacity: .85; }
+    .node.wait { border-color: rgba(251,191,36,.6); }
+    .node select { font-size: 12px; }
+    .lb { text-align: center; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,153,0,.5); background: rgba(255,153,0,.07); font-weight: 700; margin-bottom: 10px; }
+    .reqdots { display: flex; gap: 4px; flex-wrap: wrap; min-height: 14px; }
+    .reqdots i { width: 10px; height: 10px; border-radius: 3px; background: var(--acc); }
+    .sc { display: grid; gap: 8px; }
+    .scn { padding: 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); }
+    .scn .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .scn .opts button { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); font: 600 12px var(--font-mono); background: var(--panel); }
+    .scn .opts button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .scn .opts button.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); }
+    .scn .why { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+    @media (max-width: 760px) { .inst { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 09 · PRODUCTION</span>
+      <h1>Production-ready <span class="grad">APIs</span></h1>
+      <p class="desc">The course's "improving the API" video turns a single-file script into something you could hand to a team: layered folders, a machine-readable health check, an output contract enforced by <code>response_model</code>, and deliberate error handling.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Change-impact quiz · load-balancer sim · contract checker · status-code drill</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="structure"><span class="n">1</span>Project structure</button>
+      <button class="tab" data-tab="health"><span class="n">2</span>/health</button>
+      <button class="tab" data-tab="response"><span class="n">3</span>response_model</button>
+      <button class="tab" data-tab="errors"><span class="n">4</span>Error handling</button>
+    </div></div>
+
+    <!-- ============ STRUCTURE ============ -->
+    <section class="tab-panel" data-panel="structure">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Separation of concerns: each layer changes for one reason</h3>
+        <p><code>app.py</code> holds thin routes. <code>schema/</code> says <em>what</em> data looks like. <code>model/</code> says <em>how</em> predictions are made and is the only place that knows about pickle and pandas. <code>config/</code> holds constants. The front-end is a separate client that only speaks HTTP. Swap the model and <code>app.py</code> doesn't change; add a field and only <code>schema/</code> changes.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · which files does this change touch?</div>
+      <div class="card card-pad split">
+        <div>
+          <div class="label" style="margin-bottom:6px">insurance_premium_prediction/ — click files to select them</div>
+          <div class="tree" id="s-tree"></div>
+        </div>
+        <div class="controls">
+          <div class="scn"><div class="small muted" id="s-count"></div><div style="font-weight:700;margin-top:4px" id="s-q"></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="s-check"><i data-icon="check"></i>Check</button><button class="btn" id="s-next"><i data-icon="step"></i>Next change</button></div>
+          <div id="s-res"></div>
+          <div id="s-role"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="production:structure"></div>
+    </section>
+
+    <!-- ============ HEALTH ============ -->
+    <section class="tab-panel" data-panel="health" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3><code>/</code> is for humans, <code>/health</code> is for machines <span class="imp">Must-know</span></h3>
+        <p>Load balancers and Kubernetes poll <code>/health</code> to decide where traffic goes. <strong>Liveness</strong> asks "is the process alive?" — if not, restart it. <strong>Readiness</strong> asks "can it serve right now?" — model loaded, DB connected — if not, don't send requests yet. For an ML service, report <code>model_loaded</code> and the model version so you can verify a deploy.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · break instances, watch the load balancer</div>
+      <div class="card card-pad">
+        <div class="lb">Load balancer · polls GET /health on each instance</div>
+        <div class="inst" id="h-inst"></div>
+        <div class="btn-row mt"><button class="btn btn-primary" id="h-send"><i data-icon="play"></i>Send 12 requests</button><label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="h-naive"> naive /health (always returns 200)</label></div>
+        <div id="h-res" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="app.py — course version">
+@app.get("/")                      # human-readable
+def home():
+    return {"message": "Insurance Premium Prediction API"}
+
+@app.get("/health")                # machine-readable
+def health_check():
+    return {
+        "status": "OK",
+        "version": MODEL_VERSION,
+        "model_loaded": model is not None,
+    }
+        </textarea></div>
+        <div><textarea class="py" data-title="readiness that the load balancer can act on" data-imp>
+@app.get("/health/live")
+def live():
+    return {"status": "alive"}            # process is up
+
+@app.get("/health/ready")
+def ready(request: Request):
+    model = getattr(request.app.state, "model", None)
+    if model is None:                    # not ready: LB stops routing here
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    return {"status": "ready", "version": MODEL_VERSION}
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="production:health"></div>
+    </section>
+
+    <!-- ============ RESPONSE ============ -->
+    <section class="tab-panel" data-panel="response" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3><code>response_model</code> validates, filters and documents your output <span class="imp">Must-know</span></h3>
+        <p>Returning a dict or model lets FastAPI run it through <code>response_model</code>: a wrong shape becomes a loud 500 instead of silent garbage, extra fields (a password hash, debug info) are dropped, and <code>/docs</code> shows the schema. Returning a <code>JSONResponse</code> yourself <strong>skips all three</strong>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · what the client actually receives</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">handler returns</span><div class="seg" id="r-ret"><button data-v="dict" class="on">return prediction</button><button data-v="json">return JSONResponse({"response": prediction})</button></div></div>
+          <div class="field"><span class="label-t">what predict_output() produced</span><div class="seg" id="r-bug"><button data-v="ok" class="on">correct dict</button><button data-v="extra">+ debug fields</button><button data-v="bad">confidence = "high"</button><button data-v="missing">missing class_probabilities</button></div></div>
+          <textarea class="py" data-title="schema/prediction_response.py">
+class PredictionResponse(BaseModel):
+    predicted_category: str = Field(..., examples=["High"])
+    confidence: float = Field(..., ge=0, le=1, examples=[0.8432])
+    class_probabilities: Dict[str, float] = Field(..., examples=[{"Low": 0.01, "High": 0.84}])
+          </textarea>
+        </div>
+        <div><div id="r-flow"></div><div id="r-out" class="mt"></div><div id="r-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="production:response"></div>
+    </section>
+
+    <!-- ============ ERRORS ============ -->
+    <section class="tab-panel" data-panel="errors" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Every failure gets a deliberate status code</h3>
+        <p>Bad input is a 422 for free. Known business failures raise <code>HTTPException</code> with 400/404/409. A model that isn't loaded yet is a 503. Anything unexpected is logged with the stack trace on the server and returned as a generic 500 — never <code>str(e)</code>, which leaks file paths, SQL and library internals.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · pick the response for each situation</div>
+      <div class="card card-pad"><div class="sc" id="e-list"></div><div class="mt" id="e-score"></div></div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="error handling patterns" data-imp>
+import logging
+logger = logging.getLogger("api")
+
+@app.get("/patient/{patient_id}")
+def view_patient(patient_id: str):
+    data = load_data()
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return data[patient_id]
+
+@app.post("/predict", response_model=PredictionResponse)
+def predict(data: UserInput):
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    try:
+        return predict_output(data.model_dump())
+    except Exception:
+        logger.exception("prediction failed")          # full traceback in the server log
+        raise HTTPException(status_code=500, detail="Prediction failed")   # not str(e)
+
+# one handler for a custom error used across many routes
+class ModelNotReady(Exception): ...
+
+@app.exception_handler(ModelNotReady)
+async def not_ready(request: Request, exc: ModelNotReady):
+    return JSONResponse(status_code=503, content={"detail": "Model not loaded"})
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="production:errors"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Structure ===== */
+  const FILES = [
+    ['app.py', 0, '#3ddc97', 'Routes only. Wires HTTP to the schema and the model; no feature maths, no pickle.'],
+    ['schema/', 0, '#a78bfa', null],
+    ['schema/user_input.py', 1, '#a78bfa', 'The input contract: fields, constraints, validators and computed features.'],
+    ['schema/prediction_response.py', 1, '#a78bfa', 'The output contract enforced by response_model and shown in /docs.'],
+    ['model/', 0, '#fbbf24', null],
+    ['model/predict.py', 1, '#fbbf24', 'Loads the model once and turns a feature dict into a prediction. The only file that knows about pickle/pandas.'],
+    ['model/model.pkl', 1, '#fbbf24', 'The trained artefact. Must be loaded with the same scikit-learn version it was saved with.'],
+    ['config/city_tier.py', 0, '#f472b6', 'Constants: the tier-1 and tier-2 city lists (and settings).'],
+    ['frontend.py', 0, '#5fb3f9', 'Streamlit client. Talks to the API only over HTTP; could be replaced by a mobile app.'],
+    ['requirements.txt', 0, '#94a3b8', 'Pinned dependencies — the pickle needs the exact sklearn version.'],
+    ['Dockerfile', 0, '#38bdf8', 'How to ship it: base image, deps, code, start command.'],
+  ];
+  const SCN = [
+    ['You retrain and swap in an XGBoost model with the same features (and bump MODEL_VERSION).', ['model/model.pkl', 'model/predict.py', 'requirements.txt']],
+    ['Add a new input field <code>has_chronic_disease</code> that the new model uses.', ['schema/user_input.py', 'model/model.pkl', 'frontend.py']],
+    ['Move Indore from tier 2 to tier 1.', ['config/city_tier.py']],
+    ['Add a <code>model_version</code> field to every prediction response.', ['schema/prediction_response.py', 'model/predict.py']],
+    ['Upgrade Python from 3.11 to 3.12 in production.', ['Dockerfile', 'requirements.txt']],
+    ['Replace Streamlit with a React front-end.', ['frontend.py']],
+  ];
+  let si = 0, picked = new Set(), checked = false, focus = 'app.py';
+  function sDraw() {
+    const ans = new Set(SCN[si][1]);
+    $('#s-tree').innerHTML = FILES.map(([f, d, c, role]) => {
+      let cls = '';
+      if (role) { if (checked) cls = ans.has(f) && picked.has(f) ? 'right' : ans.has(f) ? 'miss' : picked.has(f) ? 'pick' : ''; else cls = picked.has(f) ? 'pick' : ''; }
+      return '<button data-f="' + f + '" class="' + cls + '" style="padding-left:' + (10 + d * 22) + 'px" ' + (role ? '' : 'disabled') + '><span class="dot" style="background:' + c + '"></span>' + esc(f.split('/').filter(Boolean).pop() + (f.endsWith('/') ? '/' : '')) + '</button>';
+    }).join('');
+    $('#s-count').textContent = 'Change ' + (si + 1) + ' of ' + SCN.length;
+    $('#s-q').innerHTML = SCN[si][0];
+    const r = FILES.find((x) => x[0] === focus);
+    $('#s-role').innerHTML = r ? '<div class="callout blue">' + FA.icon('info') + '<div><b>' + esc(r[0]) + '</b> — ' + r[3] + '</div></div>' : '';
+    if (!checked) { $('#s-res').innerHTML = ''; return; }
+    const missed = [...ans].filter((f) => !picked.has(f)), extra = [...picked].filter((f) => !ans.has(f));
+    $('#s-res').innerHTML = !missed.length && !extra.length ? '<div class="ok-box">Exactly right — and notice app.py never changed.</div>' : '<div class="err-box">' + (missed.length ? 'Missed: ' + missed.join(', ') + '\n' : '') + (extra.length ? 'Not needed: ' + extra.join(', ') : '') + '</div>';
+  }
+  $('#s-tree').addEventListener('click', (e) => { const b = e.target.closest('button[data-f]'); if (!b || b.disabled) return; const f = b.dataset.f; focus = f; if (!checked) { picked.has(f) ? picked.delete(f) : picked.add(f); } sDraw(); });
+  $('#s-check').addEventListener('click', () => { checked = true; sDraw(); });
+  $('#s-next').addEventListener('click', () => { si = (si + 1) % SCN.length; picked = new Set(); checked = false; sDraw(); });
+  sDraw();
+
+  /* ===== Health ===== */
+  const STATES = { ok: 'healthy', loading: 'starting · model loading', crashed: 'process crashed', hung: 'event loop blocked (hung)' };
+  const inst = ['ok', 'loading', 'ok'];
+  let sent = null;
+  function probe(s, naive) {
+    if (s === 'crashed') return { code: 'conn refused', live: false, ready: false };
+    if (s === 'hung') return { code: 'timeout', live: false, ready: false };
+    if (s === 'loading') return naive ? { code: '200', live: true, ready: true, lie: true } : { code: '503', live: true, ready: false };
+    return { code: '200', live: true, ready: true };
+  }
+  function hDraw() {
+    const naive = $('#h-naive').checked;
+    $('#h-inst').innerHTML = inst.map((s, i) => {
+      const p = probe(s, naive);
+      const cls = p.ready && !p.lie ? 'up' : p.live ? 'wait' : 'down';
+      const action = !p.live ? 'restart it' : p.ready ? 'route traffic' : 'hold traffic until ready';
+      const got = sent ? sent[i] : null;
+      return '<div class="node ' + cls + '"><b>instance ' + (i + 1) + '</b><select class="input" data-i="' + i + '">' + Object.entries(STATES).map(([k, v]) => '<option value="' + k + '" ' + (k === s ? 'selected' : '') + '>' + v + '</option>').join('') + '</select>' +
+        '<div class="mono small">GET /health → <b>' + p.code + '</b></div><div class="small">liveness ' + (p.live ? '✓' : '✗') + ' · readiness ' + (p.ready ? '✓' : '✗') + '</div><div class="small muted">LB: ' + action + '</div>' +
+        (got ? '<div class="reqdots">' + '<i></i>'.repeat(got.ok) + '<i style="background:#f87171"></i>'.repeat(got.fail) + '</div>' : '') + '</div>';
+    }).join('');
+    if (!sent) { $('#h-res').innerHTML = ''; return; }
+    const ok = sent.reduce((a, b) => a + b.ok, 0), fail = sent.reduce((a, b) => a + b.fail, 0);
+    $('#h-res').innerHTML = fail ? '<div class="err-box">' + fail + ' of 12 requests failed with 503 "Model not loaded" — /health said 200 while the model was still loading.</div>' : ok ? '<div class="ok-box">' + ok + ' / 12 requests served. Traffic only went to instances whose /health reported ready.</div>' : '<div class="err-box">No instance is ready: every request gets 503 from the load balancer.</div>';
+  }
+  $('#h-inst').addEventListener('change', (e) => { const s = e.target.closest('select'); if (!s) return; inst[+s.dataset.i] = s.value; sent = null; hDraw(); });
+  $('#h-naive').addEventListener('change', () => { sent = null; hDraw(); });
+  $('#h-send').addEventListener('click', () => {
+    const naive = $('#h-naive').checked;
+    const ps = inst.map((s) => probe(s, naive));
+    const targets = ps.map((p, i) => p.ready ? i : -1).filter((i) => i >= 0);
+    sent = inst.map(() => ({ ok: 0, fail: 0 }));
+    for (let k = 0; k < 12 && targets.length; k++) { const i = targets[k % targets.length]; ps[i].lie ? sent[i].fail++ : sent[i].ok++; }
+    hDraw();
+  });
+  hDraw();
+
+  /* ===== response_model ===== */
+  let ret = 'dict', bug = 'ok';
+  const OUT = {
+    ok: { predicted_category: 'High', confidence: 0.8432, class_probabilities: { High: 0.8432, Low: 0.0123, Medium: 0.1445 } },
+    extra: { predicted_category: 'High', confidence: 0.8432, class_probabilities: { High: 0.8432, Low: 0.0123, Medium: 0.1445 }, raw_features: [29.7, 'adult', 'medium', 1, 18], model_path: '/app/model/model.pkl' },
+    bad: { predicted_category: 'High', confidence: 'high', class_probabilities: { High: 0.8432, Low: 0.0123, Medium: 0.1445 } },
+    missing: { predicted_category: 'High', confidence: 0.8432 },
+  };
+  function rDraw() {
+    const o = OUT[bug];
+    $('#r-flow').innerHTML = '<div class="req-line">' + (ret === 'dict' ? 'return dict → <b>response_model=PredictionResponse</b> (validate + filter) → JSON' : 'return JSONResponse(...) → <b style="color:#f87171">skips response_model</b> → JSON (unchecked)') + '</div>';
+    let status, body, note;
+    if (ret === 'json') {
+      status = '200 OK'; body = { response: o };
+      note = '<div class="callout amber">' + FA.icon('alert') + '<div>The body is wrapped in an extra <code>"response"</code> key that /docs never mentions, and nothing was validated or filtered' + (bug !== 'ok' ? ' — the client just received broken or leaky data with a 200' : '') + '. This is the course <code>app.py</code> pattern.</div></div>';
+    } else if (bug === 'bad' || bug === 'missing') {
+      status = '500 Internal Server Error'; body = 'Internal Server Error';
+      note = '<div class="callout blue">' + FA.icon('info') + '<div>FastAPI raised <code>ResponseValidationError</code> (' + (bug === 'bad' ? 'confidence: Input should be a valid number' : 'class_probabilities: Field required') + '). A loud 500 plus a server log beats a silent wrong answer.</div></div>';
+    } else {
+      status = '200 OK'; body = OUT.ok;
+      note = bug === 'extra' ? '<div class="ok-box">raw_features and model_path were dropped — they are not in PredictionResponse.</div>' : '<div class="ok-box">Validated, filtered and documented in /docs.</div>';
+    }
+    const out = $('#r-out'); out.innerHTML = '<div class="status ' + (status[0] === '2' ? 's2' : 's5') + '" style="margin-bottom:8px">' + status + '</div>';
+    const holder = document.createElement('div'); out.appendChild(holder);
+    setCode(holder, typeof body === 'string' ? body : JSON.stringify(body, null, 2), 'response body', typeof body === 'string' ? undefined : 'json');
+    $('#r-note').innerHTML = note;
+  }
+  segc('r-ret', (v) => { ret = v; rDraw(); });
+  segc('r-bug', (v) => { bug = v; rDraw(); });
+  rDraw();
+
+  /* ===== Errors ===== */
+  const ERR = [
+    ['Client sends <code>{"age": "thirty"}</code> to /predict.', '422', ['400', '422', '500'], 'Pydantic validation fails before your code runs; FastAPI returns 422 with the field-level details automatically.'],
+    ['<code>GET /patient/P999</code> — no such patient.', '404', ['400', '404', '204'], 'The resource doesn\'t exist: <code>raise HTTPException(404, "Patient not found")</code>.'],
+    ['<code>POST /create</code> with an id that already exists.', '409', ['400', '409', '422'], 'A conflict with existing state. The course returns 400 ("Patient already exists"), which works, but 409 Conflict is the precise code.'],
+    ['A request arrives while the model is still loading at start-up.', '503', ['500', '503', '404'], 'Temporary unavailability — the client (or load balancer) can retry later. 500 would claim a bug.'],
+    ['<code>predict_proba</code> raises <code>ValueError</code> on an odd input.', '500 generic', ['500 + str(e)', '500 generic', '422'], 'Log the traceback server-side, return a generic message. <code>str(e)</code> can leak paths, column names and library versions.'],
+    ['Same <code>ModelNotReady</code> exception can happen in 6 routes.', 'exception_handler', ['try/except in each route', 'exception_handler'], 'Register one <code>@app.exception_handler(ModelNotReady)</code> and raise it anywhere.'],
+  ];
+  const ans = {};
+  function eDraw() {
+    $('#e-list').innerHTML = ERR.map(([q, right, opts, why], i) => '<div class="scn"><div>' + q + '</div><div class="opts">' + opts.map((o) => '<button data-i="' + i + '" data-o="' + esc(o) + '" class="' + (ans[i] ? (o === right ? 'right' : o === ans[i] ? 'wrong' : '') : '') + '">' + esc(o) + '</button>').join('') + '</div>' + (ans[i] ? '<div class="why">' + why + '</div>' : '') + '</div>').join('');
+    const n = Object.keys(ans).length, c = Object.entries(ans).filter(([i, o]) => ERR[i][1] === o).length;
+    $('#e-score').innerHTML = n ? '<span class="chip">' + c + ' / ' + n + ' correct</span>' : '';
+  }
+  $('#e-list').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (!b || ans[b.dataset.i]) return; ans[b.dataset.i] = b.dataset.o; eDraw(); });
+  eDraw();
+
+  FA.init('production', () => {});
+})();
+</script>
+</body>
+</html>

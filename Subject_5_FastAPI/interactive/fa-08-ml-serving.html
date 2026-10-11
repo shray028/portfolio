@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serving an ML Model with FastAPI — Insurance Premium Predictor</title>
+  <meta name="description" content="Serve a scikit-learn model with FastAPI: feature engineering in Pydantic computed fields (BMI, age group, lifestyle risk, city tier), the /predict flow from Streamlit to the model, and why the model must be loaded once.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .map { display: grid; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); gap: 6px 0; align-items: center; }
+    .raw, .feat { min-width: 0; overflow-wrap: anywhere; padding: 8px 12px; border-radius: 9px; font: 12.5px var(--font-mono); border: 1px solid var(--line); background: var(--panel-2); display: flex; justify-content: space-between; gap: 8px; }
+    .raw { border-color: rgba(95,179,249,.35); } .feat { border-color: rgba(251,191,36,.45); }
+    .raw b, .feat b { color: var(--text); font-weight: 700; }
+    .arr { text-align: center; color: var(--dim); font: 700 14px var(--font-mono); }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .fstep { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; transition: all .25s; }
+    .fstep b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+    .fstep.on { border-color: rgba(61,220,151,.65); background: rgba(61,220,151,.08); }
+    .probs { display: grid; gap: 6px; }
+    .prob { display: grid; grid-template-columns: 70px 1fr 56px; gap: 8px; align-items: center; font: 12.5px var(--font-mono); }
+    .lanes { display: grid; gap: 5px; }
+    .lane { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; font: 11.5px var(--font-mono); color: var(--muted); }
+    .track { position: relative; height: 18px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .track span { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+    @media (max-width: 900px) { .flow { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 08 · ML PROJECT</span>
+      <h1>Serving an <span class="grad">ML model</span></h1>
+      <p class="desc">The course's second project: an Insurance Premium Category predictor. A classifier pickled to <code>model.pkl</code> predicts Low / Medium / High. Users type raw facts; the model was trained on engineered features. The API's job is to bridge that gap — reliably, for every request.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Live feature engineering · /predict flow · load-once simulator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="features"><span class="n">1</span>Features in the schema</button>
+      <button class="tab" data-tab="predict"><span class="n">2</span>The /predict flow</button>
+      <button class="tab" data-tab="loadonce"><span class="n">3</span>Load the model once</button>
+    </div></div>
+
+    <!-- ============ FEATURES ============ -->
+    <section class="tab-panel" data-panel="features">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The client sends what a human knows; the schema derives what the model needs <span class="imp">Must-know</span></h3>
+        <p><code>UserInput</code> validates the raw fields and turns them into model features with <code>@computed_field</code>s: <strong>bmi</strong> from weight and height, <strong>age_group</strong> from age, <strong>lifestyle_risk</strong> from smoker and BMI, <strong>city_tier</strong> from the city. Doing this in Pydantic means it's validated, documented, unit-testable and identical for every request — no training/serving skew.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · fill the form, watch the features</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="grid-2">
+            <div class="field"><label for="f-age">age</label><input class="input mono" id="f-age" type="number" value="34"></div>
+            <div class="field"><label for="f-inc">income_lpa</label><input class="input mono" id="f-inc" type="number" step="0.5" value="18"></div>
+            <div class="field"><label for="f-w">weight (kg)</label><input class="input mono" id="f-w" type="number" step="0.5" value="88"></div>
+            <div class="field"><label for="f-h">height (m)</label><input class="input mono" id="f-h" type="number" step="0.01" value="1.72"></div>
+            <div class="field"><label for="f-city">city</label><input class="input mono" id="f-city" value="  pune "></div>
+            <div class="field"><label for="f-occ">occupation</label><select class="input" id="f-occ"><option>private_job</option><option>government_job</option><option>business_owner</option><option>freelancer</option><option>student</option><option>retired</option><option>unemployed</option></select></div>
+          </div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-smoker" checked> smoker</label>
+          <div id="f-err"></div>
+        </div>
+        <div>
+          <div class="map" id="f-map"></div>
+          <div id="f-json" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · schema/user_input.py</div>
+      <textarea class="py" data-title="schema/user_input.py" data-imp>
+tier_1_cities = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Kolkata", "Hyderabad", "Pune"]
+tier_2_cities = ["Jaipur", "Chandigarh", "Indore", "Lucknow", ...]   # 48 cities
+
+class UserInput(BaseModel):
+    age: Annotated[int, Field(..., gt=0, lt=120)]
+    weight: Annotated[float, Field(..., gt=0)]
+    height: Annotated[float, Field(..., gt=0, lt=2.5)]
+    income_lpa: Annotated[float, Field(..., gt=0)]
+    smoker: Annotated[bool, Field(...)]
+    city: Annotated[str, Field(...)]
+    occupation: Annotated[Literal["retired", "freelancer", "student", "government_job",
+                                  "business_owner", "unemployed", "private_job"], Field(...)]
+
+    @field_validator("city")
+    @classmethod
+    def normalize_city(cls, v: str) -> str:
+        return v.strip().title()          # " pune " -> "Pune" so the tier lookup works
+
+    @computed_field
+    @property
+    def bmi(self) -> float:
+        return self.weight / (self.height ** 2)
+
+    @computed_field
+    @property
+    def lifestyle_risk(self) -> str:
+        if self.smoker and self.bmi > 30:  return "high"
+        elif self.smoker or self.bmi > 27: return "medium"
+        return "low"
+
+    @computed_field
+    @property
+    def age_group(self) -> str:
+        if self.age < 25: return "young"
+        elif self.age < 45: return "adult"
+        elif self.age < 60: return "middle_aged"
+        return "senior"
+
+    @computed_field
+    @property
+    def city_tier(self) -> int:
+        if self.city in tier_1_cities: return 1
+        elif self.city in tier_2_cities: return 2
+        return 3
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ml:features"></div>
+    </section>
+
+    <!-- ============ PREDICT ============ -->
+    <section class="tab-panel" data-panel="predict" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Streamlit → FastAPI → UserInput → model → JSON</h3>
+        <p>The Streamlit form posts JSON. FastAPI matches <code>POST /predict</code>, Pydantic validates and computes features, <code>predict_output</code> builds a one-row <code>DataFrame</code> (sklearn pipelines expect named columns) and calls <code>predict</code> and <code>predict_proba</code>, and the response carries the category, the confidence and every class probability.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · follow one prediction</div>
+      <div class="card card-pad">
+        <div class="flow" id="p-flow"></div>
+        <div class="btn-row mt"><button class="btn btn-primary" id="p-step"><i data-icon="step"></i>Next hop</button><button class="btn" id="p-reset"><i data-icon="reset"></i>Reset</button></div>
+        <div class="split mt2"><div id="p-detail"></div><div id="p-side"></div></div>
+        <div class="callout amber mt"><i data-icon="info"></i><div>The probabilities here come from a small transparent scoring rule over the same features, so the page can run without <code>model.pkl</code>. The <em>shape</em> of the request and response is exactly what the real API sends.</div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · model/predict.py and app.py</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="model/predict.py" data-imp>
+import pickle, pandas as pd
+from pathlib import Path
+
+MODEL_PATH = Path(__file__).resolve().parent / "model.pkl"   # not relative to the CWD
+with MODEL_PATH.open("rb") as f:          # runs ONCE, at import time
+    model = pickle.load(f)
+
+MODEL_VERSION = "1.0.0"
+class_labels = model.classes_.tolist()    # e.g. ['High', 'Low', 'Medium']
+
+def predict_output(user_input: dict) -> dict:
+    df = pd.DataFrame([user_input])        # one row, named columns
+    predicted_class = model.predict(df)[0]
+    probabilities = model.predict_proba(df)[0]
+    return {
+        "predicted_category": predicted_class,
+        "confidence": round(max(probabilities), 4),
+        "class_probabilities": dict(zip(class_labels, map(lambda p: round(p, 4), probabilities))),
+    }
+        </textarea></div>
+        <div><textarea class="py" data-title="app.py (fixed)" data-imp>
+@app.post("/predict", response_model=PredictionResponse)
+def predict_premium(data: UserInput):       # def: CPU-bound -> thread pool
+    user_input = {
+        "bmi": data.bmi, "age_group": data.age_group,
+        "lifestyle_risk": data.lifestyle_risk, "city_tier": data.city_tier,
+        "income_lpa": data.income_lpa, "occupation": data.occupation,
+    }
+    try:
+        return predict_output(user_input)   # dict -> validated by response_model
+    except Exception:
+        logger.exception("prediction failed")
+        raise HTTPException(status_code=500, detail="Prediction failed")
+
+# frontend.py (Streamlit)
+response = requests.post("http://127.0.0.1:8000/predict", json=input_data)
+result = response.json()
+st.success(f"Predicted: {result['predicted_category']}")
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ml:predict"></div>
+    </section>
+
+    <!-- ============ LOAD ONCE ============ -->
+    <section class="tab-panel" data-panel="loadonce" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Never unpickle per request <span class="imp">Must-know</span></h3>
+        <p>Loading inside the endpoint re-reads and unpickles the file for every request: hundreds of milliseconds of wasted latency, disk I/O and memory churn. Load once at start-up — at module level (the course) or, better, in the <code>lifespan</code> handler — and every request reuses the in-memory object.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · 8 requests, two strategies</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">model load time (ms) — pickle.load of the file</span><div class="range-row"><input type="range" id="l-load" min="20" max="800" step="20" value="300"><span class="val" id="l-load-v"></span></div></div>
+          <div class="field"><span class="label-t">inference time (ms)</span><div class="range-row"><input type="range" id="l-inf" min="1" max="60" step="1" value="8"><span class="val" id="l-inf-v"></span></div></div>
+          <div class="grid-2" id="l-stats"></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:6px">load inside the endpoint</div><div class="lanes" id="l-bad"></div>
+          <div class="label" style="margin:14px 0 6px">load once at start-up</div><div class="lanes" id="l-good"></div>
+          <div class="legend mt"><span><i style="background:#f87171"></i>loading model.pkl</span><span><i style="background:#3ddc97"></i>inference</span><span><i style="background:#fbbf24"></i>start-up load (once)</span></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="lifespan.py" data-imp>
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.model = joblib.load(MODEL_PATH)      # once, before the first request
+    yield
+    # cleanup after the last request (close clients, free GPU memory, ...)
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post("/predict", response_model=PredictionResponse)
+def predict(data: UserInput, request: Request):
+    model = getattr(request.app.state, "model", None)
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    ...
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="ml:loadonce"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const T1 = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune'];
+  const T2 = ['Jaipur', 'Chandigarh', 'Indore', 'Lucknow', 'Patna', 'Ranchi', 'Visakhapatnam', 'Coimbatore', 'Bhopal', 'Nagpur', 'Vadodara', 'Surat', 'Rajkot', 'Jodhpur', 'Raipur', 'Amritsar', 'Varanasi', 'Agra', 'Dehradun', 'Mysore', 'Jabalpur', 'Guwahati', 'Thiruvananthapuram', 'Ludhiana', 'Nashik', 'Allahabad', 'Udaipur', 'Aurangabad', 'Hubli', 'Belgaum', 'Salem', 'Vijayawada', 'Tiruchirappalli', 'Bhavnagar', 'Gwalior', 'Dhanbad', 'Bareilly', 'Aligarh', 'Gaya', 'Kozhikode', 'Warangal', 'Kolhapur', 'Bilaspur', 'Jalandhar', 'Noida', 'Guntur', 'Asansol', 'Siliguri'];
+  const title = (s) => s.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+
+  function compute() {
+    const raw = { age: +$('#f-age').value, weight: +$('#f-w').value, height: +$('#f-h').value, income_lpa: +$('#f-inc').value, smoker: $('#f-smoker').checked, city: $('#f-city').value, occupation: $('#f-occ').value };
+    const errs = [];
+    if (!(Number.isInteger(raw.age) && raw.age > 0 && raw.age < 120)) errs.push('age: must be an integer, 0 < age < 120');
+    if (!(raw.weight > 0)) errs.push('weight: Input should be greater than 0');
+    if (!(raw.height > 0 && raw.height < 2.5)) errs.push('height: 0 < height < 2.5 (metres!)');
+    if (!(raw.income_lpa > 0)) errs.push('income_lpa: Input should be greater than 0');
+    const city = title(raw.city.trim());
+    const bmi = raw.weight / (raw.height * raw.height);
+    const lifestyle_risk = raw.smoker && bmi > 30 ? 'high' : raw.smoker || bmi > 27 ? 'medium' : 'low';
+    const age_group = raw.age < 25 ? 'young' : raw.age < 45 ? 'adult' : raw.age < 60 ? 'middle_aged' : 'senior';
+    const city_tier = T1.includes(city) ? 1 : T2.includes(city) ? 2 : 3;
+    return { raw, errs, city, feat: { bmi, age_group, lifestyle_risk, city_tier, income_lpa: raw.income_lpa, occupation: raw.occupation } };
+  }
+  function features() {
+    const { raw, errs, city, feat } = compute();
+    $('#f-err').innerHTML = errs.length ? '<div class="err-box">422 Unprocessable Content\n' + errs.map(esc).join('\n') + '</div>' : '<div class="ok-box">UserInput validated ✓  city "' + esc(raw.city) + '" → "' + esc(city) + '"</div>';
+    const row = (r, f, note) => '<div class="raw">' + r + '</div><div class="arr">→</div><div class="feat">' + f + '</div>' + (note ? '<div style="grid-column:1/-1;font-size:11.5px;color:var(--dim);margin:-2px 0 4px 4px">' + note + '</div>' : '');
+    $('#f-map').innerHTML = '<div class="label">user sends (raw)</div><span></span><div class="label">model expects (engineered)</div>' +
+      row('weight <b>' + raw.weight + '</b> · height <b>' + raw.height + '</b>', 'bmi <b>' + (isFinite(feat.bmi) ? feat.bmi.toFixed(2) : '–') + '</b>') +
+      row('age <b>' + raw.age + '</b>', 'age_group <b>' + feat.age_group + '</b>', '&lt;25 young · &lt;45 adult · &lt;60 middle_aged · else senior') +
+      row('smoker <b>' + raw.smoker + '</b> + bmi', 'lifestyle_risk <b>' + feat.lifestyle_risk + '</b>', 'smoker and bmi &gt; 30 → high · smoker or bmi &gt; 27 → medium · else low') +
+      row('city <b>"' + esc(raw.city) + '"</b>', 'city_tier <b>' + feat.city_tier + '</b>', '.strip().title() → "' + esc(city) + '" → ' + (feat.city_tier === 1 ? 'in tier_1_cities' : feat.city_tier === 2 ? 'in tier_2_cities' : 'not listed → tier 3')) +
+      row('income_lpa <b>' + raw.income_lpa + '</b>', 'income_lpa <b>' + raw.income_lpa + '</b>') +
+      row('occupation <b>' + raw.occupation + '</b>', 'occupation <b>' + raw.occupation + '</b>');
+    setCode($('#f-json'), JSON.stringify(Object.assign({}, feat, { bmi: +feat.bmi.toFixed(4) }), null, 2), 'user_input dict passed to predict_output()', 'json');
+    return feat;
+  }
+  ['f-age', 'f-w', 'f-h', 'f-inc', 'f-city', 'f-occ', 'f-smoker'].forEach((id) => $('#' + id).addEventListener('input', () => { features(); pDraw(); }));
+  features();
+
+  /* ===== Predict flow ===== */
+  const HOPS = [
+    ['Streamlit', 'requests.post(url, json=...)'],
+    ['FastAPI', 'route match POST /predict'],
+    ['UserInput', 'validate + compute features'],
+    ['predict_output', 'DataFrame → predict_proba'],
+    ['Response', 'category, confidence, probabilities'],
+  ];
+  let hop = -1;
+  function score(f) {
+    // transparent illustrative scorer over the same features (stand-in for model.pkl)
+    let z = (f.lifestyle_risk === 'high' ? 2.2 : f.lifestyle_risk === 'medium' ? 1.0 : 0) + ({ young: -0.6, adult: 0, middle_aged: 0.6, senior: 1.2 }[f.age_group]) + (f.city_tier === 1 ? 0.5 : f.city_tier === 2 ? 0.2 : 0) - Math.min(1.5, f.income_lpa / 25) + (['unemployed', 'retired'].includes(f.occupation) ? 0.4 : 0);
+    const logits = { Low: -z, Medium: 0.6 - Math.abs(z - 0.6), High: z - 1.2 };
+    const m = Math.max(...Object.values(logits)); const ex = Object.fromEntries(Object.entries(logits).map(([k, v]) => [k, Math.exp(v - m)])); const s = Object.values(ex).reduce((a, b) => a + b, 0);
+    const probs = Object.fromEntries(['High', 'Low', 'Medium'].map((k) => [k, Math.round(ex[k] / s * 10000) / 10000]));
+    const best = Object.entries(probs).sort((a, b) => b[1] - a[1])[0];
+    return { predicted_category: best[0], confidence: best[1], class_probabilities: probs };
+  }
+  function pDraw() {
+    const { raw, errs, feat } = compute();
+    $('#p-flow').innerHTML = HOPS.map((h, i) => '<div class="fstep ' + (i <= hop ? 'on' : '') + '"><b>' + (i + 1) + '. ' + h[0] + '</b>' + h[1] + '</div>').join('');
+    const d = $('#p-detail'), side = $('#p-side'); d.innerHTML = ''; side.innerHTML = '';
+    if (hop < 0) { d.innerHTML = '<p class="muted small">Press <b>Next hop</b>. The request uses the form values from the first tab.</p>'; return; }
+    if (hop === 0) { setCode(d, JSON.stringify(Object.assign({}, raw, { city: raw.city }), null, 2), 'POST /predict — request body', 'json'); }
+    if (hop === 1) { d.innerHTML = '<div class="callout blue">' + FA.icon('info') + '<div>Starlette matches <span class="verb POST">POST</span> <code>/predict</code>; FastAPI sees <code>data: UserInput</code> is a BaseModel, so it reads the JSON body.</div></div>'; }
+    if (hop === 2) { if (errs.length) { d.innerHTML = '<div class="err-box">422 — ' + errs.map(esc).join('; ') + '</div>'; } else setCode(d, JSON.stringify(Object.assign({}, feat, { bmi: +feat.bmi.toFixed(2) }), null, 2), 'computed features', 'json'); }
+    if (hop === 3) { setCode(d, 'df = pd.DataFrame([user_input])\n#    bmi  age_group  lifestyle_risk  city_tier  income_lpa  occupation\n# 0  ' + feat.bmi.toFixed(2) + '  ' + feat.age_group + '  ' + feat.lifestyle_risk + '  ' + feat.city_tier + '  ' + feat.income_lpa + '  ' + feat.occupation + '\nmodel.predict(df)[0]; model.predict_proba(df)[0]', 'predict_output'); }
+    if (hop === 4) {
+      if (errs.length) { d.innerHTML = '<div class="err-box">The request never reached the model: 422.</div>'; return; }
+      const r = score(feat);
+      setCode(d, JSON.stringify(r, null, 2), '200 OK — PredictionResponse', 'json');
+      side.innerHTML = '<div class="label" style="margin-bottom:8px">class probabilities (illustrative)</div><div class="probs">' + Object.entries(r.class_probabilities).map(([k, v]) => '<div class="prob"><span>' + k + '</span><div class="bar"><span style="width:' + v * 100 + '%;background:' + (k === r.predicted_category ? 'var(--acc)' : 'var(--line-strong)') + '"></span></div><span>' + (v * 100).toFixed(1) + '%</span></div>').join('') + '</div><div class="ok-box mt">st.success("Predicted: ' + r.predicted_category + '")</div>';
+    }
+  }
+  $('#p-step').addEventListener('click', () => { hop = Math.min(4, hop + 1); pDraw(); });
+  $('#p-reset').addEventListener('click', () => { hop = -1; pDraw(); });
+  pDraw();
+
+  /* ===== Load once ===== */
+  function load() {
+    const L = +$('#l-load').value, I = +$('#l-inf').value, N = 8;
+    $('#l-load-v').textContent = L; $('#l-inf-v').textContent = I;
+    const total = Math.max(N * (L + I), L + N * I);
+    const lane = (segs, label) => '<div class="lane"><span>' + label + '</span><div class="track">' + segs.map(([s, d, c]) => '<span style="left:' + (s / total * 100) + '%;width:' + Math.max(0.4, d / total * 100) + '%;background:' + c + '"></span>').join('') + '</div></div>';
+    let bad = '', good = '', t = 0;
+    for (let i = 0; i < N; i++) { bad += lane([[t, L, '#f87171'], [t + L, I, '#3ddc97']], 'req ' + (i + 1)); t += L + I; }
+    good += lane([[0, L, '#fbbf24']], 'start-up');
+    for (let i = 0; i < N; i++) good += lane([[L + i * I, I, '#3ddc97']], 'req ' + (i + 1));
+    $('#l-bad').innerHTML = bad; $('#l-good').innerHTML = good;
+    $('#l-stats').innerHTML = [[(L + I) + ' ms', 'latency per request (per-request load)'], [I + ' ms', 'latency per request (load once)'], [Math.round((L + I) / I) + '×', 'slower when loading per request'], [(N * L) + ' ms', 'wasted on 8 requests']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:17px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  ['l-load', 'l-inf'].forEach((id) => $('#' + id).addEventListener('input', load));
+
+  let cur = '';
+  FA.init('ml', (id) => { cur = id; if (id === 'loadonce') load(); if (id === 'predict') pDraw(); });
+})();
+</script>
+</body>
+</html>

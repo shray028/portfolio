@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Is FastAPI? — The Stack, WSGI vs ASGI &amp; Framework Comparison</title>
+  <meta name="description" content="FastAPI's two promises, the Uvicorn–Starlette–FastAPI–Pydantic stack, an interactive WSGI vs ASGI timeline, and FastAPI vs Flask vs Django.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .stack { display: grid; gap: 8px; }
+    .layer { text-align: left; display: grid; grid-template-columns: 150px 1fr auto; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); transition: border-color .2s, background .2s; }
+    .layer:hover { border-color: var(--line-strong); }
+    .layer.on { border-color: var(--lc); background: color-mix(in srgb, var(--lc) 12%, transparent); }
+    .layer b { font-size: 15px; color: var(--lc); }
+    .layer span { color: var(--text-2); font-size: 13px; }
+    .layer em { font: 600 10.5px var(--font-mono); color: var(--dim); font-style: normal; }
+    .gantt { display: grid; gap: 5px; }
+    .lane { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; font: 11.5px var(--font-mono); color: var(--muted); }
+    .track { position: relative; height: 20px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .track span { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+    .track .cpu { background: #3ddc97; } .track .io { background: repeating-linear-gradient(45deg, #323c55 0 4px, #222939 4px 8px); }
+    .promise { padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-2); }
+    .promise h4 { font-size: 17px; margin-bottom: 8px; }
+    .promise li { color: var(--text-2); font-size: 14px; margin-left: 18px; line-height: 1.7; }
+    @media (max-width: 760px) { .layer { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 03 · FOUNDATIONS</span>
+      <h1>What is <span class="grad">FastAPI?</span></h1>
+      <p class="desc">FastAPI's name carries two promises: fast to <strong>run</strong> and fast to <strong>code</strong>. The first comes from ASGI, Starlette and Uvicorn; the second from type hints and Pydantic. This module shows exactly which layer does what — and when "async" helps and when it doesn't.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Stack explorer · WSGI vs ASGI simulator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="stack"><span class="n">1</span>The stack</button>
+      <button class="tab" data-tab="asgi"><span class="n">2</span>WSGI vs ASGI</button>
+      <button class="tab" data-tab="compare"><span class="n">3</span>FastAPI vs Flask vs Django</button>
+    </div></div>
+
+    <!-- ============ STACK ============ -->
+    <section class="tab-panel" data-panel="stack">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="promise"><h4 style="color:var(--acc)">Fast to <em>run</em></h4><ul><li>Built on <b>Starlette</b>, an async web toolkit</li><li>Served by <b>Uvicorn</b>, an <b>ASGI</b> server</li><li><code>async</code>/<code>await</code>: one process juggles thousands of waiting connections</li><li>Benchmarks close to Node.js and Go frameworks</li></ul></div>
+        <div class="promise"><h4 style="color:var(--purple)">Fast to <em>code</em></h4><ul><li>Type hints drive parsing, validation and docs</li><li><b>Pydantic</b> validates input automatically</li><li>Free interactive docs at <code>/docs</code> and <code>/redoc</code></li><li>Less boilerplate, fewer bugs, great autocomplete</li></ul></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · who does what (click a layer)</div>
+      <div class="card card-pad split">
+        <div class="stack" id="st"></div>
+        <div id="st-detail"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="fastapi:stack"></div>
+    </section>
+
+    <!-- ============ ASGI ============ -->
+    <section class="tab-panel" data-panel="asgi" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>One worker, many waiting requests <span class="imp">Must-know</span></h3>
+        <p><strong>WSGI</strong> (Flask, classic Django) is synchronous: a worker handles one request at a time and sits idle while it waits on a database, disk or another API. <strong>ASGI</strong> (FastAPI) runs an <strong>event loop</strong>: while one request waits on I/O, the worker switches to another.</p>
+        <div class="callout amber mt"><i data-icon="alert"></i><div><b>ASGI does not make CPU-heavy code faster.</b> The event loop only helps while you are <em>waiting</em>. A big <code>model.predict</code> keeps the CPU busy; inside an <code>async def</code>, nothing else can run meanwhile. Set the I/O wait to 0 below to see the advantage vanish.</div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one worker, N concurrent requests</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">concurrent requests</span><div class="range-row"><input type="range" id="g-n" min="1" max="8" step="1" value="3"><span class="val" id="g-n-v"></span></div></div>
+          <div class="field"><span class="label-t">CPU work per request (ms)</span><div class="range-row"><input type="range" id="g-c" min="5" max="100" step="5" value="10"><span class="val" id="g-c-v"></span></div></div>
+          <div class="field"><span class="label-t">waiting on I/O per request (ms) — DB, network, disk</span><div class="range-row"><input type="range" id="g-w" min="0" max="200" step="10" value="60"><span class="val" id="g-w-v"></span></div></div>
+          <div class="btn-row"><button class="btn btn-sm" data-p="io">I/O-heavy API</button><button class="btn btn-sm" data-p="cpu">CPU-heavy inference</button></div>
+          <div class="grid-2" id="g-stats"></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:6px">WSGI — requests handled one after another</div><div class="gantt" id="g-w1"></div>
+          <div class="label" style="margin:14px 0 6px">ASGI — event loop switches while waiting</div><div class="gantt" id="g-a1"></div>
+          <div class="legend mt"><span><i style="background:#3ddc97"></i>CPU work</span><span><i style="background:#323c55"></i>waiting on I/O</span></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="fastapi:asgi"></div>
+    </section>
+
+    <!-- ============ COMPARE ============ -->
+    <section class="tab-panel" data-panel="compare" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Pick the tool for the job</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th></th><th>FastAPI</th><th>Flask</th><th>Django (+DRF)</th></tr></thead>
+          <tbody>
+            <tr><td>Interface</td><td>ASGI (async native)</td><td>WSGI</td><td>WSGI (ASGI partial)</td></tr>
+            <tr><td>Validation</td><td>automatic, Pydantic</td><td>manual / extensions</td><td>serializers</td></tr>
+            <tr><td>API docs</td><td>automatic Swagger + ReDoc</td><td>extensions</td><td>extensions</td></tr>
+            <tr><td>Batteries</td><td>minimal, compose your own</td><td>minimal</td><td>ORM, admin, auth</td></tr>
+            <tr><td>Sweet spot</td><td>APIs, ML serving, microservices</td><td>small apps</td><td>full web products</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>The same endpoint, two frameworks</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="flask_app.py">
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.post("/patients")
+def create():
+    body = request.get_json()
+    # every check by hand...
+    if not isinstance(body.get("age"), int) or not 0 < body["age"] < 120:
+        return jsonify({"error": "age must be 1-119"}), 400
+    if body.get("gender") not in ("male", "female", "others"):
+        return jsonify({"error": "bad gender"}), 400
+    ...
+    return jsonify({"message": "created"}), 201
+        </textarea></div>
+        <div><textarea class="py" data-title="fastapi_app.py" data-imp>
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
+from typing import Literal
+
+app = FastAPI()
+
+class Patient(BaseModel):
+    age: int = Field(gt=0, lt=120)
+    gender: Literal["male", "female", "others"]
+
+@app.post("/patients", status_code=201)
+def create(p: Patient):            # validated before this runs (422 otherwise)
+    ...                            # and documented at /docs automatically
+    return {"message": "created"}
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="fastapi:compare"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+
+  /* ===== Stack ===== */
+  const L = [
+    { n: 'Pydantic', c: '#b18cff', s: 'parse & validate data, serialise output, JSON Schema', you: 'your models', d: 'Turns raw JSON into typed, validated Python objects (or a 422 with error locations) and turns your return values back into JSON. It also generates the JSON Schema that /docs shows.', code: 'class Patient(BaseModel):\n    age: int = Field(gt=0, lt=120)' },
+    { n: 'FastAPI', c: '#3ddc97', s: 'routing by decorator, params from type hints, DI, OpenAPI docs', you: 'your path functions', d: 'Reads your function signatures: which arguments are path, query, header or body; which dependencies to run; what response model to apply. Builds the OpenAPI spec from all of it.', code: '@app.get("/patient/{patient_id}")\ndef view_patient(patient_id: str): ...' },
+    { n: 'Starlette', c: '#5fb3f9', s: 'requests/responses, routing core, middleware, WebSockets', you: 'infrastructure', d: 'The ASGI web toolkit FastAPI subclasses. It matches routes (404/405 come from here), runs middleware (CORS, GZip), and provides Request, Response, JSONResponse and WebSockets.', code: 'from starlette.middleware.cors import CORSMiddleware  # re-exported by FastAPI' },
+    { n: 'Uvicorn', c: '#fbbf24', s: 'the ASGI server: listens on a port, speaks raw HTTP', you: 'uvicorn main:app', d: 'The server process. It opens the TCP socket, parses raw HTTP bytes, builds an ASGI scope, and calls your app. You only touch it to start it.', code: 'uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4' },
+    { n: 'Network / OS', c: '#8c94a9', s: 'TCP sockets', you: '', d: 'The operating system delivers TCP connections to the port Uvicorn listens on.', code: null },
+  ];
+  $('#st').innerHTML = L.map((l, i) => '<button class="layer" data-i="' + i + '" style="--lc:' + l.c + '"><b>' + l.n + '</b><span>' + l.s + '</span><em>' + l.you + '</em></button>').join('');
+  function pick(i) {
+    $$('#st .layer').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    const l = L[i]; const host = $('#st-detail');
+    host.innerHTML = '<div class="card lesson" style="padding:16px 18px"><h4 style="margin-top:0;color:' + l.c + '">' + l.n + '</h4><p>' + esc(l.d) + '</p><p class="small muted">' + (i < 2 ? 'This is where <b>your code</b> lives.' : i < 4 ? '<b>Infrastructure</b> — you rarely touch it.' : '') + '</p></div>';
+    if (l.code) { const cb = codeBlock(l.code, { title: l.n.toLowerCase() }); cb.classList.add('mt'); host.appendChild(cb); }
+  }
+  $('#st').addEventListener('click', (e) => { const b = e.target.closest('.layer'); if (b) pick(+b.dataset.i); });
+  pick(1);
+
+  /* ===== WSGI vs ASGI ===== */
+  function sim() {
+    const n = +$('#g-n').value, c = +$('#g-c').value, w = +$('#g-w').value;
+    $('#g-n-v').textContent = n; $('#g-c-v').textContent = c; $('#g-w-v').textContent = w;
+    // each request: c/2 cpu, w io, c/2 cpu
+    const half = c / 2;
+    const wsgi = []; let t = 0;
+    for (let i = 0; i < n; i++) { wsgi.push([[t, half, 'cpu'], [t + half, w, 'io'], [t + half + w, half, 'cpu']]); t += c + w; }
+    const wsgiEnd = t;
+    // ASGI: single cpu; first cpu chunks sequential, io overlaps, second cpu chunks when io done and cpu free
+    const asgi = []; let cpuFree = 0; const ioDone = [];
+    for (let i = 0; i < n; i++) { const s = cpuFree; cpuFree = s + half; asgi.push([[s, half, 'cpu'], [s + half, w, 'io']]); ioDone.push(s + half + w); }
+    const order = [...Array(n).keys()].sort((a, b) => ioDone[a] - ioDone[b]);
+    order.forEach((i) => { const s = Math.max(cpuFree, ioDone[i]); asgi[i].push([s, half, 'cpu']); cpuFree = s + half; });
+    const asgiEnd = Math.max(...asgi.map((r) => r[2][0] + r[2][1]));
+    const total = Math.max(wsgiEnd, asgiEnd);
+    const draw = (rows) => rows.map((segs, i) => '<div class="lane"><span>req ' + (i + 1) + '</span><div class="track">' + segs.filter((s) => s[1] > 0).map(([s, d, k]) => '<span class="' + k + '" style="left:' + (s / total * 100) + '%;width:' + (d / total * 100) + '%"></span>').join('') + '</div></div>').join('');
+    $('#g-w1').innerHTML = draw(wsgi); $('#g-a1').innerHTML = draw(asgi);
+    const avgW = wsgi.reduce((a, r) => a + r[2][0] + r[2][1], 0) / n, avgA = asgi.reduce((a, r) => a + r[2][0] + r[2][1], 0) / n;
+    $('#g-stats').innerHTML = [[wsgiEnd + ' ms', 'WSGI: all done'], [asgiEnd + ' ms', 'ASGI: all done'], [Math.round(avgW) + ' ms', 'WSGI: avg latency'], [Math.round(avgA) + ' ms', 'ASGI: avg latency'], [(wsgiEnd / asgiEnd).toFixed(1) + '×', 'ASGI throughput gain']].map(([v, k], i) => '<div class="stat"' + (i === 4 ? ' style="grid-column:1/-1"' : '') + '><div class="v" style="font-size:17px;color:' + (i === 4 ? (wsgiEnd / asgiEnd > 1.3 ? 'var(--green)' : 'var(--amber)') : 'var(--text)') + '">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+  }
+  ['g-n', 'g-c', 'g-w'].forEach((id) => $('#' + id).addEventListener('input', sim));
+  $$('[data-p]').forEach((b) => b.addEventListener('click', () => { if (b.dataset.p === 'io') { $('#g-c').value = 10; $('#g-w').value = 120; } else { $('#g-c').value = 80; $('#g-w').value = 0; } sim(); }));
+  sim();
+
+  FA.init('fastapi');
+})();
+</script>
+</body>
+</html>

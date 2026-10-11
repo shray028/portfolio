@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP Essentials — URLs, Methods, Idempotency &amp; Status Codes</title>
+  <meta name="description" content="HTTP for FastAPI developers: URL anatomy, request and response structure, GET/POST/PUT/PATCH/DELETE, safe vs idempotent methods, and a status-code quiz.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .url-view { display: flex; flex-wrap: wrap; font: 600 17px var(--font-mono); padding: 16px; border-radius: 12px; background: #090b12; border: 1px solid var(--line); gap: 0; }
+    .url-view span { padding: 2px 1px; border-bottom: 3px solid transparent; }
+    .seg-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .state { display: grid; gap: 4px; font: 12px var(--font-mono); }
+    .state div { padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); transition: background .3s, border-color .3s; }
+    .state div.new { border-color: rgba(74,222,128,.5); background: rgba(74,222,128,.08); }
+    .state div.chg { border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.08); }
+    .callrow { display: grid; grid-template-columns: 40px 1fr 70px 1fr; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); font: 12px var(--font-mono); }
+    .quiz-q { font-size: 16px; font-weight: 700; line-height: 1.5; }
+    .opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .opt { padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 700 14px var(--font-mono); }
+    .opt:hover { border-color: var(--line-strong); }
+    .opt.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); color: #bbf7d0; }
+    .opt.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); color: #fecaca; }
+    .codes { display: grid; gap: 10px; }
+    .fam { display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: start; }
+    .fam > b { padding: 10px; border-radius: 10px; text-align: center; font-size: 13px; color: #04110b; }
+    .fam ul { list-style: none; display: grid; gap: 4px; }
+    .fam li { padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+    .fam li code { white-space: nowrap; }
+    .anat { padding: 14px; border-radius: 12px; font: 12.5px/1.75 var(--font-mono); white-space: pre-wrap; }
+    .anat.req { border: 1px solid rgba(95,179,249,.45); background: rgba(95,179,249,.05); }
+    .anat.res { border: 1px solid rgba(74,222,128,.45); background: rgba(74,222,128,.05); }
+    .anat .lbl { color: var(--dim); font-size: 10.5px; float: right; }
+    @media (max-width: 760px) { .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .callrow { grid-template-columns: 30px 1fr; } .fam { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 02 · FOUNDATIONS</span>
+      <h1><span class="grad">HTTP</span> essentials</h1>
+      <p class="desc">FastAPI is "just" a nice way to speak HTTP, so the vocabulary needs to be automatic: what each part of a URL means, what a request and a response carry, which methods are safe or idempotent, and which status code to return when.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">URL parser · idempotency simulator · status-code quiz</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="url"><span class="n">1</span>URLs, requests &amp; responses</button>
+      <button class="tab" data-tab="methods"><span class="n">2</span>Methods &amp; idempotency</button>
+      <button class="tab" data-tab="status"><span class="n">3</span>Status codes</button>
+    </div></div>
+
+    <!-- ============ URL ============ -->
+    <section class="tab-panel" data-panel="url">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Path identifies, query modifies</h3>
+        <ul>
+          <li><strong>Path parameter</strong> — part of the path itself; identifies <em>which</em> resource: <code>/patient/P001</code>.</li>
+          <li><strong>Query parameters</strong> — optional knobs after <code>?</code>, as <code>key=value</code> pairs joined by <code>&amp;</code>; <em>how</em> you want it (sort, filter, paginate).</li>
+        </ul>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · take a URL apart</div>
+      <div class="card card-pad">
+        <div class="grid-2">
+          <div class="field"><label for="u-in">URL</label><input class="input mono" id="u-in" value="http://127.0.0.1:8000/patient/P001?sort_by=bmi&amp;order=desc"></div>
+          <div class="field"><label for="u-tpl">route template (declared in FastAPI)</label><input class="input mono" id="u-tpl" value="/patient/{patient_id}"></div>
+        </div>
+        <div class="url-view mt" id="u-view"></div>
+        <div class="seg-legend" id="u-legend"></div>
+        <div class="split mt"><div id="u-table"></div><div id="u-fn"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="layers"></i>Anatomy of a request and a response</div>
+      <div class="grid-2">
+        <div class="anat req"><span class="lbl">request line</span><b style="color:#60a5fa">POST</b> /create HTTP/1.1
+<span class="lbl">headers</span>Host: 127.0.0.1:8000
+Content-Type: application/json
+Accept: application/json
+
+<span class="lbl">body</span>{"id": "P006", "name": "Asha",
+ "age": 30, "height": 1.6, ...}</div>
+        <div class="anat res"><span class="lbl">status line</span>HTTP/1.1 <b style="color:#86efac">201 Created</b>
+<span class="lbl">headers</span>content-type: application/json
+content-length: 43
+
+<span class="lbl">body</span>{"message":
+ "patient created successfully"}</div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="http:url"></div>
+    </section>
+
+    <!-- ============ METHODS ============ -->
+    <section class="tab-panel" data-panel="methods" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The verbs of CRUD <span class="imp">Must-know</span></h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Method</th><th>CRUD</th><th>Meaning &amp; course example</th><th>Body?</th><th>Safe</th><th>Idempotent</th></tr></thead>
+          <tbody>
+            <tr><td><span class="verb GET">GET</span></td><td>Read</td><td>Fetch data — <code>/view</code>, <code>/patient/{id}</code>, <code>/sort</code></td><td>no</td><td>✓</td><td>✓</td></tr>
+            <tr><td><span class="verb POST">POST</span></td><td>Create</td><td>Create a resource / trigger a computation — <code>/create</code>, <code>/predict</code></td><td>yes</td><td>✗</td><td>✗</td></tr>
+            <tr><td><span class="verb PUT">PUT</span></td><td>Update</td><td>Replace a resource — the course used it for <code>/edit/{id}</code></td><td>yes</td><td>✗</td><td>✓</td></tr>
+            <tr><td><span class="verb PATCH">PATCH</span></td><td>Update</td><td>Partially modify a resource</td><td>yes</td><td>✗</td><td>usually</td></tr>
+            <tr><td><span class="verb DELETE">DELETE</span></td><td>Delete</td><td>Remove a resource — <code>/delete/{id}</code></td><td>no</td><td>✗</td><td>✓</td></tr>
+          </tbody>
+        </table></div>
+        <p class="mt"><strong>Safe</strong> = doesn't change server state. <strong>Idempotent</strong> = once or ten times, the server ends up in the <em>same</em> state. The response may differ (a second DELETE returns 404) — it's the <em>state</em> that matters.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · send the same request three times</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="btn-row" id="m-btns"></div>
+          <button class="btn" id="m-reset"><i data-icon="reset"></i>Reset server</button>
+          <div id="m-calls" style="display:grid;gap:6px"></div>
+          <div id="m-verdict"></div>
+        </div>
+        <div><div class="label" style="margin-bottom:6px">server state (patients)</div><div class="state" id="m-state"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="http:methods"></div>
+    </section>
+
+    <!-- ============ STATUS ============ -->
+    <section class="tab-panel" data-panel="status" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>4xx: the client should change the request. 5xx: the server is at fault. <span class="imp">Must-know</span></h3>
+        <div class="codes mt">
+          <div class="fam"><b style="background:#4ade80">2xx Success</b><ul><li><code>200 OK</code> — GET/PUT success with a body</li><li><code>201 Created</code> — POST created something (<code>/create</code>)</li><li><code>204 No Content</code> — success, empty body (typical for DELETE)</li></ul></div>
+          <div class="fam"><b style="background:#60a5fa">3xx Redirect</b><ul><li><code>307 Temporary Redirect</code> — FastAPI redirects <code>/items/</code> ↔ <code>/items</code></li></ul></div>
+          <div class="fam"><b style="background:#fbbf24">4xx Client</b><ul><li><code>400 Bad Request</code> — valid shape, breaks <em>your</em> rule (invalid sort field)</li><li><code>401 Unauthorized</code> — who are you? (missing/bad credentials)</li><li><code>403 Forbidden</code> — I know you, but you may not do this</li><li><code>404 Not Found</code> — unknown patient id</li><li><code>405 Method Not Allowed</code> — POST to a GET-only route</li><li><code>409 Conflict</code> — clashes with current state (patient exists)</li><li><code>422 Unprocessable Content</code> — FastAPI/Pydantic validation failed</li><li><code>429 Too Many Requests</code> — rate-limited</li></ul></div>
+          <div class="fam"><b style="background:#f87171">5xx Server</b><ul><li><code>500 Internal Server Error</code> — unhandled exception in your code</li><li><code>503 Service Unavailable</code> — not ready, e.g. model not loaded</li></ul></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · which status code?</div>
+      <div class="card card-pad">
+        <div class="btn-row" style="justify-content:space-between"><span class="small muted" id="q-pos"></span><span class="chip green" id="q-score">score 0</span></div>
+        <div class="quiz-q mt" id="q-text"></div>
+        <div class="opts" id="q-opts"></div>
+        <div id="q-exp" class="mt"></div>
+        <div class="btn-row mt"><button class="btn btn-primary" id="q-next">Next scenario →</button></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="status_codes.py" data-imp>
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import Response
+
+@app.post("/patients", status_code=status.HTTP_201_CREATED)
+def create(p: Patient):
+    if p.id in data:
+        raise HTTPException(status_code=409, detail="Patient already exists")
+    ...
+
+@app.get("/patients/{pid}")
+def read(pid: str):
+    if pid not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return data[pid]
+
+@app.delete("/patients/{pid}", status_code=204)
+def delete(pid: str):
+    ...
+    return Response(status_code=204)      # empty body
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="http:status"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python' })); };
+
+  /* ===== URL parser ===== */
+  const COL = { scheme: '#8c94a9', host: '#60a5fa', port: '#fbbf24', path: '#3ddc97', param: '#b18cff', query: '#f0abfc' };
+  function parse() {
+    const raw = $('#u-in').value.trim(), tpl = $('#u-tpl').value.trim();
+    const m = raw.match(/^(https?:\/\/)?([^/:?#]+)?(:\d+)?([^?#]*)(\?[^#]*)?/i);
+    if (!m) return;
+    const [, scheme = '', host = '', port = '', path = '', query = ''] = m;
+    // match template
+    const tParts = tpl.split('/').filter(Boolean), pParts = path.split('/').filter(Boolean);
+    const params = {}; let matched = tParts.length === pParts.length;
+    if (matched) tParts.forEach((t, i) => { const pm = t.match(/^\{(\w+)\}$/); if (pm) params[pm[1]] = decodeURIComponent(pParts[i]); else if (t !== pParts[i]) matched = false; });
+    let pathHtml = '';
+    pParts.forEach((p, i) => { const isParam = matched && /^\{\w+\}$/.test(tParts[i] || ''); pathHtml += '<span style="color:' + COL.path + ';border-color:' + COL.path + '">/</span><span style="color:' + (isParam ? COL.param : COL.path) + ';border-color:' + (isParam ? COL.param : COL.path) + '">' + esc(p) + '</span>'; });
+    if (!pParts.length) pathHtml = '<span style="color:' + COL.path + ';border-color:' + COL.path + '">/</span>';
+    $('#u-view').innerHTML = (scheme ? '<span style="color:' + COL.scheme + ';border-color:' + COL.scheme + '">' + esc(scheme) + '</span>' : '') + (host ? '<span style="color:' + COL.host + ';border-color:' + COL.host + '">' + esc(host) + '</span>' : '') + (port ? '<span style="color:' + COL.port + ';border-color:' + COL.port + '">' + esc(port) + '</span>' : '') + pathHtml + (query ? '<span style="color:' + COL.query + ';border-color:' + COL.query + '">' + esc(query) + '</span>' : '');
+    $('#u-legend').innerHTML = [['scheme', 'scheme'], ['host', 'host'], ['port', 'port'], ['path', 'path'], ['param', 'path parameter'], ['query', 'query string']].map(([k, l]) => '<span class="chip" style="color:' + COL[k] + '">' + l + '</span>').join('');
+    const q = new URLSearchParams(query.replace(/^\?/, ''));
+    let rows = '';
+    Object.entries(params).forEach(([k, v]) => { rows += '<tr><td><span class="chip purple">path</span></td><td class="mono">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>'; });
+    q.forEach((v, k) => { rows += '<tr><td><span class="chip" style="color:#f0abfc">query</span></td><td class="mono">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>'; });
+    $('#u-table').innerHTML = (matched ? '' : '<div class="err-box" style="margin-bottom:10px">404 Not Found — the path doesn\'t match the template ' + esc(tpl) + '</div>') + '<table class="tbl"><thead><tr><th>source</th><th>name</th><th>value (string from the URL)</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3" class="muted">no parameters</td></tr>') + '</tbody></table>';
+    const args = Object.keys(params).map((k) => k + ': str').concat([...q.keys()].map((k) => k + ': str | None = None'));
+    setCode($('#u-fn'), '@app.get("' + tpl + '")\ndef handler(' + args.join(', ') + '):\n    ...   # FastAPI injects each value by NAME', 'how FastAPI sees it');
+  }
+  ['u-in', 'u-tpl'].forEach((id) => $('#' + id).addEventListener('input', parse)); parse();
+
+  /* ===== Idempotency simulator ===== */
+  const SEED = () => ({ P001: { name: 'Ananya Verma', weight: 90 }, P002: { name: 'Ravi Mehta', weight: 85 } });
+  let S = SEED(), calls = [], counter = 6, changed = new Set(), added = new Set();
+  const REQS = [
+    { k: 'get', v: 'GET', p: '/patients/P001', run: () => (S.P001 ? [200, 'patient P001'] : [404, 'Patient not found']) },
+    { k: 'post', v: 'POST', p: '/patients  {name: "Asha"}', run: () => { const id = 'P' + String(counter++).padStart(3, '0'); S[id] = { name: 'Asha', weight: 60 }; added.add(id); return [201, 'created ' + id]; } },
+    { k: 'put', v: 'PUT', p: '/patients/P001  {name, weight: 70}', run: () => { if (!S.P001) return [404, 'Patient not found']; S.P001 = { name: 'Ananya Verma', weight: 70 }; changed.add('P001'); return [200, 'P001 replaced']; } },
+    { k: 'patch', v: 'PATCH', p: '/patients/P002  weight += 5', run: () => { if (!S.P002) return [404, 'Patient not found']; S.P002.weight += 5; changed.add('P002'); return [200, 'P002 weight → ' + S.P002.weight]; } },
+    { k: 'delete', v: 'DELETE', p: '/patients/P001', run: () => { if (!S.P001) return [404, 'Patient not found']; delete S.P001; return [204, 'P001 deleted']; } },
+  ];
+  $('#m-btns').innerHTML = REQS.map((r, i) => '<button class="btn btn-sm" data-i="' + i + '"><span class="verb ' + r.v + '">' + r.v + '</span> ×3</button>').join('');
+  $('#m-btns').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const r = REQS[+b.dataset.i]; S = SEED(); counter = 6; changed = new Set(); added = new Set(); calls = [];
+    const states = [JSON.stringify(S)];
+    for (let k = 0; k < 3; k++) { const [code, msg] = r.run(); calls.push({ n: k + 1, v: r.v, p: r.p, code, msg }); states.push(JSON.stringify(S)); }
+    const sameAfterFirst = states[1] === states[2] && states[2] === states[3];
+    drawM();
+    const notes = { GET: 'GET is <b>safe</b>: the state never changed at all.', POST: 'Three POSTs created three patients — <b>not idempotent</b>. A retry after a timeout can create duplicates (that\'s why payment APIs use idempotency keys).', PUT: 'PUT replaced P001 with the same full body each time — the state after call 1, 2 and 3 is identical: <b>idempotent</b>.', PATCH: 'This PATCH is an increment, so every call changed the state — PATCH is <b>not guaranteed</b> idempotent. (A PATCH that sets weight = 70 would be.)', DELETE: 'P001 is gone after the first call; calls 2 and 3 return 404 but the <b>state</b> is identical — DELETE is <b>idempotent</b>.' };
+    $('#m-verdict').innerHTML = '<div class="callout ' + (sameAfterFirst ? 'green' : 'amber') + '">' + FA.icon(sameAfterFirst ? 'check' : 'alert') + '<div>' + notes[r.v] + '</div></div>';
+  });
+  function drawM() {
+    $('#m-state').innerHTML = Object.entries(S).map(([k, v]) => '<div class="' + (added.has(k) ? 'new' : changed.has(k) ? 'chg' : '') + '">' + k + ': {name: "' + esc(v.name) + '", weight: ' + v.weight + '}</div>').join('') || '<div class="muted">empty</div>';
+    $('#m-calls').innerHTML = calls.map((c) => '<div class="callrow"><span class="dim">#' + c.n + '</span><span><span class="verb ' + c.v + '">' + c.v + '</span></span><span class="status s' + String(c.code)[0] + '">' + c.code + '</span><span class="muted">' + esc(c.msg) + '</span></div>').join('');
+  }
+  $('#m-reset').addEventListener('click', () => { S = SEED(); calls = []; counter = 6; changed = new Set(); added = new Set(); $('#m-verdict').innerHTML = ''; drawM(); });
+  drawM();
+
+  /* ===== Status quiz ===== */
+  const QZ = [
+    ['A client sends <code>{"age": "abc"}</code> to <code>POST /create</code>.', 422, [400, 422, 500, 404], 'Pydantic can\'t parse "abc" as an int, so FastAPI returns 422 automatically — your function never runs.'],
+    ['<code>GET /patient/P999</code>, and P999 doesn\'t exist.', 404, [400, 404, 410, 204], 'The resource doesn\'t exist: raise HTTPException(404, "Patient not found").'],
+    ['<code>POST /create</code> succeeds and the patient is saved.', 201, [200, 201, 202, 204], '201 Created — a new resource exists. Declare it with status_code=201 on the decorator.'],
+    ['<code>POST /create</code> with an id that already exists.', 409, [400, 409, 422, 500], '409 Conflict is the precise answer: the request is fine, but it clashes with current state. (The course used 400, which is acceptable.)'],
+    ['<code>/sort?sort_by=age</code> where sort_by is typed <code>str</code> and you check it against a list.', 400, [400, 404, 422, 405], 'It passed type validation (it IS a string), so your own check raises 400. Typed as Literal[...] it would be an automatic 422.'],
+    ['<code>DELETE /patients/P001</code> succeeds, strict REST style.', 204, [200, 202, 204, 205], '204 No Content with an empty body. 200 with a message is also acceptable.'],
+    ['<code>POST /predict</code> arrives while the model file failed to load.', 503, [500, 503, 404, 424], '503 Service Unavailable — the server isn\'t ready. Retrying later may work; /health should report model_loaded: false.'],
+    ['The request has no <code>X-API-Key</code> header.', 401, [400, 401, 403, 407], '401 = "who are you?" — missing or invalid credentials.'],
+    ['A logged-in user without the admin role calls <code>DELETE /campaigns/C001</code>.', 403, [401, 403, 404, 405], '403 = "I know who you are, but you may not do this."'],
+    ['A client sends <code>POST /view</code> to a GET-only route.', 405, [400, 404, 405, 501], '405 Method Not Allowed — the path exists, the method doesn\'t. Starlette returns it during routing.'],
+    ['Your code hits an unhandled <code>KeyError</code>.', 500, [400, 500, 502, 422], '500 Internal Server Error. Log the stack trace server-side; never send str(e) to the client.'],
+    ['A client calls the API 1,000 times in a second and is throttled.', 429, [403, 429, 503, 509], '429 Too Many Requests — rate limiting, usually with a Retry-After header.'],
+  ];
+  let qi = 0, score = 0, answered = false;
+  function showQ() {
+    const [t, , opts] = QZ[qi]; answered = false;
+    $('#q-pos').textContent = 'scenario ' + (qi + 1) + ' / ' + QZ.length;
+    $('#q-text').innerHTML = t;
+    $('#q-opts').innerHTML = opts.map((o) => '<button class="opt" data-o="' + o + '">' + o + '</button>').join('');
+    $('#q-exp').innerHTML = '';
+  }
+  $('#q-opts').addEventListener('click', (e) => {
+    const b = e.target.closest('.opt'); if (!b || answered) return; answered = true;
+    const [, right, , exp] = QZ[qi]; const ok = +b.dataset.o === right; if (ok) score++;
+    $$('#q-opts .opt').forEach((o) => { if (+o.dataset.o === right) o.classList.add('right'); else if (o === b) o.classList.add('wrong'); });
+    $('#q-score').textContent = 'score ' + score;
+    $('#q-exp').innerHTML = '<div class="callout ' + (ok ? 'green' : 'red') + '">' + FA.icon(ok ? 'check' : 'alert') + '<div><b>' + right + '.</b> ' + exp + '</div></div>';
+  });
+  $('#q-next').addEventListener('click', () => { qi = (qi + 1) % QZ.length; if (qi === 0) score = 0; $('#q-score').textContent = 'score ' + score; showQ(); });
+  showQ();
+
+  FA.init('http');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Path &amp; Query Parameters — FastAPI</title>
+  <meta name="description" content="Path parameters with Path(), HTTPException and route order; query parameters with Query() and Literal; and how FastAPI decides whether an argument comes from the path, query, header or body.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .routes { display: grid; gap: 5px; }
+    .route { display: grid; grid-template-columns: 26px 64px minmax(0, 1fr) auto; overflow-wrap: anywhere; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); transition: all .25s; }
+    .route .i { color: var(--dim); }
+    .route.tried { opacity: .5; }
+    .route.hit { border-color: rgba(61,220,151,.7); background: rgba(61,220,151,.08); opacity: 1; }
+    .route .why { font-size: 11px; color: var(--dim); }
+    .plist { display: grid; gap: 4px; font: 12.5px var(--font-mono); }
+    .plist div { padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+    .ptbl td { font: 12.5px var(--font-mono); }
+    .ptbl tr.first td { background: rgba(61,220,151,.08); }
+    .sig { font: 14px/1.9 var(--font-mono); padding: 16px; border-radius: 12px; background: #090b12; border: 1px solid var(--line); }
+    .sig .arg { padding: 2px 6px; border-radius: 6px; cursor: pointer; border-bottom: 2px solid; }
+    .sig .arg.on { background: rgba(255,255,255,.08); }
+    .src-path { border-color: #b18cff !important; color: #d8c7ff; } .src-query { border-color: #f0abfc !important; color: #f5d0fe; }
+    .src-body { border-color: #fbbf24 !important; color: #fde68a; } .src-header { border-color: #5fb3f9 !important; color: #bfdbfe; } .src-dep { border-color: #3ddc97 !important; color: #a7f3d0; }
+    .tree { display: grid; gap: 6px; }
+    .tq { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; transition: all .25s; }
+    .tq.yes { border-color: rgba(61,220,151,.6); background: rgba(61,220,151,.07); }
+    .tq.no { opacity: .55; }
+    .tq b { font: 700 12px var(--font-mono); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 05 · PATIENT API</span>
+      <h1>Path &amp; <span class="grad">query parameters</span></h1>
+      <p class="desc">From here the course builds one CRUD API for a doctor — the Patient Management System, backed by <code>patients.json</code>. Path parameters pick a patient; query parameters sort the list; <code>HTTPException</code> handles what isn't there.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Route matcher · /sort simulator · parameter-source explorer</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="path"><span class="n">1</span>Path parameters &amp; 404</button>
+      <button class="tab" data-tab="query"><span class="n">2</span>Query parameters</button>
+      <button class="tab" data-tab="source"><span class="n">3</span>Where does a parameter come from?</button>
+    </div></div>
+
+    <!-- ============ PATH ============ -->
+    <section class="tab-panel" data-panel="path">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Same name in braces and in the signature → injected <span class="imp">Must-know</span></h3>
+        <p>A path parameter is a variable segment of the URL in curly braces. FastAPI matches the name to the function argument of the same name and converts it to the annotated type. <code>Path()</code> adds metadata and validation:</p>
+        <dl class="kv">
+          <dt>...</dt><dd>required (path params always are)</dd>
+          <dt>title, description</dt><dd>shown in /docs</dd>
+          <dt>examples=["P001"]</dt><dd>example value in /docs — <code>example=</code> is deprecated</dd>
+          <dt>gt ge lt le</dt><dd>numeric bounds</dd>
+          <dt>min_length max_length</dt><dd>string length bounds</dd>
+          <dt>pattern=r"^P\d{3}$"</dt><dd>regex — the old <code>regex=</code> is deprecated</dd>
+        </dl>
+        <p class="mt"><strong>HTTPException</strong>: <code>raise HTTPException(status_code=404, detail="Patient not found")</code> stops the function and returns <code>404 {"detail": "Patient not found"}</code>. You <em>raise</em> it, not return it.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · route matcher (top to bottom)</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="req-line"><span class="verb GET">GET</span><input class="input mono" id="r-in" value="/files/latest"></div>
+          <div class="btn-row" id="r-pre"></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="r-fix"> declare <code>/files/latest</code> before <code>/files/{name}</code></label>
+          <div id="r-res"></div>
+        </div>
+        <div><div class="label" style="margin-bottom:6px">routing table (in declaration order)</div><div class="routes" id="r-table"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="main.py — view a patient" data-imp>
+from typing import Annotated
+from fastapi import FastAPI, HTTPException, Path
+
+@app.get("/patient/{patient_id}")
+def view_patient(
+    patient_id: Annotated[str, Path(description="The ID of the patient in the DB",
+                                    examples=["P001"], pattern=r"^P\d{3}$")],
+):
+    data = load_data()                       # dict keyed by id -> O(1) lookup
+    if patient_id in data:
+        return {"patient": data[patient_id]}
+    raise HTTPException(status_code=404, detail="Patient not found")
+
+@app.get("/items/{item_id}")
+def read_item(item_id: Annotated[int, Path(ge=1, le=1000)]):   # "abc" or 0 -> 422
+    ...
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="params:path"></div>
+    </section>
+
+    <!-- ============ QUERY ============ -->
+    <section class="tab-panel" data-panel="query" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Not in the path + simple type = query parameter <span class="imp">Must-know</span></h3>
+        <p>Any argument that isn't in the path template and has a simple type (<code>str</code>, <code>int</code>, <code>bool</code>, <code>Literal</code>…) is read from the query string. <strong>Give it a default and it becomes optional.</strong> <code>Query()</code> adds the same metadata and constraints as <code>Path()</code>.</p>
+        <p>The course's <code>/sort</code> validated <code>sort_by</code> and <code>order</code> by hand (400) — and had the sort direction backwards. The cleaner version uses <code>Literal</code>, deletes both <code>if</code>s, returns 422 automatically and gives <code>/docs</code> a dropdown.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · GET /sort on patients.json</div>
+      <div class="card card-pad">
+        <div class="btn-row">
+          <div class="field"><span class="label-t">sort_by</span><div class="seg" id="q-by"><button data-v="height">height</button><button data-v="weight">weight</button><button data-v="bmi" class="on">bmi</button><button data-v="age">age</button></div></div>
+          <div class="field"><span class="label-t">order</span><div class="seg" id="q-ord"><button data-v="asc" class="on">asc</button><button data-v="desc">desc</button><button data-v="up">up</button></div></div>
+          <div class="field"><span class="label-t">implementation</span><div class="seg" id="q-ver"><button data-v="course" class="on">course code</button><button data-v="fixed">fixed (Literal)</button></div></div>
+        </div>
+        <div class="split mt2">
+          <div><div class="req-line"><span class="verb GET">GET</span><code id="q-url" style="white-space:normal"></code></div><div id="q-out" class="mt"></div></div>
+          <div><div id="q-code"></div><div id="q-note" class="mt"></div></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="params:query"></div>
+    </section>
+
+    <!-- ============ SOURCE ============ -->
+    <section class="tab-panel" data-panel="source" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>FastAPI reads your signature <span class="imp">Must-know</span></h3>
+        <ol>
+          <li>Is <code>{x}</code> in the path template? → <strong>path</strong></li>
+          <li>Is the type a Pydantic model? → <strong>body</strong> (JSON)</li>
+          <li>Wrapped in <code>Header()</code>, <code>Cookie()</code>, <code>Body()</code> or <code>Depends()</code>? → <strong>that source</strong></li>
+          <li>Otherwise → <strong>query</strong></li>
+        </ol>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · click an argument</div>
+      <div class="card card-pad">
+        <div class="sig" id="s-sig"></div>
+        <div class="legend mt"><span><i style="background:#b18cff"></i>path</span><span><i style="background:#f0abfc"></i>query</span><span><i style="background:#fbbf24"></i>body</span><span><i style="background:#5fb3f9"></i>header</span><span><i style="background:#3ddc97"></i>dependency</span></div>
+        <div class="split mt2"><div class="tree" id="s-tree"></div><div id="s-req"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="params:source"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const PATIENTS = {
+    P001: { name: 'Ananya Verma', city: 'Guwahati', age: 28, gender: 'female', height: 1.65, weight: 90.0, bmi: 33.06, verdict: 'Obese' },
+    P002: { name: 'Ravi Mehta', city: 'Mumbai', age: 35, gender: 'male', height: 1.75, weight: 85, bmi: 27.76, verdict: 'Overweight' },
+    P003: { name: 'Sneha Kulkarni', city: 'Pune', age: 22, gender: 'female', height: 1.6, weight: 45, bmi: 17.58, verdict: 'Underweight' },
+    P004: { name: 'Arjun Verma', city: 'Bangalore', age: 40, gender: 'male', height: 1.8, weight: 95.0, bmi: 29.32, verdict: 'Overweight' },
+    P005: { name: 'Neha Sinha', city: 'Kolkata', age: 30, gender: 'female', height: 1.55, weight: 75, bmi: 31.22, verdict: 'Obese' },
+  };
+
+  /* ===== Route matcher ===== */
+  const R_BASE = [
+    { p: '/files/{name}', f: 'get_file(name: str)' },
+    { p: '/files/latest', f: 'latest_file()' },
+    { p: '/patient/{patient_id}', f: 'view_patient(patient_id: Annotated[str, Path(pattern=r"^P\\d{3}$")])', pat: /^P\d{3}$/ },
+    { p: '/items/{item_id}', f: 'read_item(item_id: Annotated[int, Path(ge=1, le=1000)])', int: [1, 1000] },
+  ];
+  const PRE = ['/files/latest', '/files/report.pdf', '/patient/P002', '/patient/P999', '/patient/abc', '/items/42', '/items/0', '/items/abc', '/patients/P001'];
+  $('#r-pre').innerHTML = PRE.map((p) => '<button class="btn btn-sm mono">' + p + '</button>').join('');
+  $('#r-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#r-in').value = b.textContent; route(); });
+  function route() {
+    const fix = $('#r-fix').checked; const R = fix ? [R_BASE[1], R_BASE[0], R_BASE[2], R_BASE[3]] : R_BASE.slice();
+    const path = $('#r-in').value.trim().split('?')[0];
+    const segs = path.split('/').filter(Boolean);
+    let hit = -1, params = {};
+    R.forEach((r, i) => {
+      if (hit >= 0) return;
+      const t = r.p.split('/').filter(Boolean); if (t.length !== segs.length) return;
+      const pr = {}; let ok = true;
+      t.forEach((s, k) => { const m = s.match(/^\{(\w+)\}$/); if (m) pr[m[1]] = segs[k]; else if (s !== segs[k]) ok = false; });
+      if (ok) { hit = i; params = pr; }
+    });
+    $('#r-table').innerHTML = R.map((r, i) => '<div class="route ' + (i === hit ? 'hit' : (hit < 0 || i < hit ? 'tried' : '')) + '"><span class="i">' + (i + 1) + '</span><span class="verb GET">GET</span><span>' + esc(r.p) + '<br><span class="why">' + esc(r.f) + '</span></span><span class="why">' + (i === hit ? '← match' : (hit < 0 || i < hit) ? 'no match' : 'not reached') + '</span></div>').join('');
+    let code, body, note = '';
+    if (hit < 0) { code = 404; body = '{"detail": "Not Found"}'; note = 'No route matches, so Starlette answers 404 during routing — your code never runs.'; }
+    else {
+      const r = R[hit]; const [k, v] = Object.entries(params)[0] || [];
+      if (r.pat && !r.pat.test(v)) { code = 422; body = '{"detail": [{"type": "string_pattern_mismatch", "loc": ["path", "' + k + '"], "msg": "String should match pattern \'^P\\\\d{3}$\'", "input": "' + v + '"}]}'; note = 'The route matched, but Path(pattern=...) rejected the value: 422, before your function runs.'; }
+      else if (r.int) { const n = Number(v); if (!/^-?\d+$/.test(v)) { code = 422; body = '{"detail": [{"type": "int_parsing", "loc": ["path", "item_id"], "msg": "Input should be a valid integer, unable to parse string as an integer", "input": "' + v + '"}]}'; note = 'Path values arrive as strings; FastAPI converts to the annotated int and fails with 422.'; } else if (n < r.int[0] || n > r.int[1]) { code = 422; body = '{"detail": [{"type": "' + (n < r.int[0] ? 'greater_than_equal' : 'less_than_equal') + '", "loc": ["path", "item_id"], "msg": "Input should be ' + (n < r.int[0] ? 'greater than or equal to 1' : 'less than or equal to 1000') + '", "input": "' + v + '"}]}'; note = 'Converted to int fine, but Path(ge=1, le=1000) failed.'; } else { code = 200; body = '{"item_id": ' + n + '}'; note = '"' + v + '" was converted to the int ' + n + ' before your function saw it.'; } }
+      else if (r.p.startsWith('/patient')) { if (PATIENTS[v]) { code = 200; body = JSON.stringify({ patient: PATIENTS[v] }); note = 'Matched, validated, found in patients.json.'; } else { code = 404; body = '{"detail": "Patient not found"}'; note = 'Validation passed (P999 matches the pattern), so your function ran and raised HTTPException(404) — a different 404 from "Not Found" at routing.'; } }
+      else if (r.p === '/files/latest') { code = 200; body = '{"file": "the most recent upload"}'; note = 'The fixed path wins because it is declared first.'; }
+      else { code = 200; body = '{"name": "' + v + '"}'; note = v === 'latest' ? '⚠ /files/latest was captured by /files/{name} with name="latest" — the fixed route below is never reached. Tick the checkbox to declare it first.' : 'Matched the parameterised route.'; }
+    }
+    const host = $('#r-res'); host.innerHTML = '<div class="label" style="margin-bottom:4px">response <span class="status s' + String(code)[0] + '">' + code + '</span></div>';
+    host.appendChild(codeBlock(body, { title: 'body', lang: 'json' }));
+    host.insertAdjacentHTML('beforeend', '<div class="callout ' + (note.startsWith('⚠') ? 'amber' : 'blue') + ' mt">' + FA.icon('info') + '<div>' + esc(note) + '</div></div>');
+  }
+  $('#r-in').addEventListener('input', route); $('#r-fix').addEventListener('change', route); route();
+
+  /* ===== /sort simulator ===== */
+  let by = 'bmi', ord = 'asc', ver = 'course';
+  segc('q-by', (v) => { by = v; sortSim(); }); segc('q-ord', (v) => { ord = v; sortSim(); }); segc('q-ver', (v) => { ver = v; sortSim(); });
+  function sortSim() {
+    $('#q-url').textContent = '/sort?sort_by=' + by + '&order=' + ord;
+    let code, body, rows = null, note = '';
+    if (ver === 'course') {
+      if (!['height', 'weight', 'bmi'].includes(by)) { code = 400; body = { detail: "Invalid field select from ['height', 'weight', 'bmi']" }; note = 'Your hand-written check raised 400: "age" is a valid str, just not an allowed field.'; }
+      else if (!['asc', 'desc'].includes(ord)) { code = 400; body = { detail: "Invalid order value. Must be 'asc' or 'desc'." }; note = 'Hand-written check → 400.'; }
+      else { const reverse = ord === 'asc'; rows = Object.values(PATIENTS).slice().sort((a, b) => (reverse ? b[by] - a[by] : a[by] - b[by])); code = 200; note = '⚠ Bug: the course code sets reverse=True when order == "asc", so asc returns the LARGEST ' + by + ' first. Switch to the fixed version.'; }
+    } else {
+      if (!['height', 'weight', 'bmi'].includes(by)) { code = 422; body = { detail: [{ type: 'literal_error', loc: ['query', 'sort_by'], msg: "Input should be 'height', 'weight' or 'bmi'", input: by }] }; note = 'Literal[...] rejects it automatically with 422, and /docs shows a dropdown of the allowed values.'; }
+      else if (!['asc', 'desc'].includes(ord)) { code = 422; body = { detail: [{ type: 'literal_error', loc: ['query', 'order'], msg: "Input should be 'asc' or 'desc'", input: ord }] }; note = 'Automatic 422 from Literal["asc", "desc"].'; }
+      else { rows = Object.values(PATIENTS).slice().sort((a, b) => (ord === 'desc' ? b[by] - a[by] : a[by] - b[by])); code = 200; note = 'reverse=(order == "desc") — correct.'; }
+    }
+    const host = $('#q-out'); host.innerHTML = '<div class="label" style="margin-bottom:4px">response <span class="status s' + String(code)[0] + '">' + code + '</span></div>';
+    if (rows) host.insertAdjacentHTML('beforeend', '<table class="tbl ptbl"><thead><tr><th>#</th><th>name</th><th>' + by + '</th></tr></thead><tbody>' + rows.map((r, i) => '<tr class="' + (i === 0 ? 'first' : '') + '"><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td>' + r[by] + '</td></tr>').join('') + '</tbody></table>');
+    else host.appendChild(codeBlock(JSON.stringify(body, null, 2), { title: 'body', lang: 'json' }));
+    $('#q-note').innerHTML = '<div class="callout ' + (note.startsWith('⚠') ? 'red' : 'blue') + '">' + FA.icon(note.startsWith('⚠') ? 'alert' : 'info') + '<div>' + esc(note) + '</div></div>';
+    const course = '@app.get("/sort")\ndef sort_patients(sort_by: str = Query(..., description="height, weight or bmi"),\n                  order: str = Query("asc")):\n    valid_fields = ["height", "weight", "bmi"]\n    if sort_by not in valid_fields:\n        raise HTTPException(400, f"Invalid field select from {valid_fields}")\n    if order not in ["asc", "desc"]:\n        raise HTTPException(400, "Invalid order value")\n    data = load_data()\n    sort_order = True if order == "asc" else False      # BUG: backwards\n    return {"patients": sorted(data.values(), key=lambda x: x.get(sort_by, 0), reverse=sort_order)}';
+    const fixed = '@app.get("/sort")\ndef sort_patients(\n    sort_by: Annotated[Literal["height", "weight", "bmi"], Query(description="field")],\n    order: Literal["asc", "desc"] = "asc",          # default -> optional\n):\n    data = load_data()\n    return {"patients": sorted(data.values(), key=lambda p: p[sort_by],\n                               reverse=(order == "desc"))}';
+    setCode($('#q-code'), ver === 'course' ? course : fixed, ver === 'course' ? 'main.py (course)' : 'main.py (fixed)');
+  }
+  sortSim();
+
+  /* ===== Parameter sources ===== */
+  const ARGS = [
+    { n: 'patient_id: str', src: 'path', why: [1, 0, 0], req: 'URL path: PATCH /patients/<b>P001</b>' },
+    { n: 'update: PatientUpdate', src: 'body', why: [0, 1, 0], req: 'JSON body: {"weight": 72}' },
+    { n: 'x_api_key: Annotated[str, Header()]', src: 'header', why: [0, 0, 1], req: 'header: <b>X-API-Key</b>: secret (underscores → hyphens)' },
+    { n: 'dry_run: bool = False', src: 'query', why: [0, 0, 0], req: 'query string: ?<b>dry_run=true</b> (optional, has a default)' },
+    { n: 'db = Depends(get_db)', src: 'dep', why: [0, 0, 1], req: 'not from the request at all — FastAPI calls get_db() and injects the result' },
+    { n: 'fields: list[str] = Query([])', src: 'query', why: [0, 0, 1], req: 'repeated query param: ?fields=name&fields=bmi (a list needs an explicit Query())' },
+  ];
+  let sel = 0;
+  function sig() {
+    $('#s-sig').innerHTML = '<span style="color:#c4b5fd">@app.patch</span>(<span style="color:#86efac">"/patients/{patient_id}"</span>)<br><span style="color:#c4b5fd">def</span> <span style="color:#93c5fd">update_patient</span>(<br>' + ARGS.map((a, i) => '&nbsp;&nbsp;&nbsp;&nbsp;<span class="arg src-' + a.src + (i === sel ? ' on' : '') + '" data-i="' + i + '">' + esc(a.n) + '</span>,').join('<br>') + '<br>):';
+    $$('#s-sig .arg').forEach((el) => el.addEventListener('click', () => { sel = +el.dataset.i; sig(); }));
+    const a = ARGS[sel];
+    const Q = [['Is <b>{' + (a.n.split(':')[0].split('=')[0].trim()) + '}</b> in the path template?', a.why[0]], ['Is the type a Pydantic model?', a.why[1]], ['Wrapped in Header() / Cookie() / Body() / Depends() / Query()?', a.why[2]]];
+    let decided = false;
+    $('#s-tree').innerHTML = Q.map(([q, y]) => { const cls = decided ? 'no' : (y ? 'yes' : ''); if (y) decided = true; return '<div class="tq ' + cls + '"><span>' + q + '</span><b>' + (decided && !y ? '—' : y ? 'yes' : 'no') + '</b></div>'; }).join('') + '<div class="tq yes"><span>→ comes from</span><b class="src-' + a.src + '" style="border-bottom:2px solid;padding:1px 6px">' + { path: 'PATH', body: 'BODY', query: 'QUERY', header: 'HEADER', dep: 'DEPENDENCY' }[a.src] + '</b></div>';
+    $('#s-req').innerHTML = '<div class="callout blue">' + FA.icon('info') + '<div>' + a.req + '</div></div>';
+  }
+  sig();
+
+  FA.init('params');
+})();
+</script>
+</body>
+</html>

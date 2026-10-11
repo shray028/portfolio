@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastAPI Bug Hunt — 12 Real Bugs from Course Code</title>
+  <meta name="description" content="Spot-the-bug practice on twelve real bugs found by testing FastAPI course code: silent data loss, inverted sorting, schema drift, bypassed response_model, contract mismatches, relative paths and leaked errors — each with the fix and the lesson.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .bug-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .blist { display: grid; gap: 6px; position: sticky; top: 130px; }
+    .bitem { min-width: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: center; text-align: left; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; color: var(--text-2); }
+    .bitem .no { font: 700 12px var(--font-mono); color: var(--dim); }
+    .bitem.on { border-color: rgba(61,220,151,.6); background: rgba(61,220,151,.08); color: var(--text); }
+    .bitem.solved .no { color: #4ade80; }
+    .bitem.missed .no { color: #f87171; }
+    .sev { display: inline-block; padding: 2px 8px; border-radius: 999px; font: 700 10.5px var(--font-mono); letter-spacing: .04em; }
+    .sev.DATA-LOSS, .sev.CRASH { background: rgba(248,113,113,.15); color: #fca5a5; border: 1px solid rgba(248,113,113,.4); }
+    .sev.LOGIC, .sev.SCHEMA, .sev.TYPE, .sev.CONTRACT, .sev.ENV { background: rgba(251,146,60,.13); color: #fdba74; border: 1px solid rgba(251,146,60,.4); }
+    .sev.DEPRECATED, .sev.SECURITY, .sev.DATA { background: rgba(251,191,36,.12); color: #fcd34d; border: 1px solid rgba(251,191,36,.4); }
+    .lines { font: 12.5px/1.7 var(--font-mono); border-radius: 12px; border: 1px solid var(--line); background: #0a0d12; overflow-x: auto; padding: 8px 0; }
+    .ln { display: grid; grid-template-columns: 40px 1fr; cursor: pointer; white-space: pre; }
+    .ln:hover { background: rgba(255,255,255,.04); }
+    .ln .n { color: var(--dim); text-align: right; padding-right: 12px; user-select: none; }
+    .ln.pick { background: rgba(251,191,36,.12); }
+    .ln.hit { background: rgba(74,222,128,.14); box-shadow: inset 3px 0 0 #4ade80; }
+    .ln.bug { background: rgba(248,113,113,.14); box-shadow: inset 3px 0 0 #f87171; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    :root[data-theme="light"] .lines { background: #f8fafc; }
+    @media (max-width: 900px) { .bug-grid { grid-template-columns: minmax(0, 1fr); } .blist { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 14 · CODE REVIEW</span>
+      <h1>Bug <span class="grad">hunt</span></h1>
+      <p class="desc">Twelve real bugs found by running the course project code through a test client. "Tell me about a bug you found" is a standard interview question, and each of these is a complete story: symptom, cause, fix and the habit that prevents it. Read the code, click the line you think is wrong, then reveal.</p>
+      <div class="hero-meta"><span class="chip ember">12 bugs</span><span class="chip">Click-the-line game · severity filter · fixes &amp; lessons</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="list"><span class="n">1</span>The 12 bugs</button>
+    </div></div>
+
+    <section class="tab-panel" data-panel="list">
+      <div class="card card-pad">
+        <div class="filters"><span class="label-t" style="margin:0">severity</span><div class="seg" id="f-sev"><button data-v="all" class="on">all</button><button data-v="red">crash / data loss</button><button data-v="orange">logic · schema · contract</button><button data-v="yellow">deprecated · security · data</button></div><span class="chip" id="score"></span></div>
+      </div>
+      <div class="bug-grid mt">
+        <div class="blist" id="blist"></div>
+        <div>
+          <div class="card card-pad">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="sev" id="b-sev"></span><code id="b-file"></code></div>
+            <h3 style="margin:10px 0 6px;font-size:19px" id="b-title"></h3>
+            <p class="muted" id="b-sym"></p>
+            <div class="label mt" style="margin-bottom:6px">click the line you think causes it</div>
+            <div class="lines" id="b-code"></div>
+            <div class="btn-row mt"><button class="btn btn-primary" id="b-reveal"><i data-icon="search"></i>Reveal</button><button class="btn" id="b-next"><i data-icon="step"></i>Next bug</button></div>
+            <div id="b-out" class="mt"></div>
+          </div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="bugs:list"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock, highlight } = FA;
+  const BUGS = [
+    { n: 1, file: 'main.py · POST /create', sev: 'DATA-LOSS', tone: 'red', title: '/create returns 201 but the patient is never saved',
+      sym: 'POST /create answers 201 "patient created successfully", yet GET /patient/{id} returns 404 and patients.json is unchanged.',
+      code: ['@app.post("/create")', 'def create_patient(patient: Patient):', '    data = load_data()', '    if patient.id in data:', '        raise HTTPException(status_code=400, detail="Patient already exists")', '    patient.model_dump(exclude=[id])', '    save_data(data)', '    return JSONResponse(status_code=201, content={"message": "patient created successfully"})'],
+      bug: [5], cause: 'The dict returned by <code>model_dump</code> is thrown away — it\'s never stored in <code>data</code> — so <code>save_data</code> writes the old data back. And <code>exclude=[id]</code> passes Python\'s built-in <code>id</code> function, not the string <code>"id"</code>.',
+      fix: 'data[patient.id] = patient.model_dump(exclude={"id"})\nsave_data(data)\nreturn JSONResponse(status_code=201, content={"message": "patient created successfully"})',
+      lesson: 'The endpoint reported success without checking the side effect. A create-then-read-back test catches this immediately; test write endpoints with a round trip.' },
+    { n: 2, file: 'main.py · GET /sort', sev: 'LOGIC', tone: 'orange', title: 'order=asc returns descending results',
+      sym: '/sort?sort_by=bmi&order=asc lists the highest BMI first.',
+      code: ['@app.get("/sort")', 'def sort_patients(sort_by: str = Query(...), order: str = Query("asc")):', '    ...', '    data = load_data()', '    sort_order = True if order == "asc" else False', '    sorted_data = sorted(data.values(), key=lambda x: x.get(sort_by, 0), reverse=sort_order)', '    return {"patients": sorted_data}'],
+      bug: [4], cause: '<code>reverse=True</code> means <em>descending</em>, so the flag is inverted.',
+      fix: 'sorted_data = sorted(data.values(), key=lambda x: x.get(sort_by, 0),\n                     reverse=(order == "desc"))\n\n# better: order: Literal["asc", "desc"] = "asc"  (validation for free)',
+      lesson: 'Name booleans for what they mean (<code>descending = order == "desc"</code>) and test both directions.' },
+    { n: 3, file: 'main.py · Patient.verdict', sev: 'LOGIC', tone: 'orange', title: 'BMI 25–30 is labelled "Normal"',
+      sym: 'A patient with BMI 27.4 gets verdict "Normal".',
+      code: ['@computed_field', '@property', 'def verdict(self) -> str:', '    if self.bmi < 18.5:', '        return "Underweight"', '    elif self.bmi < 25:', '        return "Normal"', '    elif self.bmi < 30:', '        return "Normal"', '    else:', '        return "Obese"'],
+      bug: [8], cause: 'A copy-pasted branch: the 25–30 band should return "Overweight".',
+      fix: '    elif self.bmi < 30:\n        return "Overweight"',
+      lesson: 'Boundary tests (18.4, 18.5, 24.9, 25, 29.9, 30) for every band catch copy-paste branches.' },
+    { n: 4, file: 'main.py · PatientUpdate', sev: 'SCHEMA', tone: 'orange', title: 'Can\'t update gender to "others" (422)',
+      sym: 'PUT /edit/P001 with {"gender": "others"} is rejected, even though Patient accepts "others".',
+      code: ['class Patient(BaseModel):', '    gender: Annotated[Literal["male", "female", "others"], Field(...)]', '    ...', '', 'class PatientUpdate(BaseModel):', '    name: Annotated[Optional[str], Field(default=None)]', '    gender: Annotated[Optional[Literal["male", "female"]], Field(default=None)]', '    ...'],
+      bug: [6], cause: 'The update schema\'s Literal drifted out of sync with the create schema.',
+      fix: 'Gender = Literal["male", "female", "others"]      # define once\n\nclass Patient(BaseModel):\n    gender: Gender\n\nclass PatientUpdate(BaseModel):\n    gender: Optional[Gender] = None',
+      lesson: 'Define shared types once and reuse them; duplicated constraints drift.' },
+    { n: 5, file: 'main.py · 1_pydantic_why.py', sev: 'DEPRECATED', tone: 'yellow', title: 'FastAPIDeprecationWarning on start-up',
+      sym: 'Uvicorn logs deprecation warnings for path, query and field metadata.',
+      code: ['def view_patient(patient_id: str = Path(..., description="The ID of the patient", example="P001")):', '    ...', '', 'def sort_patients(sort_by: str = Query(..., description="height, weight or bmi", example="height")):', '    ...'],
+      bug: [0, 3], cause: '<code>example=</code> is deprecated; the OpenAPI-3.1 way is <code>examples=[...]</code> (a list).',
+      fix: 'patient_id: str = Path(..., description="The ID of the patient", examples=["P001"])',
+      lesson: 'Treat deprecation warnings as tomorrow\'s errors; fix them while the change is small.' },
+    { n: 6, file: 'main.py · load_data', sev: 'TYPE', tone: 'orange', title: '500 when patients.json is missing',
+      sym: 'Delete patients.json and /view, /sort or /create crash with 500.',
+      code: ['def load_data():', '    try:', '        with open("patients.json", "r") as file:', '            return json.load(file)', '    except FileNotFoundError:', '        return []'],
+      bug: [5], cause: 'The store is a <em>dict</em> keyed by patient id, but the fallback returns a <em>list</em>. <code>data.values()</code> and <code>data[pid] = ...</code> then blow up.',
+      fix: '    except FileNotFoundError:\n        return {}',
+      lesson: 'Fallback values must have the same type as the happy path; a type hint (<code>-> dict[str, dict]</code>) makes the mismatch visible.' },
+    { n: 7, file: 'pydantic/2_field_validator.py', sev: 'DEPRECATED', tone: 'yellow', title: 'PydanticDeprecatedSince212 on an after-validator',
+      sym: 'Pydantic warns when the model is defined.',
+      code: ['@model_validator(mode="after")', 'def validate_emergency_contact(cls, model):', '    if model.age > 60 and "emergency_phone" not in model.contact_details:', '        raise ValueError("Patients over 60 must have an emergency phone number")', '    return model'],
+      bug: [1], cause: 'An <code>after</code> model validator runs on the built instance, so it\'s an instance method taking <code>self</code>, not <code>(cls, model)</code>.',
+      fix: '@model_validator(mode="after")\ndef validate_emergency_contact(self):\n    if self.age > 60 and "emergency_phone" not in self.contact_details:\n        raise ValueError("Patients over 60 must have an emergency phone number")\n    return self',
+      lesson: 'mode="before" → classmethod on raw data; mode="after" → instance method returning self.' },
+    { n: 8, file: 'insurance app.py · POST /predict', sev: 'CONTRACT', tone: 'orange', title: 'response_model is declared but never applied',
+      sym: '/docs promises {predicted_category, confidence, class_probabilities}; the API actually sends {"response": {...}}.',
+      code: ['@app.post("/predict", response_model=PredictionResponse)', 'def predict_premium(data: UserInput):', '    user_input = {...}', '    try:', '        prediction = predict_output(user_input)', '        return JSONResponse(status_code=200, content={"response": prediction})', '    except Exception as e:', '        return JSONResponse(status_code=500, content=str(e))'],
+      bug: [5], cause: 'Returning a Response object bypasses <code>response_model</code> entirely: no validation, no filtering, and the extra <code>"response"</code> wrapper is undocumented.',
+      fix: '        return prediction          # dict -> validated + documented by response_model',
+      lesson: 'The response model is the contract. Return data, let FastAPI serialise it, and test against the schema.' },
+    { n: 9, file: 'insurance frontend.py', sev: 'CRASH', tone: 'red', title: 'Streamlit crashes with KeyError on a successful prediction',
+      sym: 'The API returns 200, then the UI shows a KeyError traceback.',
+      code: ['response = requests.post(API_URL, json=input_data)', 'result = response.json()', 'if response.status_code == 200:', '    prediction = result', '    st.success(f"Predicted Insurance Premium Category: {prediction[\'Predicted_category\']}")', 'else:', '    st.error(f"API Error: {response.status_code}")'],
+      bug: [4], cause: 'Wrong key twice over: the API sends <code>{"response": {"predicted_category": ...}}</code> (bug 8), and the key is lower-case <code>predicted_category</code>.',
+      fix: '# after fixing bug 8 the body IS the PredictionResponse\nprediction = response.json()\nst.success(f"Predicted: {prediction[\'predicted_category\']}")',
+      lesson: 'Client and server drifted because nothing enforced the contract. Generate or test the client against the OpenAPI schema.' },
+    { n: 10, file: 'insurance model/predict.py', sev: 'ENV', tone: 'orange', title: 'Model fails to load when uvicorn starts from another folder',
+      sym: 'Works from the project folder; FileNotFoundError from anywhere else (or in some Docker WORKDIRs).',
+      code: ['import pickle', 'import pandas as pd', '', 'with open("model/model.pkl", "rb") as f:', '    model = pickle.load(f)', '', 'MODEL_VERSION = "1.0.0"'],
+      bug: [3], cause: 'The path is relative to the <em>current working directory</em>, not to the file.',
+      fix: 'from pathlib import Path\nMODEL_PATH = Path(__file__).resolve().parent / "model.pkl"\nwith MODEL_PATH.open("rb") as f:\n    model = pickle.load(f)',
+      lesson: 'Anchor data files to <code>__file__</code> (or read the path from settings).' },
+    { n: 11, file: 'insurance app.py · except', sev: 'SECURITY', tone: 'yellow', title: 'Internal errors leak to clients',
+      sym: 'A failing prediction returns the raw exception text — column names, file paths, library details.',
+      code: ['    try:', '        prediction = predict_output(user_input)', '        return prediction', '    except Exception as e:', '        return JSONResponse(status_code=500, content=str(e))'],
+      bug: [4], cause: '<code>str(e)</code> goes straight to the client and the stack trace is never logged.',
+      fix: '    except Exception:\n        logger.exception("prediction failed")\n        raise HTTPException(status_code=500, detail="Prediction failed")',
+      lesson: 'Log details on the server, send a generic message to the client.' },
+    { n: 12, file: 'patients.json', sev: 'DATA', tone: 'yellow', title: 'Stored verdicts are inconsistent',
+      sym: 'P004 has BMI 29.3 but verdict "Normal" in the data file.',
+      code: ['{', '  "P003": {"name": "...", "bmi": 22.1, "verdict": "Normal"},', '  "P004": {"name": "...", "bmi": 29.3, "verdict": "Normal"},', '  "P005": {"name": "...", "bmi": 31.4, "verdict": "Obese"}', '}'],
+      bug: [2], cause: 'Data written while bug 3 was live. Fixing the code doesn\'t fix records already saved.',
+      fix: '# one-off migration: rebuild every record through the fixed model\nfor pid, rec in data.items():\n    data[pid] = Patient(id=pid, **rec).model_dump(exclude={"id"})\nsave_data(data)',
+      lesson: 'Derived values that are stored go stale. Either compute on read, or migrate when the formula changes.' },
+  ];
+  let sev = 'all', cur = 0;
+  const state = {}; // n -> {pick:Set, revealed, ok}
+  const st = (n) => state[n] || (state[n] = { pick: new Set(), revealed: false, ok: false });
+  const visible = () => BUGS.filter((b) => sev === 'all' || b.tone === sev);
+
+  function listDraw() {
+    const V = visible();
+    if (!V.includes(BUGS[cur])) cur = BUGS.indexOf(V[0]);
+    $('#blist').innerHTML = V.map((b) => { const s = state[b.n]; const cls = s && s.revealed ? (s.ok ? 'solved' : 'missed') : ''; return '<button class="bitem ' + cls + ' ' + (BUGS[cur] === b ? 'on' : '') + '" data-i="' + BUGS.indexOf(b) + '"><span class="no">' + String(b.n).padStart(2, '0') + '</span><span>' + esc(b.title) + '</span></button>'; }).join('');
+    const done = Object.values(state).filter((s) => s.revealed), ok = done.filter((s) => s.ok).length;
+    $('#score').textContent = done.length ? ok + ' / ' + done.length + ' spotted' : 'click a line, then Reveal';
+  }
+  function bugDraw() {
+    const b = BUGS[cur], s = st(b.n);
+    $('#b-sev').className = 'sev ' + b.sev; $('#b-sev').textContent = b.sev.replace('-', ' ');
+    $('#b-file').textContent = b.file; $('#b-title').textContent = 'Bug ' + b.n + ' · ' + b.title; $('#b-sym').innerHTML = '<b>Symptom:</b> ' + esc(b.sym);
+    const lang = b.n === 12 ? 'json' : undefined;
+    $('#b-code').innerHTML = b.code.map((l, i) => {
+      let cls = '';
+      if (s.revealed) cls = b.bug.includes(i) ? (s.pick.has(i) ? 'hit' : 'bug') : s.pick.has(i) ? 'pick' : '';
+      else if (s.pick.has(i)) cls = 'pick';
+      return '<div class="ln ' + cls + '" data-l="' + i + '"><span class="n">' + (i + 1) + '</span><span>' + (lang ? FA.highlightJSON(l) : highlight(l)) + '</span></div>';
+    }).join('');
+    const out = $('#b-out'); out.innerHTML = '';
+    if (s.revealed) {
+      out.innerHTML = '<div class="' + (s.ok ? 'ok-box' : 'err-box') + '">' + (s.ok ? 'Spotted it.' : s.pick.size ? 'Not quite — the highlighted red line is the culprit.' : 'Revealed without a guess.') + '</div>' +
+        '<div class="callout blue mt">' + FA.icon('info') + '<div><b>Cause.</b> ' + b.cause + '</div></div>';
+      const h = document.createElement('div'); h.className = 'mt'; h.appendChild(codeBlock(b.fix, { title: 'fix' })); out.appendChild(h);
+      const l = document.createElement('div'); l.className = 'callout mt'; l.innerHTML = FA.icon('star') + '<div><b>Interview lesson.</b> ' + b.lesson + '</div>'; out.appendChild(l);
+    }
+    $('#b-reveal').disabled = s.revealed;
+  }
+  $('#b-code').addEventListener('click', (e) => { const l = e.target.closest('.ln'); if (!l) return; const s = st(BUGS[cur].n); if (s.revealed) return; const i = +l.dataset.l; s.pick.has(i) ? s.pick.delete(i) : s.pick.add(i); bugDraw(); });
+  $('#b-reveal').addEventListener('click', () => { const b = BUGS[cur], s = st(b.n); s.revealed = true; s.ok = s.pick.size > 0 && [...s.pick].every((i) => b.bug.includes(i)); bugDraw(); listDraw(); });
+  $('#b-next').addEventListener('click', () => { const V = visible(); const k = V.indexOf(BUGS[cur]); cur = BUGS.indexOf(V[(k + 1) % V.length]); listDraw(); bugDraw(); });
+  $('#blist').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; cur = +b.dataset.i; listDraw(); bugDraw(); });
+  $('#f-sev').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#f-sev button').forEach((x) => x.classList.toggle('on', x === b)); sev = b.dataset.v; listDraw(); bugDraw(); });
+  listDraw(); bugDraw();
+
+  FA.init('bugs', () => {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>async def vs def in FastAPI — Event Loop Simulator</title>
+  <meta name="description" content="When to use async def and when to use def in FastAPI: an event-loop simulator showing what a blocking call does to every other request, the thread pool, and a decision-rule drill.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .gantt { display: grid; gap: 4px; }
+    .grow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: center; font: 11.5px var(--font-mono); color: var(--muted); }
+    .gtrack { position: relative; height: 20px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .gtrack span { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+    .axis { display: grid; grid-template-columns: 86px 1fr; gap: 8px; font: 10.5px var(--font-mono); color: var(--dim); }
+    .axis div { display: flex; justify-content: space-between; }
+    .opt-list { display: grid; gap: 6px; }
+    .opt-list button { text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); color: var(--text-2); }
+    .opt-list button.on { border-color: rgba(61,220,151,.65); background: rgba(61,220,151,.08); color: var(--text); }
+    .drill { display: grid; gap: 10px; }
+    .dq { padding: 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); }
+    .dq .opts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .dq .opts button { padding: 5px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font: 600 12px var(--font-mono); }
+    .dq .opts button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .dq .opts button.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); }
+    .dq .why { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 11 · BEYOND THE COURSE</span>
+      <h1><code style="font-size:.85em">async def</code> vs <span class="grad">def</span></h1>
+      <p class="desc">The most-asked FastAPI question the playlist doesn't cover. FastAPI runs <code>async def</code> endpoints directly on a single event loop and plain <code>def</code> endpoints in a thread pool. Put one blocking call in the wrong place and every user waits.</p>
+      <div class="hero-meta"><span class="chip ember">2 sections</span><span class="chip">Event-loop simulator · async-or-def drill</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="loop"><span class="n">1</span>The event loop</button>
+      <button class="tab" data-tab="rules"><span class="n">2</span>The decision rule</button>
+    </div></div>
+
+    <!-- ============ LOOP ============ -->
+    <section class="tab-panel" data-panel="loop">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3><code>async def</code> → runs on the event loop <span class="imp">Must-know</span></h3>
+          <p>One thread juggles every request. It only switches to another request at an <code>await</code>. A blocking call — <code>time.sleep</code>, <code>requests.get</code>, a heavy <code>model.predict</code> — holds the loop, so <strong>nothing else runs</strong>, not even <code>/health</code>.</p>
+        </div>
+        <div class="card lesson">
+          <h3><code>def</code> → runs in a thread pool</h3>
+          <p>FastAPI hands plain <code>def</code> endpoints to a worker thread pool (40 threads by default, via AnyIO), so blocking code is safe and the loop stays free. The cost is a little thread overhead and a cap on how many run at once.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · N requests hit the same endpoint at once</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="opt-list" id="a-mode"></div>
+          <div class="field"><span class="label-t">concurrent requests</span><div class="range-row"><input type="range" id="a-n" min="1" max="10" value="5"><span class="val" id="a-n-v"></span></div></div>
+          <div class="field"><span class="label-t">thread-pool size (shrunk so the limit is visible; default is 40)</span><div class="range-row"><input type="range" id="a-t" min="1" max="10" value="3"><span class="val" id="a-t-v"></span></div></div>
+          <div class="grid-2" id="a-stats"></div>
+        </div>
+        <div>
+          <div id="a-code"></div>
+          <div class="gantt mt" id="a-gantt"></div>
+          <div class="legend mt"><span><i style="background:#5fb3f9"></i>waiting to start</span><span><i style="background:#3ddc97"></i>running (I/O wait, loop free)</span><span><i style="background:#f87171"></i>running and blocking the loop</span><span><i style="background:#fbbf24"></i>GET /health at t = 0.5 s</span></div>
+          <div id="a-note" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="async:loop"></div>
+    </section>
+
+    <!-- ============ RULES ============ -->
+    <section class="tab-panel" data-panel="rules" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The decision rule</h3>
+        <p>Using an <strong>async library</strong> (httpx.AsyncClient, asyncpg, Motor, aiofiles)? → <code>async def</code> and <code>await</code> it. Using <strong>sync libraries or CPU work</strong> (pandas, scikit-learn, <code>requests</code>, a sync DB driver)? → plain <code>def</code>. Heavy CPU at scale? → more worker processes (<code>--workers N</code>), a task queue (Celery / RQ) or a dedicated model server. Threads don't add CPU parallelism for pure-Python code because of the GIL; NumPy and most sklearn internals release it for chunks of work.</p>
+      </div>
+      <div class="grid-2">
+        <textarea class="py" data-title="the three patterns" data-imp>
+import asyncio, time, httpx
+
+@app.get("/bad")
+async def bad():
+    time.sleep(2)                 # BLOCKS the event loop: every user waits 2 s
+    return {"ok": True}
+
+@app.get("/good-async")
+async def good_async():
+    await asyncio.sleep(2)        # yields control: others keep being served
+    async with httpx.AsyncClient() as client:
+        r = await client.get("https://api.example.com")
+    return r.json()
+
+@app.get("/good-sync")
+def good_sync():                  # sync lib? plain def -> thread pool, safe
+    time.sleep(2)
+    return {"ok": True}
+        </textarea>
+        <textarea class="py" data-title="mixing: run blocking work from async code">
+from fastapi.concurrency import run_in_threadpool
+
+@app.post("/predict")
+async def predict(data: UserInput):
+    features = await fetch_features_async(data.user_id)    # async I/O
+    # sync, CPU-heavy call: push it off the loop explicitly
+    result = await run_in_threadpool(model.predict, features)
+    return {"prediction": result.tolist()}
+
+# also valid: await asyncio.to_thread(model.predict, features)
+        </textarea>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Drill · async def or def?</div>
+      <div class="card card-pad"><div class="drill" id="r-list"></div><div id="r-score" class="mt"></div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="async:rules"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const MODES = {
+    ablock: ['async def + time.sleep(2)', '@app.get("/work")\nasync def work():\n    time.sleep(2)            # blocking call on the loop\n    return {"ok": True}'],
+    areq: ['async def + requests.get(...)  (2 s)', '@app.get("/work")\nasync def work():\n    r = requests.get(URL)    # sync HTTP client: blocks the loop too\n    return r.json()'],
+    aawait: ['async def + await asyncio.sleep(2)', '@app.get("/work")\nasync def work():\n    await asyncio.sleep(2)   # yields to the loop while waiting\n    return {"ok": True}'],
+    def: ['def + time.sleep(2)', '@app.get("/work")\ndef work():                  # thread pool\n    time.sleep(2)\n    return {"ok": True}'],
+  };
+  let mode = 'ablock';
+  $('#a-mode').innerHTML = Object.entries(MODES).map(([k, v]) => '<button data-m="' + k + '">' + esc(v[0]) + '</button>').join('');
+  $('#a-mode').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; mode = b.dataset.m; draw(); });
+
+  function draw() {
+    $$('#a-mode button').forEach((b) => b.classList.toggle('on', b.dataset.m === mode));
+    const N = +$('#a-n').value, T = +$('#a-t').value, D = 2;
+    $('#a-n-v').textContent = N; $('#a-t-v').textContent = T;
+    $('#a-t').disabled = mode !== 'def'; $('#a-t').closest('.field').style.opacity = mode === 'def' ? 1 : .45;
+    const reqs = [];
+    for (let i = 0; i < N; i++) {
+      let start;
+      if (mode === 'ablock' || mode === 'areq') start = i * D;
+      else if (mode === 'aawait') start = 0;
+      else start = Math.floor(i / T) * D;
+      reqs.push({ start, end: start + D });
+    }
+    const blocking = mode === 'ablock' || mode === 'areq';
+    // /health arrives at 0.5s
+    let hStart = 0.5;
+    if (blocking) hStart = reqs.length ? reqs[0].end : 0.5; // waits at least for the running blocking call
+    const hEnd = hStart + 0.05;
+    const total = Math.max(...reqs.map((r) => r.end), hEnd, 2);
+    const span = Math.ceil(total);
+    const pct = (t) => (t / span * 100);
+    const row = (label, segs) => '<div class="grow"><span>' + label + '</span><div class="gtrack">' + segs.map(([a, b, c]) => '<span style="left:' + pct(a) + '%;width:' + Math.max(0.6, pct(b - a)) + '%;background:' + c + '"></span>').join('') + '</div></div>';
+    let html = '';
+    reqs.forEach((r, i) => { html += row('req ' + (i + 1), [[0, r.start, '#5fb3f966'], [r.start, r.end, blocking ? '#f87171' : '#3ddc97']]); });
+    html += row('/health', [[0.5, hStart, '#5fb3f966'], [hStart, hEnd, '#fbbf24']]);
+    html += '<div class="axis"><span></span><div>' + Array.from({ length: span + 1 }, (_, i) => '<span>' + i + 's</span>').join('') + '</div></div>';
+    $('#a-gantt').innerHTML = html;
+    const hc = $('#a-code'); hc.innerHTML = ''; hc.appendChild(codeBlock(MODES[mode][1], { title: 'endpoint' }));
+    const avg = reqs.reduce((a, r) => a + r.end, 0) / N;
+    $('#a-stats').innerHTML = [[Math.max(...reqs.map((r) => r.end)).toFixed(1) + ' s', 'last request finishes'], [avg.toFixed(1) + ' s', 'average latency'], [(hEnd - 0.5).toFixed(2) + ' s', blocking ? '/health latency (at least)' : '/health latency'], [blocking ? 'blocked' : 'free', 'event loop']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:17px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    const notes = {
+      ablock: '<div class="err-box">The loop runs one request at a time and can\'t even read new connections while it sleeps. ' + N + ' users → the last waits ' + (N * D) + ' s, and /health times out, so a load balancer may kill a healthy instance.</div>',
+      areq: '<div class="err-box">Same failure: requests is a synchronous client. Use httpx.AsyncClient with await, or make the endpoint a plain def.</div>',
+      aawait: '<div class="ok-box">await hands control back to the loop while waiting, so all ' + N + ' requests overlap and finish together in ~2 s. /health answers instantly.</div>',
+      def: '<div class="callout blue">' + FA.icon('info') + '<div>Each request occupies a pool thread while it sleeps; the loop stays free so /health is instant. With ' + T + ' thread' + (T > 1 ? 's' : '') + ', requests run in batches of ' + T + '. The real default is 40, so this only bites under heavy load.</div></div>',
+    };
+    $('#a-note').innerHTML = notes[mode];
+  }
+  ['a-n', 'a-t'].forEach((id) => $('#' + id).addEventListener('input', draw));
+  draw();
+
+  /* ===== Drill ===== */
+  const Q = [
+    ['<code>model.predict(df)</code> with a scikit-learn model', 'def', 'Sync, CPU-bound library call. In async def it would block the loop.'],
+    ['<code>await client.get(url)</code> with <code>httpx.AsyncClient</code>', 'async def', 'An async library: await it inside async def and the loop serves others meanwhile.'],
+    ['<code>requests.post(url, json=...)</code> to call another service', 'def', 'requests is synchronous. Either plain def, or switch to httpx.AsyncClient in async def.'],
+    ['Query Postgres with <code>asyncpg</code>', 'async def', 'Async driver → async def + await.'],
+    ['Read and update <code>patients.json</code> with <code>open()</code> / <code>json.load</code>', 'def', 'Blocking file I/O. Small files are quick, but def is the safe default (as in the course).'],
+    ['Return a constant dict, no I/O at all', 'either', 'Nothing blocks, so either works. async def avoids the thread hop.'],
+    ['Query with SQLAlchemy\'s classic synchronous <code>Session</code>', 'def', 'Sync driver → def. (SQLAlchemy\'s AsyncSession would mean async def.)'],
+    ['Fetch features asynchronously, then run a heavy sync model', 'async def', 'async def for the awaits, and push the model call off the loop with run_in_threadpool / asyncio.to_thread.'],
+  ];
+  const ans = {};
+  function rDraw() {
+    $('#r-list').innerHTML = Q.map(([q, right, why], i) => '<div class="dq"><div>' + q + '</div><div class="opts">' + ['async def', 'def', 'either'].map((o) => '<button data-i="' + i + '" data-o="' + o + '" class="' + (ans[i] ? (o === right ? 'right' : o === ans[i] ? 'wrong' : '') : '') + '">' + o + '</button>').join('') + '</div>' + (ans[i] ? '<div class="why">' + why + '</div>' : '') + '</div>').join('');
+    const n = Object.keys(ans).length, c = Object.entries(ans).filter(([i, o]) => Q[i][1] === o).length;
+    $('#r-score').innerHTML = n ? '<span class="chip">' + c + ' / ' + n + ' correct</span>' : '';
+  }
+  $('#r-list').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (!b || ans[b.dataset.i]) return; ans[b.dataset.i] = b.dataset.o; rDraw(); });
+  rDraw();
+
+  FA.init('async', () => {});
+})();
+</script>
+</body>
+</html>

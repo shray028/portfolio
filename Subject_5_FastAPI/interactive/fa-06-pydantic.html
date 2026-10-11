@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pydantic: The Data Guard — Models, Validators, Computed Fields &amp; model_dump</title>
+  <meta name="description" content="Interactive Pydantic v2 lab: a live validation playground with coercion and strict mode, the required/optional matrix, before/after and model validators, computed fields, nested models and model_dump options.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .approach { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .approach div { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); }
+    .approach b { display: block; margin-bottom: 4px; }
+    .approach span { color: var(--muted); font-size: 13px; }
+    .pipe { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+    .pstep { padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12px; transition: all .25s; min-height: 108px; }
+    .pstep b { display: block; font-size: 12.5px; margin-bottom: 4px; }
+    .pstep code { font-size: 11px; white-space: normal; }
+    .pstep.on { border-color: rgba(61,220,151,.7); background: rgba(61,220,151,.08); }
+    .pstep.bad { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.08); }
+    .pstep.off { opacity: .35; }
+    .matrix td { font: 12.5px var(--font-mono); }
+    .matrix .sel { display: inline-flex; gap: 4px; }
+    .matrix .sel button { padding: 3px 9px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+    .matrix .sel button.on { color: var(--text); background: var(--surface); border-color: var(--line-strong); }
+    .matrix .sel button.right { border-color: rgba(74,222,128,.7); color: #bbf7d0; }
+    .matrix .sel button.wrong { border-color: rgba(248,113,113,.7); color: #fecaca; }
+    .gauge { position: relative; height: 26px; border-radius: 8px; overflow: hidden; display: flex; }
+    .gauge span { height: 100%; display: grid; place-items: center; font: 600 10.5px var(--font-mono); color: #04110b; }
+    .gauge i { position: absolute; top: -2px; bottom: -2px; width: 3px; background: #fff; border-radius: 2px; box-shadow: 0 0 0 2px #07080d; transition: left .3s var(--ease); }
+    .opt-row { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+    .opt-row label { display: inline-flex; gap: 6px; align-items: center; }
+    @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); } .approach { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 06 · DATA VALIDATION</span>
+      <h1>Pydantic: <span class="grad">the data guard</span></h1>
+      <p class="desc">The most-asked FastAPI topic is really a Pydantic topic. Declare the ideal schema once; every request is validated, coerced, documented and serialised from it. This module lets you feed data into real course models and watch exactly what Pydantic does.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Validation playground · validator pipeline · BMI model · model_dump lab</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="why"><span class="n">1</span>Why Pydantic</button>
+      <button class="tab" data-tab="fields"><span class="n">2</span>Fields &amp; validation</button>
+      <button class="tab" data-tab="validators"><span class="n">3</span>Validators</button>
+      <button class="tab" data-tab="computed"><span class="n">4</span>Computed fields</button>
+      <button class="tab" data-tab="serialize"><span class="n">5</span>Nesting &amp; model_dump</button>
+    </div></div>
+
+    <!-- ============ WHY ============ -->
+    <section class="tab-panel" data-panel="why">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Type hints are documentation, not enforcement <span class="imp">Must-know</span></h3>
+        <p>Python is dynamically typed: <code>insert_patient_data("Shray", "Twenty seven")</code> runs happily with <code>age: int</code> in the signature, and garbage reaches the database.</p>
+        <div class="approach mt">
+          <div style="border-color:rgba(248,113,113,.4)"><b style="color:var(--red)">1. Type hints only</b><span>Readable, but nothing is checked.</span></div>
+          <div style="border-color:rgba(251,191,36,.4)"><b style="color:var(--amber)">2. Manual <code>if type(x) != ...</code></b><span>Works, but repeated in every function — doesn't scale.</span></div>
+          <div style="border-color:rgba(74,222,128,.4)"><b style="color:var(--green)">3. Pydantic model</b><span>Declare once; validation + coercion everywhere.</span></div>
+        </div>
+        <h4>The three-step workflow</h4>
+        <ol><li><strong>Define</strong> a class inheriting <code>BaseModel</code> — the ideal schema.</li><li><strong>Instantiate</strong> with raw data: <code>Patient(**raw_dict)</code> — validates and coerces, or raises <code>ValidationError</code>.</li><li><strong>Use</strong> the validated object; every function can trust <code>p.age</code> is an <code>int</code>.</li></ol>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · from the course: pydantic/1_pydantic_why.py</div>
+      <textarea class="py" data-title="1_pydantic_why.py" data-imp>
+from pydantic import BaseModel, EmailStr, AnyUrl, Field
+from typing import List, Dict, Optional, Annotated
+
+class Patient(BaseModel):                                           # 1. define
+    name: Annotated[str, Field(max_length=100, title="Name of the patient",
+                               examples=["Shray", "Alice"])]
+    age: int = Field(gt=0, lt=120)
+    weight: Annotated[float, Field(gt=0, strict=True)]              # strict: "70" rejected
+    married: Annotated[bool, Field(default=None, description="Is the patient married")]
+    allergies: Optional[List[str]] = Field(default=None, max_length=5)
+    contact_details: Dict[str, str]
+    email: EmailStr                                                 # pip install email-validator
+    linkedin_url: AnyUrl
+
+patient1 = Patient(**patient_info)                                  # 2. instantiate (** unpacks the dict)
+insert_patient_data(patient1)                                       # 3. use
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="pydantic:why"></div>
+    </section>
+
+    <!-- ============ FIELDS ============ -->
+    <section class="tab-panel" data-panel="fields" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Types, Field() and the optional trap</h3>
+        <dl class="kv">
+          <dt>str int float bool</dt><dd>scalars, with <strong>coercion</strong> in lax mode: <code>"27"</code> → <code>27</code></dd>
+          <dt>list[str] / dict[str, str]</dt><dd>validates the container <em>and</em> every element</dd>
+          <dt>Optional[X] (= X | None)</dt><dd>may be <code>None</code> — <strong>not</strong> the same as "not required"!</dd>
+          <dt>Literal["a", "b"]</dt><dd>one of a fixed set — the cleanest enum</dd>
+          <dt>EmailStr, AnyUrl, date</dt><dd>validated e-mail, URL, ISO dates parsed to objects</dd>
+          <dt>Field(gt, lt, min_length, max_length, pattern, strict, alias, examples)</dt><dd>constraints + docs metadata</dd>
+        </dl>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · validation playground</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="v-in">raw input → <code>Patient(**data)</code></label><textarea class="input" id="v-in" rows="12"></textarea></div>
+          <div class="btn-row" id="v-pre"></div>
+          <div class="opt-row"><label><input type="checkbox" id="v-strict"> ConfigDict(strict=True)</label><label><input type="checkbox" id="v-forbid"> ConfigDict(extra="forbid")</label></div>
+        </div>
+        <div><div id="v-out"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · required or optional? <span class="imp">Must-know</span></div>
+      <div class="card card-pad">
+        <div class="tbl-wrap"><table class="tbl matrix" id="mx"></table></div>
+        <div class="btn-row mt"><button class="btn btn-sm" id="mx-check"><i data-icon="check"></i>Check answers</button><span class="small muted" id="mx-score"></span></div>
+        <div class="callout green mt"><i data-icon="info"></i><div><b>A field is optional only if it has a default.</b> <code>Optional[...]</code> just widens the type to allow <code>None</code>.</div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="pydantic:fields"></div>
+    </section>
+
+    <!-- ============ VALIDATORS ============ -->
+    <section class="tab-panel" data-panel="validators" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The validation pipeline <span class="imp">Must-know</span></h3>
+        <p>When you call <code>Patient(**data)</code> things happen in a fixed order: <strong>before</strong> validators see the raw value → type check and coercion → <code>Field</code> constraints → <strong>after</strong> validators see the clean typed value → <strong>model</strong> validators see all fields → computed fields are evaluated on access. Any failure raises <code>ValidationError</code> (422 in FastAPI).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · send one value through the pipeline</div>
+      <div class="card card-pad">
+        <div class="btn-row">
+          <div class="field" style="min-width:220px"><label for="p-age">raw age</label><input class="input mono" id="p-age" value='"27 years"'></div>
+          <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="p-before" checked> add a <code>mode="before"</code> cleaner</label>
+          <div class="btn-row" id="p-pre"></div>
+        </div>
+        <div class="pipe mt2" id="p-pipe"></div>
+        <div id="p-res" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the course's field + model validators</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="grid-2">
+            <div class="field"><label for="fv-name">name</label><input class="input" id="fv-name" value="shray"></div>
+            <div class="field"><label for="fv-email">email</label><input class="input mono" id="fv-email" value="shray@hdfc.com"></div>
+            <div class="field"><label for="fv-age">age</label><input class="input mono" id="fv-age" type="number" value="65"></div>
+            <div class="field"><label for="fv-em">contact_details keys</label><input class="input mono" id="fv-em" value="phone"></div>
+          </div>
+          <div id="fv-out"></div>
+        </div>
+        <div><textarea class="py" data-title="2_field_validator.py (corrected)" data-imp>
+class Patient(BaseModel):
+    name: str
+    email: EmailStr
+    age: int
+    contact_details: dict[str, str]
+
+    @field_validator("email")
+    @classmethod                         # runs on the CLASS: no instance yet
+    def email_validator(cls, value):
+        if value.split("@")[-1] not in ["hdfc.com", "icici.com"]:
+            raise ValueError("Not a valid domain")
+        return value                     # ALWAYS return the value
+
+    @field_validator("name")
+    @classmethod
+    def transform_name(cls, value):
+        return value.upper()             # validators can TRANSFORM
+
+    @field_validator("age", mode="after")   # receives the coerced int
+    @classmethod
+    def validate_age(cls, value):
+        if 0 < value < 100:
+            return value
+        raise ValueError("Age must be between 0 and 100")
+
+    @model_validator(mode="after")       # cross-field rule
+    def emergency_contact(self):         # instance method: self, return self
+        if self.age > 60 and "emergency" not in self.contact_details:
+            raise ValueError("Patients older than 60 must have an emergency contact")
+        return self
+        </textarea></div>
+      </div>
+      <div class="callout amber mt"><i data-icon="alert"></i><div><b>Deprecated since Pydantic 2.12:</b> writing an after-mode model validator as <code>def v(cls, model)</code> still runs but warns, and will break in v3. Use <code>def v(self)</code> returning <code>self</code>. (Before-mode model validators stay <code>@classmethod</code> and receive the raw dict.)</div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="pydantic:validators"></div>
+    </section>
+
+    <!-- ============ COMPUTED ============ -->
+    <section class="tab-panel" data-panel="computed" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Derived values that still appear in the output <span class="imp">Must-know</span></h3>
+        <p><code>@computed_field</code> + <code>@property</code>: a value computed from other fields that the client never sends but that appears in <code>model_dump()</code>, JSON responses and <code>/docs</code>. <code>@property</code> lets you write <code>p.bmi</code>; <code>@computed_field</code> includes it in serialisation and the schema; the return type hint is required. Computed fields can use other computed fields — <code>verdict</code> reads <code>bmi</code>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · BMI and verdict</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">weight (kg)</span><div class="range-row"><input type="range" id="b-w" min="35" max="140" step="0.5" value="90"><span class="val" id="b-w-v"></span></div></div>
+          <div class="field"><span class="label-t">height (m)</span><div class="range-row"><input type="range" id="b-h" min="1.4" max="2.1" step="0.01" value="1.65"><span class="val" id="b-h-v"></span></div></div>
+          <div class="field"><span class="label-t">verdict implementation</span><div class="seg" id="b-ver"><button data-v="fixed" class="on">correct</button><button data-v="course">course code (bug)</button></div></div>
+          <div class="gauge" id="b-gauge"></div>
+          <div id="b-note"></div>
+        </div>
+        <div><div id="b-dump"></div><div class="mt" id="b-code"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="pydantic:computed"></div>
+    </section>
+
+    <!-- ============ SERIALIZE ============ -->
+    <section class="tab-panel" data-panel="serialize" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Nested models and model_dump <span class="imp">Must-know</span></h3>
+        <p>A model can be a field type: <code>address: Address</code>. A plain dict is converted automatically and validated all the way down; errors report the full location, e.g. <code>("address", "pin_code")</code>. Going the other way, <code>.model_dump()</code> gives a dict (computed fields included) and <code>.model_dump_json()</code> a JSON string.</p>
+        <ul>
+          <li><code>exclude</code> for a nested field is a <strong>dict that mirrors the tree</strong>: <code>{"address": {"state"}}</code>.</li>
+          <li><code>exclude_unset=True</code> dumps only fields the caller actually provided — the hero of partial updates (module 07).</li>
+        </ul>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · model_dump options</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div><div class="label" style="margin-bottom:6px">fields the caller provided</div><div class="opt-row" id="s-set"></div></div>
+          <div><div class="label" style="margin-bottom:6px">exclude top-level</div><div class="opt-row" id="s-ex"></div></div>
+          <div><div class="label" style="margin-bottom:6px">exclude nested (address.*)</div><div class="opt-row" id="s-nex"></div></div>
+          <div class="opt-row"><label><input type="checkbox" id="s-unset"> exclude_unset=True</label><label><input type="checkbox" id="s-json"> mode="json"</label></div>
+          <div id="s-call"></div>
+        </div>
+        <div id="s-out"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="5_nested_models.py + 6_serialization.py" data-imp>
+class Address(BaseModel):
+    city: str
+    state: str
+    pin_code: str
+
+class Patient(BaseModel):
+    name: str
+    gender: str
+    age: int
+    address: Address                       # a model as a field type
+
+p = Patient(name="Shray", gender="Male", age=27,
+            address={"city": "Mumbai", "state": "Maharashtra", "pin_code": "400001"})
+p.address.city                             # 'Mumbai' -- dict auto-converted
+
+p.model_dump(include={"name", "gender"})
+p.model_dump(exclude={"address": {"state"}})   # nested exclude = dict mirroring the tree
+p.model_dump(exclude_unset=True)               # only what the caller sent
+p.model_dump(mode="json"); p.model_dump_json()
+Patient.model_validate(data); Patient.model_validate_json(text)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="pydantic:serialize"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Validation playground (emulates Pydantic v2 lax/strict rules for this model) ===== */
+  const PRESETS = {
+    'valid': { name: 'Shray', age: 27, weight: 72.5, married: false, allergies: ['pollen'], contact_details: { phone: '9876543210' }, email: 'shray@example.com', linkedin_url: 'https://linkedin.com/in/shray' },
+    'coercion': { name: 'Shray', age: '27', weight: 72, married: 'yes', contact_details: { phone: '9876543210' }, email: 'shray@example.com', linkedin_url: 'https://linkedin.com/in/shray' },
+    'many errors': { name: 'Shray', age: -5, weight: '70', allergies: ['a', 'b', 'c', 'd', 'e', 'f'], contact_details: { phone: 98765 }, email: 'not-an-email', linkedin_url: 'linkedin' },
+    'missing + extra': { name: 'Shray', age: 27, email: 'shray@example.com', nickname: 'S' },
+  };
+  $('#v-pre').innerHTML = Object.keys(PRESETS).map((k) => '<button class="btn btn-sm">' + k + '</button>').join('');
+  $('#v-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#v-in').value = JSON.stringify(PRESETS[b.textContent], null, 2); validate(); });
+  $('#v-in').value = JSON.stringify(PRESETS.coercion, null, 2);
+  const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
+  function validate() {
+    const strict = $('#v-strict').checked, forbid = $('#v-forbid').checked;
+    let d; try { d = JSON.parse($('#v-in').value); } catch (e) { $('#v-out').innerHTML = '<div class="err-box">JSON decode error — in FastAPI this is a 422 with type "json_invalid".</div>'; return; }
+    const errs = [], out = {}, notes = [];
+    const err = (loc, type, msg, input) => errs.push({ type, loc, msg, input });
+    const coerceInt = (k, v) => { if (isInt(v)) return v; if (!strict && typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) { notes.push(k + ': "' + v + '" → ' + parseInt(v, 10) + ' (coerced)'); return parseInt(v, 10); } if (!strict && typeof v === 'number' && Number.isInteger(v)) return v; err([k], strict ? 'int_type' : 'int_parsing', strict ? 'Input should be a valid integer' : 'Input should be a valid integer, unable to parse string as an integer', v); return undefined; };
+    // name
+    if (!('name' in d)) err(['name'], 'missing', 'Field required', d); else if (typeof d.name !== 'string') err(['name'], 'string_type', 'Input should be a valid string', d.name); else if (d.name.length > 100) err(['name'], 'string_too_long', 'String should have at most 100 characters', d.name); else out.name = d.name;
+    // age
+    if (!('age' in d)) err(['age'], 'missing', 'Field required', d); else { const a = coerceInt('age', d.age); if (a !== undefined) { if (!(a > 0)) err(['age'], 'greater_than', 'Input should be greater than 0', d.age); else if (!(a < 120)) err(['age'], 'less_than', 'Input should be less than 120', d.age); else out.age = a; } }
+    // weight strict float
+    if (!('weight' in d)) err(['weight'], 'missing', 'Field required', d); else if (typeof d.weight !== 'number') err(['weight'], 'float_type', 'Input should be a valid number' + (typeof d.weight === 'string' ? ' (Field(strict=True): strings are not coerced)' : ''), d.weight); else if (!(d.weight > 0)) err(['weight'], 'greater_than', 'Input should be greater than 0', d.weight); else { out.weight = d.weight * 1.0; if (Number.isInteger(d.weight)) notes.push('weight: ' + d.weight + ' → ' + d.weight + '.0 (int is accepted as float even in strict mode)'); }
+    // married bool optional
+    if ('married' in d && d.married !== null) { const m = d.married; const T = ['true', 'yes', 'on', '1', 't', 'y'], F = ['false', 'no', 'off', '0', 'f', 'n']; if (typeof m === 'boolean') out.married = m; else if (!strict && typeof m === 'string' && T.includes(m.toLowerCase())) { out.married = true; notes.push('married: "' + m + '" → True (coerced)'); } else if (!strict && typeof m === 'string' && F.includes(m.toLowerCase())) { out.married = false; notes.push('married: "' + m + '" → False (coerced)'); } else if (!strict && (m === 0 || m === 1)) { out.married = !!m; notes.push('married: ' + m + ' → ' + (m ? 'True' : 'False')); } else err(['married'], 'bool_parsing', 'Input should be a valid boolean', m); } else out.married = null;
+    // allergies optional list max 5
+    if ('allergies' in d && d.allergies !== null) { if (!Array.isArray(d.allergies)) err(['allergies'], 'list_type', 'Input should be a valid list', d.allergies); else { if (d.allergies.length > 5) err(['allergies'], 'too_long', 'List should have at most 5 items after validation, not ' + d.allergies.length, d.allergies); d.allergies.forEach((x, i) => { if (typeof x !== 'string') err(['allergies', i], 'string_type', 'Input should be a valid string', x); }); if (d.allergies.length <= 5) out.allergies = d.allergies; } } else out.allergies = null;
+    // contact_details dict[str,str]
+    if (!('contact_details' in d)) err(['contact_details'], 'missing', 'Field required', d); else if (typeof d.contact_details !== 'object' || Array.isArray(d.contact_details) || d.contact_details === null) err(['contact_details'], 'dict_type', 'Input should be a valid dictionary', d.contact_details); else { Object.entries(d.contact_details).forEach(([k, v]) => { if (typeof v !== 'string') err(['contact_details', k], 'string_type', 'Input should be a valid string', v); }); out.contact_details = d.contact_details; }
+    // email
+    if (!('email' in d)) err(['email'], 'missing', 'Field required', d); else if (typeof d.email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) err(['email'], 'value_error', 'value is not a valid email address: An email address must have an @-sign.', d.email); else out.email = d.email;
+    // url
+    if (!('linkedin_url' in d)) err(['linkedin_url'], 'missing', 'Field required', d); else if (typeof d.linkedin_url !== 'string' || !/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(d.linkedin_url)) err(['linkedin_url'], 'url_parsing', 'Input should be a valid URL, relative URL without a base', d.linkedin_url); else out.linkedin_url = d.linkedin_url.replace(/^(https?:\/\/[^/]+)$/, '$1/');
+    const known = ['name', 'age', 'weight', 'married', 'allergies', 'contact_details', 'email', 'linkedin_url'];
+    Object.keys(d).filter((k) => !known.includes(k)).forEach((k) => { if (forbid) err([k], 'extra_forbidden', 'Extra inputs are not permitted', d[k]); else notes.push(k + ': unknown field silently ignored (extra="ignore" is the default)'); });
+    const host = $('#v-out'); host.innerHTML = '';
+    if (errs.length) {
+      host.insertAdjacentHTML('beforeend', '<div class="label" style="margin-bottom:4px">pydantic.ValidationError: ' + errs.length + ' validation error' + (errs.length > 1 ? 's' : '') + ' for Patient → in FastAPI: <span class="status s4">422</span></div>');
+      host.appendChild(codeBlock(JSON.stringify({ detail: errs.map((e) => ({ type: e.type, loc: ['body'].concat(e.loc), msg: e.msg, input: e.input })) }, null, 2), { title: 'response body', lang: 'json' }));
+      host.insertAdjacentHTML('beforeend', '<p class="small muted mt">Pydantic collects <b>every</b> error in one pass, so the client can fix them all at once.</p>');
+    } else {
+      host.insertAdjacentHTML('beforeend', '<div class="label" style="margin-bottom:4px">validated ✓ — <code>patient.model_dump()</code></div>');
+      host.appendChild(codeBlock(JSON.stringify(out, null, 2), { title: 'Patient', lang: 'json' }));
+    }
+    if (notes.length) host.insertAdjacentHTML('beforeend', '<div class="callout blue mt">' + FA.icon('info') + '<div>' + notes.map(esc).join('<br>') + '</div></div>');
+  }
+  $('#v-in').addEventListener('input', validate); ['v-strict', 'v-forbid'].forEach((id) => $('#' + id).addEventListener('change', validate)); validate();
+
+  /* ===== Required/optional matrix ===== */
+  const MX = [['age: int', 'yes', 'no'], ['age: int = 30', 'no', 'no'], ['age: Optional[int]', 'yes', 'yes'], ['age: Optional[int] = None', 'no', 'yes'], ['age: int = Field(...)', 'yes', 'no'], ['age: int | None = Field(default=None, gt=0)', 'no', 'yes']];
+  const ans = MX.map(() => [null, null]);
+  function mx(check) {
+    let score = 0;
+    $('#mx').innerHTML = '<thead><tr><th>declaration</th><th>required?</th><th>may be None?</th></tr></thead><tbody>' + MX.map((r, i) => '<tr><td>' + esc(r[0]) + '</td>' + [1, 2].map((c) => '<td><span class="sel">' + ['yes', 'no'].map((o) => { let cls = ans[i][c - 1] === o ? 'on' : ''; if (check) { if (o === r[c]) cls += ' right'; else if (ans[i][c - 1] === o) cls += ' wrong'; } return '<button class="' + cls + '" data-r="' + i + '" data-c="' + (c - 1) + '" data-o="' + o + '">' + o + '</button>'; }).join('') + '</span></td>').join('') + '</tr>').join('') + '</tbody>';
+    if (check) { MX.forEach((r, i) => { if (ans[i][0] === r[1]) score++; if (ans[i][1] === r[2]) score++; }); $('#mx-score').textContent = score + ' / ' + MX.length * 2 + ' correct'; }
+    $$('#mx button').forEach((b) => b.addEventListener('click', () => { ans[+b.dataset.r][+b.dataset.c] = b.dataset.o; mx(false); }));
+  }
+  $('#mx-check').addEventListener('click', () => mx(true)); mx(false);
+
+  /* ===== Pipeline ===== */
+  const P_PRE = ['"27"', '"27 years"', '27', '-3', '150', '"abc"', '27.0', '27.5'];
+  $('#p-pre').innerHTML = P_PRE.map((p) => '<button class="btn btn-sm mono">' + esc(p) + '</button>').join('');
+  $('#p-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#p-age').value = b.textContent; pipe(); });
+  function pipe() {
+    let raw; try { raw = JSON.parse($('#p-age').value); } catch (e) { raw = $('#p-age').value; }
+    const useBefore = $('#p-before').checked;
+    const st = []; let v = raw, failAt = -1, failMsg = '';
+    st.push({ t: 'raw input', s: '<code>' + esc(JSON.stringify(raw)) + '</code>' });
+    if (useBefore) { if (typeof v === 'string') { const m = v.match(/-?\d+(\.\d+)?/); const nv = m ? m[0] : v; st.push({ t: 'before validator', s: 'sees raw <code>' + esc(JSON.stringify(v)) + '</code> → returns <code>' + esc(JSON.stringify(nv)) + '</code>' }); v = nv; } else st.push({ t: 'before validator', s: 'not a string — passed through' }); }
+    else st.push({ t: 'before validator', s: 'none', off: true });
+    // coercion to int (lax)
+    let iv;
+    if (typeof v === 'number') { if (Number.isInteger(v)) iv = v; else { failAt = 2; failMsg = 'int_from_float: Input should be a valid integer, got a number with a fractional part'; } }
+    else if (typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) iv = parseInt(v, 10);
+    else { failAt = 2; failMsg = 'int_parsing: Input should be a valid integer, unable to parse string as an integer'; }
+    st.push({ t: 'type check + coercion', s: failAt === 2 ? 'cannot make an int' : '<code>' + esc(JSON.stringify(v)) + '</code> → <code>' + iv + '</code>' });
+    if (failAt < 0) { if (!(iv > 0)) { failAt = 3; failMsg = 'greater_than: Input should be greater than 0'; } else if (!(iv < 120)) { failAt = 3; failMsg = 'less_than: Input should be less than 120'; } }
+    st.push({ t: 'constraints gt=0, lt=120', s: failAt === 3 ? 'violated' : failAt >= 0 ? '—' : 'ok' });
+    if (failAt < 0 && !(iv < 100)) { failAt = 4; failMsg = 'value_error: Age must be between 0 and 100'; }
+    st.push({ t: 'after validator', s: failAt === 4 ? 'raises ValueError' : failAt >= 0 ? '—' : 'sees int <code>' + iv + '</code>; 0 &lt; age &lt; 100 ✓' });
+    st.push({ t: 'model validator', s: failAt >= 0 ? '—' : 'all fields known; cross-field rules run' });
+    $('#p-pipe').innerHTML = st.map((x, i) => '<div class="pstep ' + (x.off ? 'off' : (failAt >= 0 && i === failAt) ? 'bad' : (failAt >= 0 && i > failAt) ? 'off' : 'on') + '"><b>' + (i + 1) + '. ' + x.t + '</b>' + x.s + '</div>').join('');
+    $('#p-res').innerHTML = failAt >= 0 ? '<div class="err-box">ValidationError → 422\n' + esc(failMsg) + '</div>' : '<div class="ok-box">patient.age == ' + iv + '   (int)</div>' + (typeof raw === 'string' && !useBefore && /\D/.test(raw.trim()) ? '' : '');
+  }
+  $('#p-age').addEventListener('input', pipe); $('#p-before').addEventListener('change', pipe); pipe();
+
+  /* ===== Field + model validators ===== */
+  function fv() {
+    const name = $('#fv-name').value, email = $('#fv-email').value.trim(), age = +$('#fv-age').value, keys = $('#fv-em').value.split(',').map((s) => s.trim()).filter(Boolean);
+    const errs = [];
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errs.push(['email', 'value is not a valid email address']);
+    else if (!['hdfc.com', 'icici.com'].includes(email.split('@').pop())) errs.push(['email', 'Value error, Not a valid domain']);
+    if (!(age > 0 && age < 100)) errs.push(['age', 'Value error, Age must be between 0 and 100']);
+    if (!errs.length && age > 60 && !keys.includes('emergency')) errs.push(['(model)', 'Value error, Patients older than 60 must have an emergency contact']);
+    $('#fv-out').innerHTML = errs.length ? '<div class="err-box">' + errs.map(([l, m]) => esc(l) + ': ' + esc(m)).join('\n') + '</div>' + (errs[0][0] === '(model)' ? '<p class="small muted mt">Field validators all passed; the <b>model</b> validator caught a rule that needs two fields. Add <code>emergency</code> to the keys.</p>' : '') : '<div class="ok-box">Patient(name=\'' + esc(name.toUpperCase()) + '\', email=\'' + esc(email) + '\', age=' + age + ', contact_details={' + keys.map((k) => "'" + esc(k) + "': '…'").join(', ') + '})</div><p class="small muted mt">Notice the name was <b>transformed</b> to upper case by its validator.</p>';
+  }
+  ['fv-name', 'fv-email', 'fv-age', 'fv-em'].forEach((id) => $('#' + id).addEventListener('input', fv)); fv();
+
+  /* ===== BMI ===== */
+  let bver = 'fixed';
+  segc('b-ver', (v) => { bver = v; bmi(); });
+  function bmi() {
+    const w = +$('#b-w').value, h = +$('#b-h').value; $('#b-w-v').textContent = w.toFixed(1); $('#b-h-v').textContent = h.toFixed(2);
+    const b = Math.round((w / (h * h)) * 100) / 100;
+    const verdictFixed = b < 18.5 ? 'Underweight' : b < 25 ? 'Normal' : b < 30 ? 'Overweight' : 'Obese';
+    const verdict = bver === 'course' ? (b < 18.5 ? 'Underweight' : b < 25 ? 'Normal' : b < 30 ? 'Normal' : 'Obese') : verdictFixed;
+    const pos = Math.max(0, Math.min(100, (b - 12) / (42 - 12) * 100));
+    $('#b-gauge').innerHTML = [['Underweight', 12, 18.5, '#60a5fa'], ['Normal', 18.5, 25, '#4ade80'], ['Overweight', 25, 30, '#fbbf24'], ['Obese', 30, 42, '#f87171']].map(([t, a, z, c]) => '<span style="width:' + ((z - a) / 30 * 100) + '%;background:' + c + '">' + t + '</span>').join('') + '<i style="left:calc(' + pos + '% - 1px)"></i>';
+    $('#b-note').innerHTML = bver === 'course' && verdict !== verdictFixed ? '<div class="callout red">' + FA.icon('alert') + '<div>Course bug: the 25–30 branch returns "Normal" (copy-paste). That\'s how P004 (BMI 29.32) ended up stored as "Normal" in patients.json.</div></div>' : '';
+    setCode($('#b-dump'), JSON.stringify({ name: 'Ananya Verma', weight: w, height: h, bmi: b, verdict }, null, 2), 'patient.model_dump()  ← bmi & verdict included', 'json');
+    setCode($('#b-code'), 'class Patient(BaseModel):\n    weight: float   # kg\n    height: float   # m\n\n    @computed_field\n    @property\n    def bmi(self) -> float:\n        return round(self.weight / (self.height ** 2), 2)\n\n    @computed_field\n    @property\n    def verdict(self) -> str:\n        if self.bmi < 18.5: return "Underweight"\n        elif self.bmi < 25: return "Normal"\n        elif self.bmi < 30: return ' + (bver === 'course' ? '"Normal"      # BUG' : '"Overweight"') + '\n        return "Obese"', 'computed fields');
+  }
+  ['b-w', 'b-h'].forEach((id) => $('#' + id).addEventListener('input', bmi)); bmi();
+
+  /* ===== model_dump lab ===== */
+  const FULL = { name: 'Shray', gender: 'Male', age: 27, joined: '2026-10-11', address: { city: 'Mumbai', state: 'Maharashtra', pin_code: '400001' } };
+  const TOP = ['name', 'gender', 'age', 'joined', 'address'], NEST = ['city', 'state', 'pin_code'];
+  const set = new Set(['name', 'gender', 'age', 'address']);
+  $('#s-set').innerHTML = TOP.map((k) => '<label><input type="checkbox" data-set="' + k + '"' + (set.has(k) ? ' checked' : '') + '> ' + k + '</label>').join('');
+  $('#s-ex').innerHTML = TOP.map((k) => '<label><input type="checkbox" data-ex="' + k + '"> ' + k + '</label>').join('');
+  $('#s-nex').innerHTML = NEST.map((k) => '<label><input type="checkbox" data-nex="' + k + '"' + (k === 'state' ? ' checked' : '') + '> ' + k + '</label>').join('');
+  function dump() {
+    $$('[data-set]').forEach((c) => (c.checked ? set.add(c.dataset.set) : set.delete(c.dataset.set)));
+    const ex = $$('[data-ex]').filter((c) => c.checked).map((c) => c.dataset.ex), nex = $$('[data-nex]').filter((c) => c.checked).map((c) => c.dataset.nex);
+    const unset = $('#s-unset').checked, json = $('#s-json').checked;
+    const out = {};
+    TOP.forEach((k) => {
+      if (ex.includes(k)) return;
+      if (unset && !set.has(k)) return;
+      let v = set.has(k) ? FULL[k] : (k === 'joined' ? null : k === 'address' ? null : FULL[k]);
+      if (!set.has(k) && k === 'joined') v = null;
+      if (k === 'address' && v) { v = Object.fromEntries(Object.entries(v).filter(([kk]) => !nex.includes(kk))); }
+      if (k === 'joined' && v && !json) v = 'datetime.date(2026, 10, 11)';
+      out[k] = v;
+    });
+    const args = [];
+    if (ex.length || nex.length) { const parts = ex.map((k) => '"' + k + '"'); let s; if (nex.length) s = '{' + ex.map((k) => '"' + k + '": True').concat(['"address": {' + nex.map((k) => '"' + k + '"').join(', ') + '}']).join(', ') + '}'; else s = '{' + parts.join(', ') + '}'; args.push('exclude=' + s); }
+    if (unset) args.push('exclude_unset=True');
+    if (json) args.push('mode="json"');
+    setCode($('#s-call'), 'p.model_dump(' + args.join(', ') + ')', 'call');
+    let txt = JSON.stringify(out, null, 2).replace('"datetime.date(2026, 10, 11)"', 'datetime.date(2026, 10, 11)');
+    setCode($('#s-out'), txt, 'result', 'json');
+    const notes = [];
+    if (!set.has('joined') && !unset && !ex.includes('joined')) notes.push('"joined" wasn\'t provided, so it is dumped as its default (None). With exclude_unset=True it disappears — exactly what a PATCH merge needs.');
+    if (!json && !ex.includes('joined') && set.has('joined')) notes.push('Without mode="json", dates stay Python date objects; mode="json" turns them into ISO strings.');
+    $('#s-out').insertAdjacentHTML('beforeend', notes.map((n) => '<div class="callout blue mt">' + FA.icon('info') + '<div>' + n + '</div></div>').join(''));
+  }
+  $$('#s-set input, #s-ex input, #s-nex input, #s-unset, #s-json').forEach((c) => c.addEventListener('change', dump));
+  dump();
+
+  FA.init('pydantic');
+})();
+</script>
+</body>
+</html>

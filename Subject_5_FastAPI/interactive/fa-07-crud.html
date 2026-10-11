@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POST, PUT &amp; DELETE — CRUD with FastAPI and Pydantic</title>
+  <meta name="description" content="Build the Patient Management API's write endpoints: request bodies and 201/409/422, the partial-update algorithm with exclude_unset and recomputed fields, PUT vs PATCH, DELETE and RESTful naming — with a live API console.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .store { display: grid; gap: 4px; font: 11.5px/1.5 var(--font-mono); max-height: 380px; overflow: auto; }
+    .store div { overflow-wrap: anywhere; padding: 6px 9px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+    .store div.new { border-color: rgba(74,222,128,.55); background: rgba(74,222,128,.07); }
+    .store div.chg { border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.07); }
+    .store b { color: #b9f5da; }
+    .algo { display: grid; gap: 6px; }
+    .astep { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); transition: all .25s; }
+    .astep .k { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--surface); font: 700 12px var(--font-mono); color: var(--muted); }
+    .astep > div { min-width: 0; } .astep pre { overflow-wrap: anywhere; } .astep b { font-size: 13.5px; } .astep code { font-size: 11.5px; }
+    .astep.on { border-color: rgba(61,220,151,.6); background: rgba(61,220,151,.07); }
+    .astep.on .k { background: var(--acc); color: #03140d; }
+    .astep.bad { border-color: rgba(248,113,113,.6); background: rgba(248,113,113,.07); }
+    .astep.bad .k { background: var(--red); color: #1a0505; }
+    .astep.off { opacity: .4; }
+    .ops { display: grid; gap: 5px; align-content: start; }
+    .op { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); transition: all .2s; }
+    .op:hover { border-color: var(--line-strong); }
+    .op.on { border-color: rgba(61,220,151,.6); background: rgba(61,220,151,.07); }
+    .op small { display: block; color: var(--dim); font: 11px var(--font-body); }
+    .console { display: grid; grid-template-columns: 300px minmax(0, 1fr) minmax(0, 0.9fr); gap: 14px; }
+    @media (max-width: 1100px) { .console { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 07 · PATIENT API</span>
+      <h1><span class="grad">POST, PUT &amp; DELETE</span> — the full CRUD API</h1>
+      <p class="desc">The write side of the Patient Management System. A Pydantic parameter becomes the request body; the update endpoint holds the most important logic in the course; and a live console at the end lets you drive the whole API against an in-browser <code>patients.json</code>.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Create simulator · update-algorithm stepper · live API console</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="post"><span class="n">1</span>POST: create</button>
+      <button class="tab" data-tab="update"><span class="n">2</span>PUT/PATCH: the update algorithm</button>
+      <button class="tab" data-tab="delete"><span class="n">3</span>DELETE &amp; REST naming</button>
+      <button class="tab" data-tab="playground"><span class="n">4</span>Live API console</button>
+    </div></div>
+
+    <!-- ============ POST ============ -->
+    <section class="tab-panel" data-panel="post">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A Pydantic parameter = the JSON body <span class="imp">Must-know</span></h3>
+        <p>When a parameter is annotated with a <code>BaseModel</code> subclass, FastAPI reads the JSON body, validates it and hands you the object. Invalid input → automatic <strong>422</strong> with exact error locations; your function never runs on bad data.</p>
+        <p>Then: load the store, refuse duplicates (<strong>409</strong>, or 400 as in the course), convert the object with <code>model_dump(exclude={"id"})</code> — which includes the computed <code>bmi</code> and <code>verdict</code> — put it under the id, save, return <strong>201</strong>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · POST /create</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="seg" id="c-ver"><button data-v="course" class="on">course code</button><button data-v="fixed">fixed</button></div><button class="btn btn-sm" id="c-reset"><i data-icon="reset"></i>Reset patients.json</button><div class="btn-row" id="c-pre"></div></div>
+        <div class="console mt2" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 280px">
+          <div class="controls"><div class="field"><label for="c-body">request body</label><textarea class="input" id="c-body" rows="11"></textarea></div><button class="btn btn-primary" id="c-send"><i data-icon="play"></i>Send POST /create</button></div>
+          <div><div id="c-res"></div><div id="c-note" class="mt"></div></div>
+          <div><div class="label" style="margin-bottom:6px">patients.json</div><div class="store" id="c-store"></div><div class="btn-row mt"><button class="btn btn-sm" id="c-view">GET /view → is it there?</button></div><div id="c-view-res" class="mt"></div></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="main.py (course — 3 bugs in one line)">
+@app.post("/create")
+def create_patient(patient: Patient):
+    data = load_data()
+    if patient.id in data:
+        raise HTTPException(status_code=400, detail="Patient already exists")
+    patient.model_dump(exclude=[id])   # result thrown away; [id] = built-in id()
+    save_data(data)                    # saves the UNCHANGED dict
+    return JSONResponse(status_code=201, content={"message": "patient created successfully"})
+        </textarea></div>
+        <div><textarea class="py" data-title="main.py (fixed)" data-imp>
+@app.post("/create", status_code=201)
+def create_patient(patient: Patient):           # body -> validated Patient
+    data = load_data()
+    if patient.id in data:
+        raise HTTPException(status_code=409, detail="Patient already exists")
+    data[patient.id] = patient.model_dump(exclude={"id"})   # + bmi & verdict
+    save_data(data)
+    return {"message": "patient created successfully"}
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="crud:post"></div>
+    </section>
+
+    <!-- ============ UPDATE ============ -->
+    <section class="tab-panel" data-panel="update" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The most important logic in the course <span class="imp">Must-know</span></h3>
+        <p>The client sends only what changed, e.g. <code>{"weight": 60}</code>. So <code>PatientUpdate</code> mirrors <code>Patient</code> with every field <code>Optional[...] = None</code> and <strong>no id</strong> (it comes from the path). Then: load → dump the patch with <code>exclude_unset=True</code> → merge → <strong>rebuild through <code>Patient(**...)</code></strong> to re-validate and recompute BMI/verdict → dump back → save.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · PUT /edit/P001 step by step</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="u-body">patch body</label><input class="input mono" id="u-body" value='{"weight": 60}'></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="u-unset" checked> use <code>exclude_unset=True</code></label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="u-rebuild" checked> rebuild through <code>Patient(**existing)</code></label>
+          <div class="btn-row"><button class="btn btn-primary" id="u-step"><i data-icon="step"></i>Next step</button><button class="btn" id="u-all"><i data-icon="play"></i>Run all</button><button class="btn" id="u-reset"><i data-icon="reset"></i>Reset</button></div>
+          <div id="u-state"></div>
+        </div>
+        <div class="algo" id="u-algo"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="main.py — update" data-imp>
+class PatientUpdate(BaseModel):                 # everything optional, no id
+    name:   Annotated[Optional[str], Field(default=None)]
+    city:   Annotated[Optional[str], Field(default=None)]
+    age:    Annotated[Optional[int], Field(default=None, gt=0)]
+    gender: Annotated[Optional[Literal["male", "female", "others"]], Field(default=None)]  # keep in sync!
+    height: Annotated[Optional[float], Field(default=None, gt=0)]
+    weight: Annotated[Optional[float], Field(default=None, gt=0)]
+
+@app.put("/edit/{patient_id}")                   # semantically a PATCH
+def update_patient(patient_id: str, patient_update: PatientUpdate):
+    data = load_data()
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    existing = data[patient_id]                                   # dict WITHOUT id
+    for key, value in patient_update.model_dump(exclude_unset=True).items():
+        existing[key] = value                                     # loop over the PATCH
+
+    existing["id"] = patient_id                                   # Patient requires id
+    existing = Patient(**existing).model_dump(exclude={"id"})     # re-validate + recompute
+    data[patient_id] = existing
+    save_data(data)
+    return {"message": "Patient updated"}
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="crud:update"></div>
+    </section>
+
+    <!-- ============ DELETE ============ -->
+    <section class="tab-panel" data-panel="delete" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>DELETE, PUT vs PATCH, and resource-style URLs</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th></th><th><span class="verb PUT">PUT</span></th><th><span class="verb PATCH">PATCH</span></th></tr></thead>
+          <tbody>
+            <tr><td>Semantics</td><td><strong>replace</strong> the whole resource with the body</td><td><strong>partially modify</strong>: only the fields sent</td></tr>
+            <tr><td>Body</td><td>full representation</td><td>just the changes</td></tr>
+            <tr><td>Idempotent</td><td>yes, by definition</td><td>usually (not guaranteed: "increment")</td></tr>
+            <tr><td>Course /edit</td><td>declared as PUT…</td><td>…but behaves like PATCH</td></tr>
+          </tbody>
+        </table></div>
+        <h4>RESTful naming — what interviewers prefer</h4>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Action</th><th>Course style</th><th>RESTful style</th></tr></thead>
+          <tbody>
+            <tr><td>list</td><td><span class="verb GET">GET</span> <code>/view</code></td><td><span class="verb GET">GET</span> <code>/patients</code></td></tr>
+            <tr><td>read one</td><td><span class="verb GET">GET</span> <code>/patient/{id}</code></td><td><span class="verb GET">GET</span> <code>/patients/{id}</code></td></tr>
+            <tr><td>create</td><td><span class="verb POST">POST</span> <code>/create</code></td><td><span class="verb POST">POST</span> <code>/patients</code></td></tr>
+            <tr><td>update</td><td><span class="verb PUT">PUT</span> <code>/edit/{id}</code></td><td><span class="verb PATCH">PATCH</span> <code>/patients/{id}</code></td></tr>
+            <tr><td>delete</td><td><span class="verb DELETE">DELETE</span> <code>/delete/{id}</code></td><td><span class="verb DELETE">DELETE</span> <code>/patients/{id}</code></td></tr>
+            <tr><td>sort/filter</td><td><span class="verb GET">GET</span> <code>/sort?sort_by=</code></td><td><span class="verb GET">GET</span> <code>/patients?sort_by=&amp;order=</code></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="delete.py" data-imp>
+@app.delete("/patients/{pid}", status_code=204)     # strict REST: 204, empty body
+def delete_patient(pid: str):
+    data = load_data()
+    if pid not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    del data[pid]
+    save_data(data)
+    return Response(status_code=204)
+# The course returned 200 {"message": "patient deleted"} — also acceptable.
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="crud:delete"></div>
+    </section>
+
+    <!-- ============ PLAYGROUND ============ -->
+    <section class="tab-panel" data-panel="playground" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The finished Patient API, RESTful and bug-fixed</h3>
+        <p>Like Swagger's "Try it out", but running in your browser against an in-memory <code>patients.json</code>. Every validation rule, status code and computed field behaves the way the corrected FastAPI code does. Try to break it: negative ages, a duplicate id, an unknown gender, a PATCH that changes height.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · API console</div>
+      <div class="card card-pad console">
+        <div class="ops" id="p-ops"></div>
+        <div class="controls"><div id="p-form"></div><button class="btn btn-primary" id="p-exec"><i data-icon="play"></i>Execute</button><div id="p-res"></div></div>
+        <div><div class="btn-row" style="justify-content:space-between"><span class="label">patients.json</span><button class="btn btn-sm" id="p-reset"><i data-icon="reset"></i>Reset</button></div><div class="store mt" id="p-store"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="crud:playground"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const SEED = () => ({
+    P001: { name: 'Ananya Verma', city: 'Guwahati', age: 28, gender: 'female', height: 1.65, weight: 90.0, bmi: 33.06, verdict: 'Obese' },
+    P002: { name: 'Ravi Mehta', city: 'Mumbai', age: 35, gender: 'male', height: 1.75, weight: 85, bmi: 27.76, verdict: 'Overweight' },
+    P003: { name: 'Sneha Kulkarni', city: 'Pune', age: 22, gender: 'female', height: 1.6, weight: 45, bmi: 17.58, verdict: 'Underweight' },
+  });
+  const bmiOf = (w, h) => Math.round((w / (h * h)) * 100) / 100;
+  const verdictOf = (b) => (b < 18.5 ? 'Underweight' : b < 25 ? 'Normal' : b < 30 ? 'Overweight' : 'Obese');
+  // Emulates Patient / PatientUpdate validation (Pydantic lax mode)
+  function validatePatient(d, partial) {
+    const errs = []; const out = {};
+    const F = partial ? ['name', 'city', 'age', 'gender', 'height', 'weight'] : ['id', 'name', 'city', 'age', 'gender', 'height', 'weight'];
+    if (typeof d !== 'object' || d === null || Array.isArray(d)) return { errs: [{ type: 'model_attributes_type', loc: ['body'], msg: 'Input should be a valid dictionary or object to extract fields from', input: d }] };
+    F.forEach((k) => {
+      if (!(k in d)) { if (!partial) errs.push({ type: 'missing', loc: ['body', k], msg: 'Field required', input: d }); return; }
+      let v = d[k];
+      if (partial && v === null) { out[k] = null; return; }
+      if (['id', 'name', 'city'].includes(k)) { if (typeof v !== 'string') errs.push({ type: 'string_type', loc: ['body', k], msg: 'Input should be a valid string', input: v }); else out[k] = v; }
+      else if (k === 'age') { if (typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) v = parseInt(v, 10); if (!(typeof v === 'number' && Number.isInteger(v))) errs.push({ type: 'int_parsing', loc: ['body', k], msg: 'Input should be a valid integer', input: d[k] }); else if (!(v > 0)) errs.push({ type: 'greater_than', loc: ['body', k], msg: 'Input should be greater than 0', input: d[k], ctx: { gt: 0 } }); else if (!partial && !(v < 120)) errs.push({ type: 'less_than', loc: ['body', k], msg: 'Input should be less than 120', input: d[k], ctx: { lt: 120 } }); else out[k] = v; }
+      else if (k === 'gender') { if (!['male', 'female', 'others'].includes(v)) errs.push({ type: 'literal_error', loc: ['body', k], msg: "Input should be 'male', 'female' or 'others'", input: v }); else out[k] = v; }
+      else { if (typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v)) v = parseFloat(v); if (typeof v !== 'number') errs.push({ type: 'float_parsing', loc: ['body', k], msg: 'Input should be a valid number', input: d[k] }); else if (!(v > 0)) errs.push({ type: 'greater_than', loc: ['body', k], msg: 'Input should be greater than 0', input: d[k], ctx: { gt: 0 } }); else out[k] = v; }
+    });
+    return { errs, out };
+  }
+  const withComputed = (p) => { const b = bmiOf(p.weight, p.height); return Object.assign({}, p, { bmi: b, verdict: verdictOf(b) }); };
+  const respond = (host, code, body, title) => { host.innerHTML = '<div class="label" style="margin:6px 0 4px">response <span class="status s' + String(code)[0] + '">' + code + '</span></div>'; if (body !== null) host.appendChild(codeBlock(typeof body === 'string' ? body : JSON.stringify(body, null, 2), { title: title || 'body', lang: 'json' })); };
+  const storeHtml = (S, mark) => Object.entries(S).map(([k, v]) => '<div class="' + (mark && mark[k] || '') + '"><b>' + k + '</b>: ' + esc(JSON.stringify(v)) + '</div>').join('') || '<div class="muted">{}</div>';
+
+  /* ===== POST simulator ===== */
+  let CS = SEED(), cver = 'course', cmark = {};
+  const CPRE = { 'new patient': { id: 'P006', name: 'Asha Rao', city: 'Mysore', age: 30, gender: 'female', height: 1.6, weight: 58 }, 'duplicate id': { id: 'P001', name: 'Someone', city: 'Delhi', age: 40, gender: 'male', height: 1.7, weight: 70 }, 'invalid': { id: 'P007', name: 'Bad Data', city: 'Pune', age: -5, gender: 'robot', height: 0, weight: '70kg' } };
+  $('#c-pre').innerHTML = Object.keys(CPRE).map((k) => '<button class="btn btn-sm">' + k + '</button>').join('');
+  $('#c-pre').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $('#c-body').value = JSON.stringify(CPRE[b.textContent], null, 2); });
+  $('#c-body').value = JSON.stringify(CPRE['new patient'], null, 2);
+  segc('c-ver', (v) => { cver = v; });
+  function cDraw() { $('#c-store').innerHTML = storeHtml(CS, cmark); }
+  $('#c-send').addEventListener('click', () => {
+    let d; try { d = JSON.parse($('#c-body').value); } catch (e) { respond($('#c-res'), 422, { detail: [{ type: 'json_invalid', loc: ['body', 0], msg: 'JSON decode error' }] }); return; }
+    const { errs, out } = validatePatient(d, false); cmark = {};
+    if (errs.length) { respond($('#c-res'), 422, { detail: errs }); $('#c-note').innerHTML = '<div class="callout blue">' + FA.icon('info') + '<div>Validation failed, so <code>create_patient</code> never ran. Every error is reported with its <code>loc</code>.</div></div>'; cDraw(); return; }
+    if (CS[out.id]) { respond($('#c-res'), cver === 'course' ? 400 : 409, { detail: 'Patient already exists' }); $('#c-note').innerHTML = '<div class="callout blue">' + FA.icon('info') + '<div>' + (cver === 'course' ? 'The course returns 400; 409 Conflict is the more precise code.' : '409 Conflict — clashes with the current state.') + '</div></div>'; cDraw(); return; }
+    if (cver === 'course') { respond($('#c-res'), 201, { message: 'patient created successfully' }); $('#c-note').innerHTML = '<div class="callout red">' + FA.icon('alert') + '<div><b>201 — but nothing was saved.</b> <code>model_dump(exclude=[id])</code> builds a dict and throws it away; <code>data</code> is saved unchanged. Click GET /view to confirm. This is a silent data-loss bug.</div></div>'; }
+    else { const { id, ...rest } = out; CS[id] = withComputed(rest); cmark[id] = 'new'; respond($('#c-res'), 201, { message: 'patient created successfully' }); $('#c-note').innerHTML = '<div class="callout green">' + FA.icon('check') + '<div>Saved under <b>' + esc(id) + '</b> — with <code>bmi</code> and <code>verdict</code> computed by Pydantic, never sent by the client.</div></div>'; }
+    $('#c-view-res').innerHTML = ''; cDraw();
+  });
+  $('#c-view').addEventListener('click', () => { const id = (() => { try { return JSON.parse($('#c-body').value).id; } catch (e) { return ''; } })(); $('#c-view-res').innerHTML = CS[id] ? '<div class="ok-box">' + esc(id) + ' found ✓</div>' : '<div class="err-box">' + esc(id || '?') + ' is NOT in /view</div>'; });
+  $('#c-reset').addEventListener('click', () => { CS = SEED(); cmark = {}; $('#c-res').innerHTML = ''; $('#c-note').innerHTML = ''; $('#c-view-res').innerHTML = ''; cDraw(); });
+  cDraw();
+
+  /* ===== Update stepper ===== */
+  let ui = -1;
+  function uRun() {
+    const useUnset = $('#u-unset').checked, rebuild = $('#u-rebuild').checked;
+    let patch; try { patch = JSON.parse($('#u-body').value); } catch (e) { patch = null; }
+    const existing0 = Object.assign({}, SEED().P001);
+    const S = [];
+    S.push({ t: 'Load', c: 'existing = data["P001"]', v: existing0 });
+    if (!patch) { S.push({ t: 'Validate patch', c: 'PatientUpdate(**body)', v: 'JSON decode error → 422', bad: true }); return S; }
+    const { errs, out } = validatePatient(patch, true);
+    if (errs.length) { S.push({ t: 'Validate patch', c: 'PatientUpdate(**body)', v: errs.map((e) => e.loc.join('.') + ': ' + e.msg).join('\n') + '\n→ 422', bad: true }); return S; }
+    const full = { name: null, city: null, age: null, gender: null, height: null, weight: null };
+    const dumped = useUnset ? out : Object.assign(full, out);
+    S.push({ t: 'Dump the patch', c: 'patient_update.model_dump(' + (useUnset ? 'exclude_unset=True' : '') + ')', v: dumped, warn: !useUnset ? 'Every unsent field comes out as None!' : '' });
+    const merged = Object.assign({}, existing0, dumped);
+    S.push({ t: 'Merge', c: 'for k, v in patch.items(): existing[k] = v', v: merged, warn: rebuild ? '' : '' });
+    if (!rebuild) {
+      const stale = merged.bmi !== bmiOf(merged.weight, merged.height);
+      S.push({ t: 'Save (no rebuild)', c: 'data["P001"] = existing', v: merged, bad: !useUnset || stale, msg: !useUnset ? 'Real data overwritten with None — and nothing re-validated it.' : stale ? 'bmi is still ' + merged.bmi + ' and verdict "' + merged.verdict + '" — STALE.' : 'Nothing that affects computed fields changed, so you got lucky this time.' });
+      return S;
+    }
+    const withId = Object.assign({ id: 'P001' }, merged);
+    const r = validatePatient(withId, false);
+    if (r.errs.length) { S.push({ t: 'Rebuild', c: 'Patient(**existing)', v: r.errs.map((e) => e.loc.slice(1).join('.') + ': ' + e.msg).join('\n') + '\n→ ValidationError (500 in the course code)', bad: true }); return S; }
+    const rebuilt = withComputed((({ id, ...rest }) => rest)(r.out));
+    S.push({ t: 'Rebuild', c: 'Patient(**existing)  # re-validates & recomputes', v: Object.assign({ id: 'P001' }, rebuilt) });
+    S.push({ t: 'Dump back', c: '.model_dump(exclude={"id"})', v: rebuilt });
+    S.push({ t: 'Save & respond', c: 'save_data(data) → 200', v: '{"message": "Patient updated"}', ok: true });
+    return S;
+  }
+  function uDraw() {
+    const S = uRun();
+    $('#u-algo').innerHTML = S.map((s, i) => '<div class="astep ' + (i > ui ? 'off' : s.bad ? 'bad' : 'on') + '"><span class="k">' + (i + 1) + '</span><div><b>' + s.t + '</b> <code>' + esc(s.c) + '</code>' + (i <= ui ? '<pre class="code" style="padding:6px 0 0;white-space:pre-wrap;font-size:11.5px">' + esc(typeof s.v === 'string' ? s.v : JSON.stringify(s.v)) + '</pre>' + (s.warn ? '<div class="small" style="color:var(--amber)">⚠ ' + esc(s.warn) + '</div>' : '') + (s.msg ? '<div class="small" style="color:' + (s.bad ? 'var(--red)' : 'var(--muted)') + '">' + esc(s.msg) + '</div>' : '') : '') + '</div></div>').join('');
+    const last = S[Math.min(ui, S.length - 1)];
+    $('#u-state').innerHTML = ui >= S.length - 1 ? (S[S.length - 1].bad ? '<div class="err-box">Update went wrong — see the red step.</div>' : '<div class="ok-box">bmi and verdict recomputed from the new values ✓</div>') : '';
+    $('#u-step').disabled = ui >= S.length - 1;
+  }
+  $('#u-step').addEventListener('click', () => { ui++; uDraw(); });
+  $('#u-all').addEventListener('click', () => { ui = 20; uDraw(); ui = uRun().length - 1; uDraw(); });
+  $('#u-reset').addEventListener('click', () => { ui = -1; uDraw(); });
+  ['u-body'].forEach((id) => $('#' + id).addEventListener('input', () => { ui = -1; uDraw(); }));
+  ['u-unset', 'u-rebuild'].forEach((id) => $('#' + id).addEventListener('change', () => { ui = uRun().length - 1; uDraw(); }));
+  uDraw();
+
+  /* ===== Live console ===== */
+  let PS = SEED(), pmark = {}, op = 0;
+  const OPS = [
+    { v: 'GET', p: '/patients', d: 'List patients (optional sort)', q: [['sort_by', '', 'height | weight | bmi (optional)'], ['order', 'asc', 'asc | desc']] },
+    { v: 'GET', p: '/patients/{pid}', d: 'Read one patient', path: 'P001' },
+    { v: 'POST', p: '/patients', d: 'Create a patient', body: { id: 'P010', name: 'Kabir Shah', city: 'Indore', age: 45, gender: 'male', height: 1.72, weight: 81 } },
+    { v: 'PATCH', p: '/patients/{pid}', d: 'Partial update (re-validates, recomputes)', path: 'P002', body: { height: 1.85 } },
+    { v: 'DELETE', p: '/patients/{pid}', d: 'Delete a patient → 204', path: 'P003' },
+  ];
+  $('#p-ops').innerHTML = OPS.map((o, i) => '<button class="op" data-i="' + i + '"><span class="verb ' + o.v + '">' + o.v + '</span><span>' + esc(o.p) + '<small>' + esc(o.d) + '</small></span></button>').join('');
+  $('#p-ops').addEventListener('click', (e) => { const b = e.target.closest('.op'); if (!b) return; op = +b.dataset.i; form(); });
+  function form() {
+    $$('#p-ops .op').forEach((b) => b.classList.toggle('on', +b.dataset.i === op));
+    const o = OPS[op]; let h = '';
+    if (o.path) h += '<div class="field"><label>pid (path)</label><input class="input mono" id="f-pid" value="' + o.path + '"></div>';
+    (o.q || []).forEach(([k, v, hint]) => { h += '<div class="field"><label>' + k + ' (query) — ' + esc(hint) + '</label><input class="input mono" id="f-q-' + k + '" value="' + v + '"></div>'; });
+    if (o.body) h += '<div class="field"><label>request body</label><textarea class="input" id="f-body" rows="8">' + esc(JSON.stringify(o.body, null, 2)) + '</textarea></div>';
+    $('#p-form').innerHTML = h; $('#p-res').innerHTML = '';
+  }
+  function exec() {
+    const o = OPS[op]; pmark = {}; const host = $('#p-res');
+    const pid = o.path ? $('#f-pid').value.trim() : null;
+    let body = null; if (o.body) { try { body = JSON.parse($('#f-body').value); } catch (e) { respond(host, 422, { detail: [{ type: 'json_invalid', loc: ['body', 0], msg: 'JSON decode error' }] }); return; } }
+    if (o.v === 'GET' && !o.path) {
+      const sb = $('#f-q-sort_by').value.trim(), ord = $('#f-q-order').value.trim() || 'asc';
+      if (sb && !['height', 'weight', 'bmi'].includes(sb)) return respond(host, 422, { detail: [{ type: 'literal_error', loc: ['query', 'sort_by'], msg: "Input should be 'height', 'weight' or 'bmi'", input: sb }] });
+      if (!['asc', 'desc'].includes(ord)) return respond(host, 422, { detail: [{ type: 'literal_error', loc: ['query', 'order'], msg: "Input should be 'asc' or 'desc'", input: ord }] });
+      let list = Object.entries(PS).map(([id, p]) => Object.assign({ id }, p));
+      if (sb) list.sort((a, b) => (ord === 'desc' ? b[sb] - a[sb] : a[sb] - b[sb]));
+      return respond(host, 200, { patients: list });
+    }
+    if (o.v === 'GET') return PS[pid] ? respond(host, 200, { patient: PS[pid] }) : respond(host, 404, { detail: 'Patient not found' });
+    if (o.v === 'POST') {
+      const { errs, out } = validatePatient(body, false); if (errs.length) return respond(host, 422, { detail: errs });
+      if (PS[out.id]) return respond(host, 409, { detail: 'Patient already exists' });
+      const { id, ...rest } = out; PS[id] = withComputed(rest); pmark[id] = 'new'; draw(); return respond(host, 201, { message: 'patient created successfully' });
+    }
+    if (o.v === 'PATCH') {
+      if (!PS[pid]) return respond(host, 404, { detail: 'Patient not found' });
+      const { errs, out } = validatePatient(body, true); if (errs.length) return respond(host, 422, { detail: errs });
+      const merged = Object.assign({}, PS[pid], out); delete merged.bmi; delete merged.verdict;
+      const r = validatePatient(Object.assign({ id: pid }, merged), false); if (r.errs.length) return respond(host, 422, { detail: r.errs });
+      const { id, ...rest } = r.out; PS[pid] = withComputed(rest); pmark[pid] = 'chg'; draw(); return respond(host, 200, { message: 'Patient updated', patient: PS[pid] });
+    }
+    if (o.v === 'DELETE') { if (!PS[pid]) return respond(host, 404, { detail: 'Patient not found' }); delete PS[pid]; draw(); host.innerHTML = '<div class="label" style="margin:6px 0 4px">response <span class="status s2">204</span></div><div class="ok-box">(empty body)</div>'; }
+  }
+  function draw() { $('#p-store').innerHTML = storeHtml(PS, pmark); }
+  $('#p-exec').addEventListener('click', exec);
+  $('#p-reset').addEventListener('click', () => { PS = SEED(); pmark = {}; $('#p-res').innerHTML = ''; draw(); });
+  form(); draw();
+
+  FA.init('crud');
+})();
+</script>
+</body>
+</html>

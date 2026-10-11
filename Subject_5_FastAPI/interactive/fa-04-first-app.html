@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First FastAPI App &amp; the Request Lifecycle</title>
+  <meta name="description" content="Setup, Hello World, decoding uvicorn main:app, the 7-step request lifecycle with failure scenarios, and how FastAPI generates OpenAPI docs from your models.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .anat { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 2px; font: 700 20px var(--font-mono); padding: 18px; border-radius: 12px; background: #090b12; border: 1px solid var(--line); }
+    .anat span { position: relative; padding-bottom: 20px; }
+    .anat span small { position: absolute; left: 0; bottom: 0; white-space: nowrap; font: 600 10.5px var(--font-body); }
+    .life { display: grid; gap: 6px; }
+    .lstep { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); transition: all .25s; }
+    .lstep .k { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--surface); font: 700 12px var(--font-mono); color: var(--muted); }
+    .lstep b { font-size: 13.5px; } .lstep span { color: var(--muted); font-size: 12.5px; }
+    .lstep .tag2 { font: 600 11px var(--font-mono); color: var(--dim); }
+    .lstep.done { border-color: rgba(61,220,151,.45); }
+    .lstep.done .k { background: var(--acc); color: #03140d; }
+    .lstep.fail { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.08); }
+    .lstep.fail .k { background: var(--red); color: #1a0505; }
+    .lstep.skip { opacity: .35; }
+    .frow { display: grid; grid-template-columns: 1fr 1fr 70px 1.1fr 1.5fr 34px; gap: 6px; align-items: center; }
+    .frow .input { min-height: 30px; font-size: 12px; }
+    .frow label { font-size: 12px; display: flex; gap: 4px; align-items: center; }
+    #d-schema pre.code, #d-py pre.code { max-height: 460px; overflow: auto; }
+    @media (max-width: 760px) { .frow { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 04 · FIRST STEPS</span>
+      <h1>Your first app &amp; the <span class="grad">request lifecycle</span></h1>
+      <p class="desc">Four commands to set up, five lines for Hello World, one command to run it — and the single most useful interview diagram: what happens between a request arriving and a response leaving.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">uvicorn command builder · lifecycle stepper · docs generator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="hello"><span class="n">1</span>Hello World &amp; uvicorn</button>
+      <button class="tab" data-tab="lifecycle"><span class="n">2</span>Request lifecycle</button>
+      <button class="tab" data-tab="docs"><span class="n">3</span>Free docs (OpenAPI)</button>
+    </div></div>
+
+    <!-- ============ HELLO ============ -->
+    <section class="tab-panel" data-panel="hello">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A decorator registers a route</h3>
+        <p><code>@app.get("/about")</code> doesn't change <code>about()</code>. It <strong>registers</strong> it in FastAPI's routing table: "when a GET for <code>/about</code> arrives, call this function and turn its return value into JSON". The function is a <em>path operation function</em>.</p>
+        <div class="anat mt">
+          <span style="color:#f2f4fa">@app.</span><span style="color:#4ade80">get<small style="color:#4ade80">HTTP method</small></span><span style="color:#f2f4fa">(</span><span style="color:#3ddc97">"/about"<small style="color:#3ddc97">path (route)</small></span><span style="color:#f2f4fa">)&nbsp;&nbsp;&nbsp;def&nbsp;</span><span style="color:#b18cff">about<small style="color:#b18cff">runs when the route matches</small></span><span style="color:#f2f4fa">():</span>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code · setup and first_API.py</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="terminal">
+python3 -m venv venv              # 1. isolated environment
+source venv/bin/activate          # 2. activate (Windows: venv\Scripts\activate)
+pip install fastapi uvicorn pydantic   # 3. or: pip install "fastapi[standard]"
+pip freeze > requirements.txt     # 4. pin versions for Docker/EC2
+        </textarea></div>
+        <div><textarea class="py" data-title="first_API.py" data-imp>
+from fastapi import FastAPI
+
+app = FastAPI()                 # the application object: Uvicorn looks for it
+
+@app.get("/")                   # register this function for GET /
+def hello_world():
+    return {"message": "Hello World"}   # dict -> JSON automatically
+
+@app.get("/about")
+def about():
+    return {"message": "This is the about page"}
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · build the run command</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="grid-2">
+            <div class="field"><label for="c-file">file</label><input class="input mono" id="c-file" value="main.py"></div>
+            <div class="field"><label for="c-var">app variable</label><input class="input mono" id="c-var" value="app"></div>
+          </div>
+          <div class="field"><span class="label-t">environment</span><div class="seg" id="c-env"><button data-v="dev" class="on">development</button><button data-v="prod">production</button><button data-v="docker">inside Docker</button></div></div>
+          <div class="field"><span class="label-t">workers</span><div class="range-row"><input type="range" id="c-w" min="1" max="8" step="1" value="1"><span class="val" id="c-w-v"></span></div></div>
+        </div>
+        <div><div id="c-out"></div><div id="c-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="first:hello"></div>
+    </section>
+
+    <!-- ============ LIFECYCLE ============ -->
+    <section class="tab-panel" data-panel="lifecycle" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Learn to draw this from memory <span class="imp">Must-know</span></h3>
+        <p>Every request passes through the same seven steps. Each kind of error has a home: <strong>404/405</strong> at routing, <strong>422</strong> at validation, <strong>HTTPException</strong> inside your function, <strong>500</strong> for anything unhandled. Pick a scenario and step through it.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · follow a request</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><label for="l-sc">scenario</label><select class="input" id="l-sc"></select></div>
+          <div class="btn-row"><button class="btn btn-primary" id="l-step"><i data-icon="step"></i>Next step</button><button class="btn" id="l-all"><i data-icon="play"></i>Run all</button><button class="btn" id="l-reset"><i data-icon="reset"></i>Reset</button></div>
+          <div id="l-req"></div>
+          <div id="l-res"></div>
+        </div>
+        <div class="life" id="l-steps"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="first:lifecycle"></div>
+    </section>
+
+    <!-- ============ DOCS ============ -->
+    <section class="tab-panel" data-panel="docs" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Your code is the documentation</h3>
+        <dl class="kv">
+          <dt>/docs</dt><dd>Swagger UI — interactive, with a "Try it out" button.</dd>
+          <dt>/redoc</dt><dd>ReDoc — a clean, read-only reference.</dd>
+          <dt>/openapi.json</dt><dd>The raw OpenAPI spec. Clients can be generated from it.</dd>
+        </dl>
+        <p class="mt">At start-up FastAPI converts every Pydantic model to <strong>JSON Schema</strong> and every route to an OpenAPI operation. <code>description=</code>, <code>examples=</code>, <code>tags=</code> and <code>response_model=</code> all flow into it — that's why the course kept adding descriptions.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · edit a model, watch the schema</div>
+      <div class="card card-pad">
+        <div style="display:grid;gap:6px" id="d-rows"></div>
+        <div class="btn-row mt"><button class="btn btn-sm" id="d-add"><i data-icon="plus"></i>Add field</button></div>
+        <div class="grid-2 mt2"><div id="d-py"></div><div id="d-schema"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="first:docs"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title, lang) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'python', lang })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== uvicorn builder ===== */
+  let env = 'dev';
+  function cmd() {
+    const file = $('#c-file').value.trim().replace(/\.py$/, '') || 'main', v = $('#c-var').value.trim() || 'app', w = +$('#c-w').value;
+    $('#c-w-v').textContent = w;
+    let c, notes = [];
+    if (env === 'dev') { c = 'uvicorn ' + file + ':' + v + ' --reload' + (w > 1 ? ' --workers ' + w : '') + '\n# or: fastapi dev ' + file + '.py'; if (w > 1) notes.push(['amber', '--reload and --workers don\'t mix: the reloader runs a single process. Use one worker in development.']); else notes.push(['green', 'Serves on http://127.0.0.1:8000 and restarts on every save. Open /docs.']); }
+    else if (env === 'prod') { c = 'uvicorn ' + file + ':' + v + ' --host 0.0.0.0 --port 8000 --workers ' + w + '\n# or: fastapi run ' + file + '.py --workers ' + w + '\n# or: gunicorn ' + file + ':' + v + ' -k uvicorn.workers.UvicornWorker -w ' + w; notes.push(['green', 'No --reload in production: it watches files and wastes resources. Several worker processes use several CPU cores.']); if (w === 1) notes.push(['amber', 'One worker uses one CPU core. For CPU-bound inference, add workers (≈ number of cores).']); }
+    else { c = 'CMD ["uvicorn", "' + file + ':' + v + '", "--host", "0.0.0.0", "--port", "8000"' + (w > 1 ? ', "--workers", "' + w + '"' : '') + ']'; notes.push(['red', '--host 0.0.0.0 is mandatory in a container: the default 127.0.0.1 only accepts connections from inside the container itself, so port-mapped traffic never arrives.']); }
+    setCode($('#c-out'), c, env === 'docker' ? 'Dockerfile' : 'terminal');
+    $('#c-note').innerHTML = notes.map(([k, t]) => '<div class="callout ' + k + '" style="margin-bottom:8px">' + FA.icon(k === 'green' ? 'check' : 'alert') + '<div>' + t + '</div></div>').join('') + '<p class="small muted">In <code>' + esc(file) + ':' + esc(v) + '</code>, <b>' + esc(file) + '</b> is the module (file without .py) and <b>' + esc(v) + '</b> is the variable holding <code>FastAPI()</code>.</p>';
+  }
+  segc('c-env', (v2) => { env = v2; cmd(); });
+  ['c-file', 'c-var', 'c-w'].forEach((id) => $('#' + id).addEventListener('input', cmd)); cmd();
+
+  /* ===== Lifecycle ===== */
+  const STEPS = [
+    ['Client', 'sends the HTTP request', 'browser · Postman · requests'],
+    ['Uvicorn', 'accepts TCP, parses raw HTTP, builds the ASGI scope', 'server'],
+    ['Starlette', 'runs middleware, matches method + path', '404 / 405 here'],
+    ['FastAPI + Pydantic', 'extracts path, query, header & body params and validates them', '422 here'],
+    ['Dependencies + your function', 'Depends() run, then the path operation function', 'HTTPException here'],
+    ['Serialise', 'return value → response_model filter → JSON', 'jsonable_encoder'],
+    ['Response', 'status + headers + body travel back through middleware', 'to the client'],
+  ];
+  const SC = [
+    { n: 'GET /patient/P001 — success', req: 'GET /patient/P001', fail: -1, res: [200, '{"patient": {"name": "Ananya Verma", "city": "Guwahati", "age": 28, ...}}'] },
+    { n: 'GET /patient/P999 — unknown patient', req: 'GET /patient/P999', fail: 4, res: [404, '{"detail": "Patient not found"}'], why: 'Validation passed (P999 is a valid str), so your function ran, looked it up, and raised HTTPException(404).' },
+    { n: 'GET /patients/P001 — typo in the path', req: 'GET /patients/P001', fail: 2, res: [404, '{"detail": "Not Found"}'], why: 'No route matches /patients/... — Starlette answers 404 before FastAPI even looks at parameters. Note the generic "Not Found" detail.' },
+    { n: 'POST /view — wrong method', req: 'POST /view', fail: 2, res: [405, '{"detail": "Method Not Allowed"}'], why: 'The path exists but only for GET, so routing fails with 405.' },
+    { n: 'POST /create with age = -5', req: 'POST /create  {"id": "P006", "age": -5, ...}', fail: 3, res: [422, '{"detail": [{"type": "greater_than", "loc": ["body", "age"], "msg": "Input should be greater than 0", "input": -5}]}'], why: 'Pydantic rejected the body (gt=0). Your function never ran — that\'s the point of validation.' },
+    { n: 'GET /sort?sort_by=age — business rule', req: 'GET /sort?sort_by=age', fail: 4, res: [400, '{"detail": "Invalid field select from [\'height\', \'weight\', \'bmi\']"}'], why: '"age" is a valid string, so validation passed; your own check raised 400. Typed as Literal[...] it would fail at step 4 with 422.' },
+    { n: 'POST /predict — model crashes', req: 'POST /predict  {...valid input...}', fail: 4, res: [500, '{"detail": "Internal Server Error"}'], why: 'An unhandled exception inside your function becomes a 500. Log it server-side; don\'t send str(e) to the client.' },
+    { n: 'DELETE /delete/P001 — no API key', req: 'DELETE /delete/P001  (no X-API-Key)', fail: 4, res: [401, '{"detail": "Invalid API key"}'], why: 'An auth dependency runs before the function body and raises 401 — the function itself never executes.' },
+  ];
+  $('#l-sc').innerHTML = SC.map((s, i) => '<option value="' + i + '">' + esc(s.n) + '</option>').join('');
+  let li = -1;
+  function lDraw() {
+    const s = SC[+$('#l-sc').value]; const failAt = s.fail;
+    $('#l-steps').innerHTML = STEPS.map((st, i) => {
+      let cls = '';
+      if (i <= li) cls = (i === failAt) ? 'fail' : 'done';
+      if (failAt >= 0 && li >= failAt && i > failAt && i < 6) cls = 'skip';
+      if (failAt >= 0 && li >= failAt && i === 6) cls = 'done';
+      return '<div class="lstep ' + cls + '"><span class="k">' + (i + 1) + '</span><div><b>' + st[0] + '</b><br><span>' + st[1] + '</span></div><span class="tag2">' + st[2] + '</span></div>';
+    }).join('');
+    $('#l-req').innerHTML = '<div class="label" style="margin-bottom:4px">request</div><div class="ok-box" style="color:#bfdbfe;border-color:rgba(95,179,249,.35);background:rgba(95,179,249,.06)">' + esc(s.req) + '</div>';
+    const finished = li >= 6 || (failAt >= 0 && li >= failAt);
+    if (finished) {
+      const [code, body] = s.res; const host = $('#l-res');
+      host.innerHTML = '<div class="label" style="margin:6px 0 4px">response <span class="status s' + String(code)[0] + '">' + code + '</span></div>';
+      host.appendChild(codeBlock(body, { title: 'body', lang: 'json' }));
+      if (s.why) host.insertAdjacentHTML('beforeend', '<div class="callout blue mt">' + FA.icon('info') + '<div>' + esc(s.why) + '</div></div>');
+    } else $('#l-res').innerHTML = '';
+  }
+  $('#l-step').addEventListener('click', () => { const s = SC[+$('#l-sc').value]; const end = s.fail >= 0 ? s.fail : 6; if (li < end) li++; if (s.fail >= 0 && li === s.fail) li = Math.max(li, s.fail); lDraw(); });
+  $('#l-all').addEventListener('click', () => { const s = SC[+$('#l-sc').value]; li = s.fail >= 0 ? s.fail : 6; lDraw(); });
+  $('#l-reset').addEventListener('click', () => { li = -1; lDraw(); });
+  $('#l-sc').addEventListener('change', () => { li = -1; lDraw(); });
+  lDraw();
+
+  /* ===== Docs generator ===== */
+  let F = [
+    { n: 'id', t: 'str', req: true, c: '', d: 'ID of the patient' },
+    { n: 'age', t: 'int', req: true, c: 'gt=0, lt=120', d: 'Age of the patient' },
+    { n: 'gender', t: 'Literal', req: true, c: '', d: 'male / female / others' },
+    { n: 'height', t: 'float', req: true, c: 'gt=0', d: 'Height in metres' },
+    { n: 'allergies', t: 'list[str]', req: false, c: '', d: '' },
+  ];
+  const TYPES = ['str', 'int', 'float', 'bool', 'list[str]', 'Literal', 'EmailStr'];
+  function docs() {
+    $('#d-rows').innerHTML = '<div class="frow small muted"><span>field</span><span>type</span><span>required</span><span>constraint</span><span>description</span><span></span></div>' + F.map((f, i) => '<div class="frow"><input class="input mono" data-i="' + i + '" data-k="n" value="' + esc(f.n) + '"><select class="input" data-i="' + i + '" data-k="t">' + TYPES.map((t) => '<option' + (t === f.t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><label><input type="checkbox" data-i="' + i + '" data-k="req"' + (f.req ? ' checked' : '') + '> yes</label><input class="input mono" data-i="' + i + '" data-k="c" value="' + esc(f.c) + '" placeholder="gt=0"><input class="input" data-i="' + i + '" data-k="d" value="' + esc(f.d) + '"><button class="btn btn-sm" data-del="' + i + '" aria-label="Remove">' + FA.icon('trash') + '</button></div>').join('');
+    $$('#d-rows [data-k]').forEach((el) => el.addEventListener(el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input', () => { const f = F[+el.dataset.i]; f[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value; render(); }));
+    $$('#d-rows [data-del]').forEach((b) => b.addEventListener('click', () => { F.splice(+b.dataset.del, 1); docs(); }));
+    render();
+  }
+  function render() {
+    const pyT = (f) => (f.t === 'Literal' ? 'Literal["male", "female", "others"]' : f.t);
+    const py = 'class Patient(BaseModel):\n' + F.map((f) => {
+      const args = [f.req ? '...' : 'default=None'].concat(f.c ? [f.c] : []).concat(f.d ? ['description="' + f.d + '"'] : []);
+      return '    ' + f.n + ': Annotated[' + (f.req ? pyT(f) : 'Optional[' + pyT(f) + ']') + ', Field(' + args.join(', ') + ')]';
+    }).join('\n') + '\n\n@app.post("/create", status_code=201, tags=["patients"])\ndef create_patient(patient: Patient): ...';
+    setCode($('#d-py'), py, 'main.py');
+    const props = {};
+    F.forEach((f) => {
+      const p = {};
+      const base = { str: { type: 'string' }, int: { type: 'integer' }, float: { type: 'number' }, bool: { type: 'boolean' }, 'list[str]': { type: 'array', items: { type: 'string' } }, Literal: { type: 'string', enum: ['male', 'female', 'others'] }, EmailStr: { type: 'string', format: 'email' } }[f.t];
+      Object.assign(p, f.req ? base : { anyOf: [base, { type: 'null' }], default: null });
+      (f.c || '').split(',').map((x) => x.trim()).filter(Boolean).forEach((c) => { const [k, v] = c.split('='); const map = { gt: 'exclusiveMinimum', ge: 'minimum', lt: 'exclusiveMaximum', le: 'maximum', min_length: 'minLength', max_length: 'maxLength', pattern: 'pattern' }; if (map[k] && v != null) p[map[k]] = isNaN(+v) ? v.replace(/^r?["']|["']$/g, '') : +v; });
+      p.title = f.n.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+      if (f.d) p.description = f.d;
+      props[f.n] = p;
+    });
+    const schema = { components: { schemas: { Patient: { type: 'object', title: 'Patient', properties: props, required: F.filter((f) => f.req).map((f) => f.n) } } } };
+    setCode($('#d-schema'), JSON.stringify(schema, null, 2), '/openapi.json (excerpt)', 'json');
+  }
+  $('#d-add').addEventListener('click', () => { F.push({ n: 'new_field', t: 'str', req: false, c: '', d: '' }); docs(); });
+  docs();
+
+  FA.init('first');
+})();
+</script>
+</body>
+</html>

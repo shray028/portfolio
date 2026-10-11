@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker & AWS EC2 for FastAPI — Layers, Ports, Deployment</title>
+  <meta name="description" content="Package a FastAPI ML API with Docker and deploy it to AWS EC2: Dockerfile layer caching, image vs container, -p port mapping and 0.0.0.0, the six-step deployment pipeline and a 'why doesn't it load' troubleshooter.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .layers { display: grid; gap: 5px; }
+    .layer { display: grid; grid-template-columns: minmax(0, 1fr) 110px 64px; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); transition: all .3s; }
+    .layer.cached { border-color: rgba(74,222,128,.45); background: rgba(74,222,128,.06); }
+    .layer.rebuilt { border-color: rgba(251,191,36,.6); background: rgba(251,191,36,.09); }
+    .layer .st { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .layer.cached .st { color: #4ade80; } .layer.rebuilt .st { color: #fbbf24; }
+    .layer .t { text-align: right; color: var(--muted); }
+    .net { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; align-items: stretch; }
+    .box { border-radius: 14px; border: 1px dashed var(--line-strong); padding: 14px; position: relative; }
+    .box > .label { margin-bottom: 8px; }
+    .box.ct { border: 1px solid rgba(56,189,248,.55); background: rgba(56,189,248,.05); }
+    .pipe { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+    .pstep { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; cursor: pointer; transition: all .2s; text-align: left; }
+    .pstep b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .pstep.on { border-color: rgba(61,220,151,.65); background: rgba(61,220,151,.08); }
+    .pstep.done { border-color: rgba(61,220,151,.3); }
+    .checks { display: grid; gap: 6px; }
+    .checks div { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .checks .ok { color: #4ade80; font-weight: 800; } .checks .bad { color: #f87171; font-weight: 800; }
+    @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); } .net { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 10 · DEPLOYMENT</span>
+      <h1>Docker <span class="grad">&amp;</span> AWS EC2</h1>
+      <p class="desc">"It works on my machine" stops being an excuse. Docker packages Python, pinned libraries (a pickle from scikit-learn 1.6.1 may not load in another version) and OS packages into one image. The course then pushes that image to Docker Hub and runs it on an EC2 instance.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Layer-cache simulator · port-mapping tester · deploy pipeline &amp; troubleshooter</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="docker"><span class="n">1</span>Dockerfile &amp; layers</button>
+      <button class="tab" data-tab="ports"><span class="n">2</span>Ports &amp; 0.0.0.0</button>
+      <button class="tab" data-tab="deploy"><span class="n">3</span>Deploy to EC2</button>
+    </div></div>
+
+    <!-- ============ DOCKER ============ -->
+    <section class="tab-panel" data-panel="docker">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3>Image vs container <span class="imp">Must-know</span></h3>
+          <p>A <strong>Dockerfile</strong> is the recipe. <code>docker build</code> turns it into an <strong>image</strong>: a read-only template, like a class. <code>docker run</code> starts a <strong>container</strong>: a running instance, like an object — you can run many from one image. Images are shared through a <strong>registry</strong> (Docker Hub, ECR) with <code>push</code> / <code>pull</code>.</p>
+        </div>
+        <div class="card lesson">
+          <h3>Containers vs virtual machines</h3>
+          <p>A VM virtualises hardware and boots a full guest OS: gigabytes, minutes to start. A container shares the host's kernel and packages only the app and its libraries: megabytes, seconds to start. Same isolation goal, much lighter.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · layer caching</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">Dockerfile order</span><div class="seg" id="d-order"><button data-v="good" class="on">requirements first (course)</button><button data-v="bad">COPY . . first</button></div></div>
+          <div class="field"><span class="label-t">what changed since the last build?</span><div class="seg" id="d-chg"><button data-v="code" class="on">edited app.py</button><button data-v="req">added a package</button><button data-v="none">nothing</button><button data-v="base">new base image</button></div></div>
+          <div class="grid-2" id="d-stats"></div>
+          <div id="d-note"></div>
+        </div>
+        <div><div class="label" style="margin-bottom:6px">docker build -t shray/insurance-api:1.0 .</div><div class="layers" id="d-layers"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <div class="grid-2">
+        <div><textarea class="py" data-title="Dockerfile" data-imp>
+FROM python:3.12-slim                 # 1. base image: OS + Python
+WORKDIR /app                          # 2. following commands run in /app
+COPY requirements.txt .               # 3. copy ONLY the dependency list first...
+RUN pip install --no-cache-dir -r requirements.txt   # 4. ...install (cached layer!)
+COPY . .                              # 5. now the source code
+EXPOSE 8000                           # 6. documents the port (doesn't publish it)
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+        </textarea>
+        <textarea class="py mt" data-title=".dockerignore">
+venv/
+__pycache__/
+*.pyc
+.git/
+.env            # secrets never go into the image
+        </textarea></div>
+        <div><textarea class="py" data-title="the commands">
+docker build -t shray/insurance-api:1.0 .        # build image from ./Dockerfile
+docker images                                    # list images
+docker run -d -p 8000:8000 --name api shray/insurance-api:1.0   # run detached
+docker ps                                        # running containers
+docker logs -f api                               # follow logs
+docker exec -it api bash                         # shell inside the container
+docker stop api && docker rm api                 # stop & remove
+docker login && docker push shray/insurance-api:1.0   # publish to Docker Hub
+        </textarea></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="docker:docker"></div>
+    </section>
+
+    <!-- ============ PORTS ============ -->
+    <section class="tab-panel" data-panel="ports" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3><code>-p HOST:CONTAINER</code> and <code>--host 0.0.0.0</code> <span class="imp">Must-know</span></h3>
+        <p>A container has its own network interface. <code>-p 80:8000</code> forwards traffic arriving on the host's port 80 to the container's port 8000. That traffic arrives on the container's external interface, so uvicorn must listen on <strong>all</strong> interfaces (<code>0.0.0.0</code>). The default <code>127.0.0.1</code> only accepts connections from inside the container itself. <code>EXPOSE</code> is documentation; it publishes nothing.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · will the browser connect?</div>
+      <div class="card card-pad">
+        <div class="grid-4">
+          <div class="field"><label for="p-hp">-p host port</label><input class="input mono" id="p-hp" type="number" value="8000"></div>
+          <div class="field"><label for="p-cp">-p container port</label><input class="input mono" id="p-cp" type="number" value="8000"></div>
+          <div class="field"><label for="p-up">uvicorn --port</label><input class="input mono" id="p-up" type="number" value="8000"></div>
+          <div class="field"><label for="p-host">uvicorn --host</label><select class="input mono" id="p-host"><option>0.0.0.0</option><option>127.0.0.1</option></select></div>
+        </div>
+        <div class="grid-2 mt">
+          <div class="field"><label for="p-url">browser opens http://localhost:</label><input class="input mono" id="p-url" type="number" value="8000"></div>
+          <div class="field"><span class="label-t">publish flag</span><div class="seg" id="p-pub"><button data-v="p" class="on">with -p</button><button data-v="none">forgot -p</button></div></div>
+        </div>
+        <div class="net mt">
+          <div class="box"><div class="label">your machine / EC2</div><div id="p-host-box"></div></div>
+          <div class="box ct"><div class="label" style="color:#38bdf8">container</div><div id="p-ct-box"></div></div>
+        </div>
+        <div id="p-res" class="mt"></div>
+        <div class="btn-row mt"><span class="small muted">Presets:</span><button class="btn btn-sm" data-pre="8000,8000,8000,0.0.0.0,8000,p">course setup</button><button class="btn btn-sm" data-pre="80,8000,8000,0.0.0.0,80,p">serve on port 80</button><button class="btn btn-sm" data-pre="8000,8000,8000,127.0.0.1,8000,p">default host</button><button class="btn btn-sm" data-pre="8000,80,8000,0.0.0.0,8000,p">ports swapped</button></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="docker:ports"></div>
+    </section>
+
+    <!-- ============ DEPLOY ============ -->
+    <section class="tab-panel" data-panel="deploy" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Laptop → Docker Hub → EC2 → open the port → use it</h3>
+        <p>Build the image locally, push it to a registry, launch an Ubuntu instance, install Docker, pull and run the image, add a security-group rule for the port, then open <code>http://&lt;public-ip&gt;:8000/docs</code>. Click each step for its commands.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the six steps</div>
+      <div class="card card-pad">
+        <div class="pipe" id="a-pipe"></div>
+        <div id="a-cmd" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Troubleshooter · "the container runs but the browser times out"</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="t-sg"> security group allows inbound TCP 8000</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="t-host" checked> uvicorn listens on 0.0.0.0</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="t-p" checked> container started with -p 8000:8000</label>
+          <div class="field"><span class="label-t">image built on</span><div class="seg" id="t-arch"><button data-v="arm" class="on">Apple-silicon Mac (arm64)</button><button data-v="amd">--platform linux/amd64</button></div></div>
+          <div class="field"><span class="label-t">EC2 instance type</span><div class="seg" id="t-inst"><button data-v="x86" class="on">t2.micro (x86_64)</button><button data-v="graviton">t4g.micro (arm64)</button></div></div>
+        </div>
+        <div><div class="checks" id="t-checks"></div><div id="t-res" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="layers"></i>What real production adds</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Concern</th><th>What you'd use</th></tr></thead>
+        <tbody>
+          <tr><td>HTTPS</td><td>Reverse proxy (Nginx / Caddy) or an AWS load balancer with a TLS certificate</td></tr>
+          <tr><td>Processes</td><td><code>uvicorn --workers N</code>, or <code>gunicorn -k uvicorn.workers.UvicornWorker -w N</code></td></tr>
+          <tr><td>Scaling</td><td>ECS / Fargate, Kubernetes or App Runner; auto-scale on CPU or latency</td></tr>
+          <tr><td>Secrets</td><td>Environment variables or AWS Secrets Manager — never baked into the image</td></tr>
+          <tr><td>Observability</td><td>Structured logs, metrics (Prometheus), tracing, model-drift monitoring</td></tr>
+          <tr><td>CI/CD</td><td>GitHub Actions: test → build → push → deploy on merge</td></tr>
+        </tbody>
+      </table></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="docker:deploy"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const setCode = (host, code, title) => { host.innerHTML = ''; host.appendChild(codeBlock(code, { title: title || 'bash' })); };
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Layers ===== */
+  let order = 'good', chg = 'code';
+  // [instruction, inputs it depends on, seconds when rebuilt]
+  const GOOD = [['FROM python:3.12-slim', 'base', 12], ['WORKDIR /app', '', 0.1], ['COPY requirements.txt .', 'req', 0.2], ['RUN pip install -r requirements.txt', '', 95], ['COPY . .', 'code req', 0.4], ['EXPOSE 8000', '', 0.1], ['CMD ["uvicorn", ...]', '', 0.1]];
+  const BAD = [['FROM python:3.12-slim', 'base', 12], ['WORKDIR /app', '', 0.1], ['COPY . .', 'code req', 0.4], ['RUN pip install -r requirements.txt', '', 95], ['EXPOSE 8000', '', 0.1], ['CMD ["uvicorn", ...]', '', 0.1]];
+  function dDraw() {
+    const L = order === 'good' ? GOOD : BAD;
+    let broken = false, total = 0;
+    const rows = L.map(([ins, deps, sec]) => {
+      if (!broken && chg !== 'none' && deps.split(' ').includes(chg)) broken = true;
+      const rebuilt = broken; if (rebuilt) total += sec;
+      return '<div class="layer ' + (rebuilt ? 'rebuilt' : 'cached') + '"><span>' + esc(ins) + '</span><span class="st">' + (rebuilt ? 'rebuilt' : 'CACHED') + '</span><span class="t">' + (rebuilt ? (sec >= 1 ? sec + ' s' : '<1 s') : '0 s') + '</span></div>';
+    });
+    $('#d-layers').innerHTML = rows.join('');
+    const pip = L.findIndex((l) => l[0].startsWith('RUN pip'));
+    const pipRe = rows[pip].includes('rebuilt');
+    $('#d-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:18px">' + (total < 1 ? '<1' : Math.round(total)) + ' s</div><div class="k">build time (illustrative)</div></div><div class="stat"><div class="v" style="font-size:18px">' + (pipRe ? 'yes' : 'no') + '</div><div class="k">dependencies reinstalled?</div></div>';
+    let note = '';
+    if (order === 'bad' && chg === 'code') note = '<div class="err-box">COPY . . includes app.py, so its cache key changed — and every layer after it rebuilds, including the slow pip install. A one-line edit costs minutes.</div>';
+    else if (order === 'good' && chg === 'code') note = '<div class="ok-box">Only COPY . . and later layers rebuild. Dependencies came from the cache: seconds, not minutes.</div>';
+    else if (chg === 'req') note = '<div class="callout blue">' + FA.icon('info') + '<div>Dependencies really changed, so reinstalling them is correct in both orders.</div></div>';
+    else if (chg === 'base') note = '<div class="callout blue">' + FA.icon('info') + '<div>A change in the first layer invalidates everything above it. A cache miss always cascades upward.</div></div>';
+    else note = '<div class="ok-box">Nothing changed: every layer comes from the cache.</div>';
+    $('#d-note').innerHTML = note;
+  }
+  segc('d-order', (v) => { order = v; dDraw(); });
+  segc('d-chg', (v) => { chg = v; dDraw(); });
+  dDraw();
+
+  /* ===== Ports ===== */
+  let pub = 'p';
+  function pDraw() {
+    const hp = +$('#p-hp').value, cp = +$('#p-cp').value, up = +$('#p-up').value, host = $('#p-host').value, url = +$('#p-url').value;
+    $('#p-host-box').innerHTML = '<div class="req-line">browser → localhost:<b>' + url + '</b></div>' + (pub === 'p' ? '<div class="req-line mt">docker -p <b>' + hp + '</b>:<b>' + cp + '</b> → forwards host :' + hp + ' to container :' + cp + '</div>' : '<div class="req-line mt" style="color:#f87171">no port published</div>');
+    $('#p-ct-box').innerHTML = '<div class="req-line">uvicorn app:app --host <b>' + host + '</b> --port <b>' + up + '</b></div><div class="small muted mt">' + (host === '0.0.0.0' ? 'listening on every interface (eth0 + loopback)' : 'listening on the container\'s loopback only') + '</div>';
+    const steps = [];
+    let ok = true;
+    const add = (pass, txt) => { steps.push((pass ? '✓ ' : '✗ ') + txt); if (!pass) ok = false; };
+    add(pub === 'p', 'a port is published with -p');
+    if (ok) add(url === hp, 'browser port (' + url + ') matches the host side of -p (' + hp + ')');
+    if (ok) add(cp === up, 'container side of -p (' + cp + ') matches uvicorn --port (' + up + ')');
+    if (ok) add(host === '0.0.0.0', 'uvicorn accepts connections arriving on the container interface (0.0.0.0)');
+    const fail = !ok ? (pub !== 'p' ? 'Connection refused: nothing on the host listens on :' + url + '. Without -p the container is unreachable from outside.' : url !== hp ? 'Connection refused: nothing listens on host port ' + url + '.' : cp !== up ? 'Connection reset / empty reply: Docker forwards to :' + cp + ' but uvicorn is on :' + up + '.' : 'Empty reply / connection reset: traffic reaches the container on eth0 but uvicorn only listens on 127.0.0.1 inside it. Works with curl from inside the container, fails from your browser.') : '';
+    $('#p-res').innerHTML = '<div class="' + (ok ? 'ok-box' : 'err-box') + '">' + steps.join('\n') + '\n\n' + (ok ? '200 OK — http://localhost:' + url + '/docs loads.' : fail) + '</div>';
+  }
+  ['p-hp', 'p-cp', 'p-up', 'p-host', 'p-url'].forEach((id) => $('#' + id).addEventListener('input', pDraw));
+  segc('p-pub', (v) => { pub = v; pDraw(); });
+  $$('[data-pre]').forEach((b) => b.addEventListener('click', () => {
+    const [hp, cp, up, h, u, p] = b.dataset.pre.split(',');
+    $('#p-hp').value = hp; $('#p-cp').value = cp; $('#p-up').value = up; $('#p-host').value = h; $('#p-url').value = u; pub = p;
+    $$('#p-pub button').forEach((x) => x.classList.toggle('on', x.dataset.v === p)); pDraw();
+  }));
+  pDraw();
+
+  /* ===== Pipeline ===== */
+  const PIPE = [
+    ['1. Laptop', 'docker build', '# Apple-silicon Mac? build for the x86 EC2 instance\ndocker buildx build --platform linux/amd64 -t shray/insurance-api:1.0 .\ndocker run -p 8000:8000 shray/insurance-api:1.0    # test locally first'],
+    ['2. Docker Hub', 'docker push', 'docker login\ndocker push shray/insurance-api:1.0'],
+    ['3. EC2', 'launch Ubuntu, SSH in, install Docker', 'ssh -i my-key.pem ubuntu@<public-ip>\nsudo apt-get update && sudo apt-get install -y docker.io\nsudo systemctl start docker && sudo systemctl enable docker\nsudo usermod -aG docker $USER && exit      # re-login so docker works without sudo'],
+    ['4. Pull & run', 'docker pull / run', 'docker pull shray/insurance-api:1.0\ndocker run -d --restart unless-stopped -p 8000:8000 shray/insurance-api:1.0\ndocker ps && docker logs -f <container-id>'],
+    ['5. Open port', 'security group rule', '# EC2 console → instance → Security → security group → Edit inbound rules\n# Type: Custom TCP   Port: 8000   Source: 0.0.0.0/0 (or your IP)\n# keep port 22 open for SSH — ideally only to your IP'],
+    ['6. Use it', 'public-ip:8000/docs', 'curl http://<public-ip>:8000/health\n# then open http://<public-ip>:8000/docs in the browser\n# point the Streamlit front-end at this URL instead of 127.0.0.1'],
+  ];
+  let ai = 0;
+  function aDraw() {
+    $('#a-pipe').innerHTML = PIPE.map((p, i) => '<button class="pstep ' + (i === ai ? 'on' : i < ai ? 'done' : '') + '" data-i="' + i + '"><b>' + p[0] + '</b>' + esc(p[1]) + '</button>').join('');
+    setCode($('#a-cmd'), PIPE[ai][2], PIPE[ai][0] + ' — commands');
+  }
+  $('#a-pipe').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; ai = +b.dataset.i; aDraw(); });
+  aDraw();
+
+  /* ===== Troubleshooter ===== */
+  let arch = 'arm', instT = 'x86';
+  function tDraw() {
+    const archOk = (arch === 'amd' && instT === 'x86') || (arch === 'arm' && instT === 'graviton');
+    const C = [
+      ['Container starts on the instance (architecture matches)', archOk, 'exec format error: the image is arm64 and the instance is x86_64 (or vice versa). Rebuild with docker buildx build --platform linux/amd64, or pick a matching instance.'],
+      ['Port published with -p 8000:8000', $('#t-p').checked, 'Without -p the container is invisible from the host.'],
+      ['uvicorn bound to 0.0.0.0', $('#t-host').checked, 'Bound to 127.0.0.1: only reachable from inside the container.'],
+      ['Security group allows inbound TCP 8000', $('#t-sg').checked, 'AWS drops the packets before they reach the instance — the browser just times out. Add an inbound rule.'],
+    ];
+    $('#t-checks').innerHTML = C.map(([t, ok]) => '<div><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✓' : '✗') + '</span>' + t + '</div>').join('');
+    const first = C.find((c) => !c[1]);
+    $('#t-res').innerHTML = first ? '<div class="err-box">First thing to fix: ' + esc(first[2]) + '</div>' : '<div class="ok-box">http://&lt;public-ip&gt;:8000/docs loads.</div>';
+  }
+  ['t-sg', 't-host', 't-p'].forEach((id) => $('#' + id).addEventListener('change', tDraw));
+  segc('t-arch', (v) => { arch = v; tDraw(); });
+  segc('t-inst', (v) => { instT = v; tDraw(); });
+  tDraw();
+
+  FA.init('docker', () => {});
+})();
+</script>
+</body>
+</html>

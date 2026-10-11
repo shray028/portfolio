@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Big Picture &amp; APIs — FastAPI for ML</title>
+  <meta name="description" content="Why APIs exist, monolith vs API-driven architecture, the course journey from notebook to deployed FastAPI service, and why ML models are served behind APIs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="fa-lab.css?v=2026-10-11">
+  <style>
+    .journey { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+    .jstep { text-align: left; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); transition: border-color .2s, background .2s; }
+    .jstep:hover { border-color: var(--line-strong); }
+    .jstep.on { border-color: rgba(61,220,151,.6); background: rgba(61,220,151,.08); }
+    .jstep .n { font: 700 11px var(--font-mono); color: var(--acc); }
+    .jstep b { display: block; font-size: 13px; margin-top: 2px; }
+    .jstep span { font-size: 11.5px; color: var(--muted); }
+    .arch svg text { font-family: var(--font-body); }
+    .heat { display: grid; gap: 6px; }
+    .heat .row { display: grid; grid-template-columns: 250px 1fr 40px; gap: 10px; align-items: center; font-size: 13px; }
+    .heat .bar { height: 14px; }
+    .heat .row.beyond span:first-child::after { content: ' ★'; color: var(--purple); font-size: 11px; }
+    @media (max-width: 900px) { .journey { grid-template-columns: repeat(3, minmax(0, 1fr)); } .heat .row { grid-template-columns: 1fr 1fr 36px; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 01 · FOUNDATIONS</span>
+      <h1>The big picture: <span class="grad">why APIs exist</span></h1>
+      <p class="desc">The whole course answers one question: <em>"I have an ML model in a notebook — how do I let the world use it?"</em> Every module adds one piece: an API, HTTP, FastAPI, Pydantic validation, CRUD, model serving, Docker and the cloud.</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">Course journey · architecture toggle · system diagram</span><span class="imp">Must-know items marked like this</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="journey"><span class="n">1</span>The course journey</button>
+      <button class="tab" data-tab="apis"><span class="n">2</span>APIs &amp; architecture</button>
+      <button class="tab" data-tab="ml"><span class="n">3</span>Why ML needs APIs</button>
+    </div></div>
+
+    <!-- ============ JOURNEY ============ -->
+    <section class="tab-panel" data-panel="journey">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>FastAPI = type hints → HTTP endpoints <span class="imp">Must-know</span></h3>
+        <p class="lead">FastAPI is a thin, type-hint-driven layer that turns <strong>Python functions</strong> into <strong>HTTP endpoints</strong>. It borrows its speed from <strong>Starlette</strong> and <strong>Uvicorn</strong>, and its correctness from <strong>Pydantic</strong>.</p>
+        <p>Nearly every interview question about FastAPI comes back to one of those three. Click through the journey below to see what each stage adds and which file of the course builds it.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the course, stage by stage</div>
+      <div class="card card-pad">
+        <div class="journey" id="j-steps"></div>
+        <div class="callout blue mt" id="j-detail"></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Where interview questions land</div>
+      <div class="card card-pad">
+        <p class="small muted" style="margin-bottom:12px">Relative frequency estimated from backend and ML-engineering interview experience. ★ = beyond the course, covered in modules 11–13.</p>
+        <div class="heat" id="heat"></div>
+      </div>
+    </section>
+
+    <!-- ============ APIS ============ -->
+    <section class="tab-panel" data-panel="apis" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>An API is a contract <span class="imp">Must-know</span></h3>
+        <p>An <strong>API</strong> lets one piece of software ask another for data or an action without knowing how the other works inside. A <strong>web API</strong> exposes that contract over HTTP: send a request to a URL, get back (usually) JSON.</p>
+        <p><strong>The restaurant analogy:</strong> you (the client) never walk into the kitchen (server + database). You talk to the waiter (the API), who has a fixed menu (the endpoints) and takes orders in a fixed format (the request schema).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · monolith vs API-driven (the IRCTC example)</div>
+      <div class="card card-pad">
+        <div class="btn-row"><div class="seg" id="a-mode"><button data-v="mono" class="on">Monolith</button><button data-v="api">API-driven</button></div>
+          <button class="btn btn-sm" id="a-add"><i data-icon="plus"></i>Add a client</button><button class="btn btn-sm" id="a-reset"><i data-icon="reset"></i>Reset</button></div>
+        <div class="arch mt2"><svg id="a-svg" width="100%" viewBox="0 0 760 300"></svg></div>
+        <div class="grid-3 mt" id="a-stats"></div>
+        <div class="callout mt" id="a-note"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="apis:apis"></div>
+    </section>
+
+    <!-- ============ ML ============ -->
+    <section class="tab-panel" data-panel="ml" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A model in a notebook helps nobody</h3>
+        <p>A trained model lives in a notebook or a <code>.pkl</code> file. Wrapping it in an API turns it into a <strong>service</strong>: any website, mobile app or backend sends features and receives a prediction. This is the end state of the course — click the parts of the diagram.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the final system</div>
+      <div class="card card-pad split">
+        <svg id="s-svg" width="100%" viewBox="0 0 560 330"></svg>
+        <div id="s-detail"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="apis:ml"></div>
+    </section>
+  </div>
+</main>
+
+<script src="fa-qa.js?v=2026-10-11"></script>
+<script src="fa-lab.js?v=2026-10-11"></script>
+<script>
+(function () {
+  const { $, $$, esc, codeBlock } = FA;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Journey ===== */
+  const J = [
+    ['APIs', 'why APIs exist', 'A contract between programs. Motivated by the monolith problem: logic rewritten for every client.', null],
+    ['FastAPI', 'philosophy, ASGI', 'Fast to run (Starlette + Uvicorn, async) and fast to code (type hints + Pydantic, free docs).', 'first_API.py'],
+    ['Hello World', 'install, uvicorn, /docs', 'pip install fastapi uvicorn → @app.get("/") → uvicorn main:app --reload → open /docs.', 'first_API.py'],
+    ['HTTP methods', 'GET POST PUT DELETE', 'The verbs of CRUD, plus status codes. Safe vs idempotent.', null],
+    ['Path & Query', 'Path(), Query(), 404', 'GET /patient/{patient_id} and GET /sort?sort_by=&order= on the Patient Management API.', 'main.py'],
+    ['Pydantic', 'models, validators', 'BaseModel, Field, field/model validators, computed fields, nested models, model_dump.', 'pydantic/*.py'],
+    ['POST', 'create patient', 'A Pydantic model parameter = the JSON body. 201 on success, 422 on bad input.', 'main.py'],
+    ['PUT & DELETE', 'update, delete', 'Partial update with exclude_unset + rebuild to recompute BMI. Delete with 404 handling.', 'main.py + patients.json'],
+    ['Serve ML model', 'insurance premium', 'UserInput schema engineers features; model.pkl predicts Low / Medium / High.', 'insurance_premium_prediction/'],
+    ['Production API', 'schema/, /health', 'Separation of concerns, health check, response_model, model version.', 'app.py, schema/, model/'],
+    ['Docker', 'image, container', 'Dockerfile, layer caching, docker build / run / push.', 'Dockerfile'],
+    ['Deploy', 'AWS EC2', 'Pull the image on EC2, run with -p 8000:8000, open the security group.', null],
+  ];
+  $('#j-steps').innerHTML = J.map((j, i) => '<button class="jstep" data-i="' + i + '"><span class="n">' + String(i + 1).padStart(2, '0') + '</span><b>' + j[0] + '</b><span>' + j[1] + '</span></button>').join('');
+  function pickJ(i) { $$('#j-steps .jstep').forEach((b) => b.classList.toggle('on', +b.dataset.i === i)); const j = J[i]; $('#j-detail').innerHTML = FA.icon('info') + '<div><b>' + (i + 1) + '. ' + j[0] + '</b> — ' + esc(j[2]) + (j[3] ? '<br><span class="small muted">Course file: <code>' + esc(j[3]) + '</code></span>' : '') + '</div>'; }
+  $('#j-steps').addEventListener('click', (e) => { const b = e.target.closest('.jstep'); if (b) pickJ(+b.dataset.i); });
+  pickJ(0);
+  const HEAT = [['Pydantic models & validation', 9.5], ['Path vs Query vs Body params', 8.5], ['async def vs def; ASGI vs WSGI', 8.2], ['Status codes & HTTPException', 7.5], ['Dependency Injection (Depends)', 7.4, 1], ['Serving an ML model (load once!)', 7.2], ['response_model & serialisation', 6.6], ['PUT vs PATCH, idempotency', 6.0], ['Testing (TestClient, overrides)', 5.6, 1], ['Docker & deployment', 5.4], ['Auth (API key, OAuth2, JWT)', 4.8, 1], ['Middleware, CORS, BackgroundTasks', 4.2, 1]];
+  $('#heat').innerHTML = HEAT.map(([t, v, b]) => '<div class="row' + (b ? ' beyond' : '') + '"><span>' + esc(t) + '</span><div class="bar"><span style="width:' + v * 10 + '%;background:' + (b ? 'var(--purple)' : 'var(--acc)') + '"></span></div><span class="mono small muted">' + v + '</span></div>').join('');
+
+  /* ===== Monolith vs API ===== */
+  const CLIENTS = ['Website', 'Mobile app', 'MakeMyTrip', 'Partner bank', 'Smart watch'];
+  let mode = 'mono', nClients = 2;
+  function arch() {
+    const svg = $('#a-svg'); let h = '';
+    const box = (x, y, w, hh, c, t, sub) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + hh + '" rx="10" fill="' + c + '1f" stroke="' + c + '"/><text x="' + (x + w / 2) + '" y="' + (y + hh / 2 + (sub ? -2 : 4)) + '" text-anchor="middle" fill="#f2f4fa" font-size="12.5" font-weight="700">' + t + '</text>' + (sub ? '<text x="' + (x + w / 2) + '" y="' + (y + hh / 2 + 13) + '" text-anchor="middle" fill="#8c94a9" font-size="10.5">' + sub + '</text>' : '');
+    const line = (x1, y1, x2, y2, c) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + c + '" stroke-width="1.6" marker-end="url(#ar)"/>';
+    h += '<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8c94a9"/></marker></defs>';
+    const W = 760, colW = Math.min(W / nClients, 230), off = (W - colW * nClients) / 2;
+    if (mode === 'mono') {
+      for (let i = 0; i < nClients; i++) {
+        const x = off + i * colW + 8, w = colW - 16;
+        h += '<rect x="' + x + '" y="10" width="' + w + '" height="190" rx="12" fill="#f8717112" stroke="#f87171" stroke-dasharray="' + (i ? '4 3' : '') + '"/>';
+        h += box(x + 10, 22, w - 20, 44, '#5fb3f9', CLIENTS[i], 'UI');
+        h += box(x + 10, 80, w - 20, 44, '#f87171', 'Business logic', i ? 're-written!' : '');
+        h += box(x + 10, 138, w - 20, 44, '#f87171', 'DB access', i ? 're-written!' : '');
+        h += line(x + w / 2, 200, W / 2, 238, '#8c94a9');
+      }
+      h += box(W / 2 - 60, 240, 120, 44, '#8c94a9', 'Database');
+    } else {
+      for (let i = 0; i < nClients; i++) { const x = off + i * colW + 10, w = colW - 20; h += box(x, 18, w, 46, '#5fb3f9', CLIENTS[i], 'JSON over HTTP'); h += line(x + w / 2, 64, W / 2 + (x + w / 2 - W / 2) * 0.35, 128, '#5fb3f9'); }
+      h += box(W / 2 - 170, 130, 340, 54, '#3ddc97', 'ONE API — business logic', 'written once, versioned, tested');
+      h += line(W / 2, 184, W / 2, 238, '#8c94a9');
+      h += box(W / 2 - 60, 240, 120, 44, '#8c94a9', 'Database');
+    }
+    svg.innerHTML = h;
+    const copies = mode === 'mono' ? nClients : 1;
+    $('#a-stats').innerHTML = [[copies, 'copies of the business logic'], [mode === 'mono' ? nClients : 1, 'places to fix one bug'], [nClients, 'clients served']].map(([v, k]) => '<div class="stat"><div class="v" style="color:' + (k.startsWith('copies') && v > 1 ? 'var(--red)' : 'var(--text)') + '">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    $('#a-note').innerHTML = FA.icon(mode === 'mono' ? 'alert' : 'check') + '<div>' + (mode === 'mono' ? 'Each new client (mobile app, partner site) means rebuilding the logic and data access again — and every bug fix has to be made in every copy. Add a client to see it grow.' : 'Every client speaks JSON over HTTP to one API. The logic is written once; you can deploy and scale it independently of the clients.') + '</div>';
+    $('#a-note').className = 'callout mt ' + (mode === 'mono' ? 'red' : 'green');
+  }
+  segc('a-mode', (v) => { mode = v; arch(); });
+  $('#a-add').addEventListener('click', () => { nClients = Math.min(CLIENTS.length, nClients + 1); arch(); });
+  $('#a-reset').addEventListener('click', () => { nClients = 2; arch(); });
+  arch();
+
+  /* ===== System diagram ===== */
+  const PARTS = {
+    user: ['User', 'Fills in age, weight, height, city, income, occupation and smoker on a form.', null],
+    ui: ['Streamlit UI — frontend.py', 'A separate client. It sends requests.post(API_URL, json=input_data) and shows the predicted category. It talks to the API only over HTTP.', 'response = requests.post("http://127.0.0.1:8000/predict", json=input_data)\nresult = response.json()'],
+    api: ['FastAPI app — POST /predict', 'Matches the route, validates the body with UserInput, calls the model and serialises the response.', '@app.post("/predict", response_model=PredictionResponse)\ndef predict_premium(data: UserInput): ...'],
+    val: ['Pydantic — UserInput', 'Validates raw input (age 0–120, height < 2.5 m, occupation from a fixed list) and computes the engineered features: bmi, age_group, lifestyle_risk, city_tier.', 'class UserInput(BaseModel):\n    age: Annotated[int, Field(..., gt=0, lt=120)]\n    ...\n    @computed_field\n    @property\n    def bmi(self) -> float: ...'],
+    model: ['ML model — model.pkl', 'A scikit-learn classifier, loaded once at start-up, predicting Low / Medium / High premium with class probabilities.', 'with open("model/model.pkl", "rb") as f:\n    model = pickle.load(f)'],
+    resp: ['JSON response', '200 OK with the predicted category, confidence and class probabilities — validated by PredictionResponse.', '{"predicted_category": "High", "confidence": 0.84, "class_probabilities": {...}}'],
+    docker: ['Docker container', 'API + schema + model + exact library versions, packaged as one portable image.', null],
+    ec2: ['AWS EC2 instance', 'A Linux VM that pulls the image from Docker Hub and runs it with -p 8000:8000.', null],
+  };
+  function sys(active) {
+    const b = (k, x, y, w, h, c, t, s) => '<g data-k="' + k + '" style="cursor:pointer"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="10" fill="' + c + (active === k ? '40' : '1a') + '" stroke="' + c + '" stroke-width="' + (active === k ? 2.4 : 1.2) + '"/><text x="' + (x + w / 2) + '" y="' + (y + h / 2 - 2) + '" text-anchor="middle" fill="#f2f4fa" font-size="12" font-weight="700">' + t + '</text><text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 13) + '" text-anchor="middle" fill="#8c94a9" font-size="10">' + s + '</text></g>';
+    let h = '<defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8c94a9"/></marker></defs>';
+    h += '<g data-k="ec2" style="cursor:pointer"><rect x="190" y="16" width="362" height="300" rx="16" fill="none" stroke="#fbbf24" stroke-width="' + (active === 'ec2' ? 2.6 : 1.4) + '"/><text x="540" y="308" text-anchor="end" fill="#fbbf24" font-size="11">AWS EC2</text></g>';
+    h += '<g data-k="docker" style="cursor:pointer"><rect x="206" y="32" width="330" height="248" rx="14" fill="none" stroke="#5fb3f9" stroke-dasharray="6 4" stroke-width="' + (active === 'docker' ? 2.6 : 1.4) + '"/><text x="524" y="272" text-anchor="end" fill="#5fb3f9" font-size="11">Docker container</text></g>';
+    h += b('user', 8, 50, 80, 50, '#8c94a9', 'User', 'browser');
+    h += b('ui', 8, 160, 150, 56, '#5fb3f9', 'Streamlit UI', 'frontend.py');
+    h += b('api', 226, 50, 150, 56, '#3ddc97', 'FastAPI app', 'POST /predict');
+    h += b('val', 226, 170, 150, 60, '#b18cff', 'Pydantic', 'UserInput + features');
+    h += b('model', 400, 170, 120, 60, '#fbbf24', 'ML model', 'model.pkl');
+    h += b('resp', 400, 50, 120, 56, '#4ade80', 'JSON', 'response');
+    const ln = (x1, y1, x2, y2) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#8c94a9" stroke-width="1.4" marker-end="url(#ar2)"/>';
+    h += ln(48, 100, 70, 158) + ln(158, 180, 224, 90) + ln(301, 106, 301, 168) + ln(376, 200, 398, 200) + ln(460, 170, 460, 108) + ln(400, 70, 160, 196);
+    $('#s-svg').innerHTML = h;
+    $$('#s-svg [data-k]').forEach((g) => g.addEventListener('click', (e) => { e.stopPropagation(); sys(g.dataset.k); }));
+    const p = PARTS[active]; const host = $('#s-detail');
+    host.innerHTML = '<div class="card lesson" style="padding:16px 18px"><h4 style="margin-top:0">' + esc(p[0]) + '</h4><p>' + esc(p[1]) + '</p></div>';
+    if (p[2]) { const cb = codeBlock(p[2], { title: 'snippet' }); cb.classList.add('mt'); host.appendChild(cb); }
+  }
+  sys('api');
+
+  FA.init('apis');
+})();
+</script>
+</body>
+</html>
