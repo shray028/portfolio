@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logistic Regression, Decision Trees, Bagging vs Boosting, SVM & k-NN — ML Interview Revision</title>
+  <meta name="description" content="Interactive intuition for the classic models interviewers ask about: why logistic beats linear regression for classification, how a decision tree picks a split with Gini, bagging vs boosting, SVM margins and C, k-NN and the curse of dimensionality.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .sq { width: 100%; max-width: 520px; aspect-ratio: 1.35; display: block; margin: 0 auto; border-radius: 12px; border: 1px solid var(--line); background: #0a0d14; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 04 · CLASSIC MODELS</span>
+      <h1>Classic <span class="grad">models</span></h1>
+      <p class="desc">Even in LLM-era interviews, these come up every time: "why logistic and not linear regression?", "how does a tree choose a split?", "bagging vs boosting?", "what does C do in an SVM?", "why does k-NN break in high dimensions?". Each section lets you poke the model until the answer is obvious.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Logistic fitter · split finder · bagging vs boosting · SVM margin · k-NN boundary</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="linear"><span class="n">1</span>Linear vs logistic</button>
+      <button class="tab" data-tab="trees"><span class="n">2</span>Decision trees</button>
+      <button class="tab" data-tab="ensembles"><span class="n">3</span>Bagging vs boosting</button>
+      <button class="tab" data-tab="svm"><span class="n">4</span>SVM</button>
+      <button class="tab" data-tab="knn"><span class="n">5</span>k-NN &amp; dimensionality</button>
+    </div></div>
+
+    <!-- ============ LINEAR ============ -->
+    <section class="tab-panel" data-panel="linear">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Logistic regression = a linear score squashed into a probability <span class="imp">Must-know</span></h3>
+        <p class="formula">\( p(y=1\mid x)=\sigma(w^\top x+b)=\frac{1}{1+e^{-(w^\top x+b)}} \qquad L=-\frac1n\sum\big[y\log p+(1-y)\log(1-p)\big] \)</p>
+        <p>Linear regression on 0/1 labels predicts values outside [0, 1] and is dragged around by points far from the boundary, because squared error penalises "too correct" predictions. Logistic regression outputs a probability, its log-odds are linear in x (so coefficients are interpretable as odds ratios), and the log-loss is convex. Add a far-away positive and compare the two decision points.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · fit both to the same labels</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">weight w</span><div class="range-row"><input type="range" id="l-w" min="-1" max="6" step="0.05" value="1"><span class="val" id="l-w-v"></span></div></div>
+          <div class="field"><span class="label-t">bias b</span><div class="range-row"><input type="range" id="l-b" min="-12" max="4" step="0.1" value="-2"><span class="val" id="l-b-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="l-out"> add three easy positives far away (x = 12.5–15.5)</label>
+          <div class="btn-row"><button class="btn btn-primary" id="l-fit"><i data-icon="play"></i>Fit by gradient descent</button></div>
+          <div class="grid-2" id="l-stats"></div>
+          <div id="l-note"></div>
+        </div>
+        <div><canvas class="viz" id="l-plot"></canvas><div class="legend"><span><i style="background:#f472b6"></i>class 1</span><span><i style="background:#5fb3f9"></i>class 0</span><span><i style="background:#8b8cff"></i>logistic σ(wx+b)</span><span><i style="background:#fbbf24"></i>linear regression fit</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="models:linear"></div>
+    </section>
+
+    <!-- ============ TREES ============ -->
+    <section class="tab-panel" data-panel="trees" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A tree greedily picks the split that makes children purest <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \text{Gini}=1-\sum_k p_k^2 \qquad \text{Entropy}=-\sum_k p_k\log_2 p_k \qquad \text{Gain}=I(\text{parent})-\sum_{c}\tfrac{n_c}{n}I(c) \)</p>
+        <p>At each node it tries every feature and threshold, and keeps the split with the biggest impurity decrease; then recurses. Trees need no scaling, handle non-linearity and interactions, and are easy to explain — but a fully grown tree memorises the data (high variance). Control it with max depth, min samples per leaf, pruning — or average many trees.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · find the best first split</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">split on</span><div class="seg" id="t-f"><button data-v="0" class="on">x₁ (horizontal)</button><button data-v="1">x₂ (vertical)</button></div></div>
+          <div class="field"><span class="label-t">threshold</span><div class="range-row"><input type="range" id="t-th" min="0" max="10" step="0.05" value="5"><span class="val" id="t-th-v"></span></div></div>
+          <div class="field"><span class="label-t">impurity</span><div class="seg" id="t-imp"><button data-v="gini" class="on">Gini</button><button data-v="entropy">entropy</button></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="t-best"><i data-icon="search"></i>Find best split</button></div>
+          <div class="tbl-wrap"><table class="tbl" id="t-tbl"></table></div>
+        </div>
+        <div><canvas class="sq" id="t-plot"></canvas><canvas class="viz mt" id="t-scan"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>information gain for every threshold on this feature</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="models:trees"></div>
+    </section>
+
+    <!-- ============ ENSEMBLES ============ -->
+    <section class="tab-panel" data-panel="ensembles" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Bagging averages away variance; boosting adds up to remove bias <span class="imp">Must-know</span></h3>
+        <p><strong>Bagging</strong> (random forest) trains deep, high-variance trees <em>in parallel</em> on bootstrap samples (plus random feature subsets) and averages them — errors that disagree cancel. <strong>Boosting</strong> (AdaBoost, gradient boosting, XGBoost, LightGBM) trains shallow, high-bias trees <em>sequentially</em>, each one fitting what the ensemble still gets wrong (the residuals / negative gradient), scaled by a learning rate. Boosting is usually more accurate on tabular data but easier to overfit and needs tuning; random forests are robust defaults.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · same data, two strategies</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">method</span><div class="seg" id="e-m"><button data-v="bag" class="on">bagging (depth-6 trees)</button><button data-v="boost">boosting (depth-1 stumps)</button></div></div>
+          <div class="field"><span class="label-t" id="e-n-l">number of trees</span><div class="range-row"><input type="range" id="e-n" min="1" max="60" value="1"><span class="val" id="e-n-v"></span></div></div>
+          <div class="field" id="e-lr-f"><span class="label-t">learning rate (shrinkage)</span><div class="range-row"><input type="range" id="e-lr" min="0.05" max="1" step="0.05" value="0.3"><span class="val" id="e-lr-v"></span></div></div>
+          <div class="grid-2" id="e-stats"></div>
+          <div id="e-note"></div>
+        </div>
+        <div><canvas class="viz" id="e-plot"></canvas><div class="legend"><span><i style="background:#5fb3f9"></i>training data</span><span><i style="background:#e5e7eb"></i>true function</span><span><i style="background:#8b8cff55"></i>individual trees</span><span><i style="background:#fbbf24"></i>ensemble</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="ensembles.py">
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import xgboost as xgb
+
+rf = RandomForestClassifier(n_estimators=500, max_features="sqrt", min_samples_leaf=2, n_jobs=-1, oob_score=True)
+gb = xgb.XGBClassifier(n_estimators=2000, learning_rate=0.05, max_depth=6, subsample=0.8,
+                       colsample_bytree=0.8, reg_lambda=1.0, early_stopping_rounds=50, eval_metric="logloss")
+gb.fit(X_tr, y_tr, eval_set=[(X_val, y_val)])   # stop adding trees when validation loss stops improving
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="models:ensembles"></div>
+    </section>
+
+    <!-- ============ SVM ============ -->
+    <section class="tab-panel" data-panel="svm" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Maximise the margin; C sets how much you pay for violations</h3>
+        <p class="formula">\( \min_{w,b}\ \tfrac12\|w\|^2 + C\sum_i \max\big(0,\,1-y_i(w^\top x_i+b)\big) \)</p>
+        <p>An SVM finds the boundary with the widest gap to the nearest points; only those points — the <strong>support vectors</strong> — determine it. <strong>Large C</strong>: violations are expensive → narrow margin that bends to every point (low bias, high variance). <strong>Small C</strong>: tolerate violations → wide, smoother margin. The <strong>kernel trick</strong> replaces dot products with \(K(x,x')\) (RBF, polynomial) to get non-linear boundaries without computing the high-dimensional features.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · linear soft-margin SVM</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">C (log scale)</span><div class="range-row"><input type="range" id="s-c" min="-2" max="2" step="0.25" value="0"><span class="val" id="s-c-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="s-out" checked> include one mislabeled-looking point</label>
+          <div class="grid-2" id="s-stats"></div>
+          <div id="s-note"></div>
+        </div>
+        <div><canvas class="sq" id="s-plot"></canvas><div class="legend"><span><i style="background:#e5e7eb"></i>decision boundary</span><span><i style="background:#646d82"></i>margins (w·x+b = ±1)</span><span><i style="border:2px solid #fbbf24;background:none"></i>support vectors</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="models:svm"></div>
+    </section>
+
+    <!-- ============ KNN ============ -->
+    <section class="tab-panel" data-panel="knn" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3>k-NN: no training, vote among neighbours</h3>
+          <p>Store the data; predict by majority vote (or average) of the k closest points. <strong>k = 1</strong> memorises — a jagged boundary, high variance. <strong>Large k</strong> smooths — eventually predicts the majority class everywhere, high bias. It needs scaled features (distance!), is slow at prediction time (use ANN indexes), and struggles in high dimensions.</p>
+        </div>
+        <div class="card lesson">
+          <h3>The curse of dimensionality <span class="imp">Must-know</span></h3>
+          <p>As dimensions grow, data becomes sparse and distances concentrate: the nearest and farthest points end up almost equally far away, so "nearest" stops meaning anything. You need exponentially more data to cover the space. Remedies: feature selection, PCA/embeddings, regularization, and models that don't rely on raw distances.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · k and the decision boundary</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">k</span><div class="range-row"><input type="range" id="k-k" min="1" max="41" step="2" value="1"><span class="val" id="k-k-v"></span></div></div>
+          <div class="grid-2" id="k-stats"></div>
+          <div id="k-note"></div>
+          <div class="label mt">distance concentration (random points in the unit cube)</div>
+          <canvas class="viz" id="k-curse"></canvas>
+        </div>
+        <div><canvas class="sq" id="k-plot"></canvas></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="models:knn"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt, canvas } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const sig = (z) => 1 / (1 + Math.exp(-z));
+
+  /* ===== Linear vs logistic ===== */
+  const LX = [0.5, 1, 1.5, 2, 2.4, 2.8, 3.2, 3.6, 4, 4.4, 4.8, 5.3, 5.8, 6.2, 6.8, 7.4];
+  const LY = [0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1];
+  const dataL = () => { const X = LX.slice(), Y = LY.slice(); if ($('#l-out').checked) { X.push(12.5, 14, 15.5); Y.push(1, 1, 1); } return { X, Y }; };
+  function lDraw() {
+    const w = +$('#l-w').value, b = +$('#l-b').value; $('#l-w-v').textContent = w.toFixed(2); $('#l-b-v').textContent = b.toFixed(1);
+    const { X, Y } = dataL(); const n = X.length;
+    const mx = X.reduce((a, v) => a + v) / n, my = Y.reduce((a, v) => a + v) / n; let sxy = 0, sxx = 0; X.forEach((x, i) => { sxy += (x - mx) * (Y[i] - my); sxx += (x - mx) ** 2; }); const lb = sxy / sxx, la = my - lb * mx;
+    const xs = Array.from({ length: 161 }, (_, i) => i * 0.1);
+    const linCut = (0.5 - la) / lb, logCut = -b / w;
+    plot($('#l-plot'), [
+      { type: 'hline', data: 0.5, color: '#323c55', width: 1, dash: [3, 3] },
+      { type: 'line', data: xs.map((x) => [x, la + lb * x]), color: '#fbbf24', width: 2 },
+      { type: 'line', data: xs.map((x) => [x, sig(w * x + b)]), color: '#8b8cff', width: 2.5 },
+      { type: 'vline', data: Math.max(0, Math.min(16, linCut)), color: '#fbbf2488', width: 1.5, dash: [5, 3] },
+      { type: 'vline', data: Math.max(0, Math.min(16, logCut)), color: '#8b8cff88', width: 1.5, dash: [5, 3] },
+      { type: 'points', data: X.map((x, i) => [x, Y[i], Y[i] ? '#f472b6' : '#5fb3f9']), r: 5 },
+    ], { h: 280, xmin: 0, xmax: 16, ymin: -0.3, ymax: 1.3, ticks: 4, xlabel: 'x', xfmt: (v) => Math.round(v) });
+    const ll = -X.reduce((a, x, i) => { const p = Math.min(1 - 1e-9, Math.max(1e-9, sig(w * x + b))); return a + (Y[i] ? Math.log(p) : Math.log(1 - p)); }, 0) / n;
+    const acc = X.filter((x, i) => (sig(w * x + b) >= 0.5 ? 1 : 0) === Y[i]).length / n;
+    $('#l-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(ll, 3) + '</div><div class="k">log-loss</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(acc * 100, 0) + '%</div><div class="k">accuracy</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(logCut, 2) + '</div><div class="k">logistic boundary (p = 0.5)</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(linCut, 2) + '</div><div class="k">linear-regression boundary (ŷ = 0.5)</div></div>';
+    $('#l-note').innerHTML = $('#l-out').checked ? '<div class="callout amber">' + MR.icon('alert') + '<div>The far-away positives are already easy to classify, yet they pull the linear fit\'s slope down and shifts its 0.5 crossing right — misclassifying points near the real boundary. Fit logistic regression again: its boundary barely moves.</div></div>' : '<div class="callout blue">' + MR.icon('info') + '<div>Note the linear fit predicts below 0 and above 1 — not probabilities.</div></div>';
+  }
+  $('#l-fit').addEventListener('click', () => {
+    const { X, Y } = dataL(); let w = +$('#l-w').value, b = +$('#l-b').value;
+    let it = 0; const step = () => { for (let k = 0; k < 40; k++) { let gw = 0, gb = 0; X.forEach((x, i) => { const e = sig(w * x + b) - Y[i]; gw += e * x; gb += e; }); w -= 0.08 * gw / X.length; b -= 0.3 * gb / X.length; } $('#l-w').value = Math.max(-1, Math.min(6, w)); $('#l-b').value = Math.max(-12, Math.min(4, b)); lDraw(); if (++it < 40) requestAnimationFrame(step); };
+    step();
+  });
+  ['l-w', 'l-b', 'l-out'].forEach((id) => $('#' + id).addEventListener('input', lDraw));
+
+  /* ===== shared 2-D data ===== */
+  function blobs(seed, n, out) {
+    const r = rng(seed); const P = [];
+    for (let i = 0; i < n; i++) { const c = i % 2; const cx = c ? 6.4 : 3.6, cy = c ? 6.2 : 3.8; P.push([Math.max(0.2, Math.min(9.8, cx + 1.25 * r.normal())), Math.max(0.2, Math.min(9.8, cy + 1.25 * r.normal())), c]); }
+    if (out) P.push([3.1, 3.4, 1]);
+    return P;
+  }
+  function scatter(cv, P, extra) {
+    const { ctx, w, h } = canvas(cv, cv.clientWidth / 1.35);
+    const X = (x) => 16 + x / 10 * (w - 32), Y = (y) => h - 16 - y / 10 * (h - 32);
+    ctx.clearRect(0, 0, w, h);
+    if (extra && extra.bg) extra.bg(ctx, X, Y, w, h);
+    if (extra && extra.under) extra.under(ctx, X, Y);
+    P.forEach(([x, y, c]) => { ctx.fillStyle = c ? '#f472b6' : '#5fb3f9'; ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); });
+    if (extra && extra.over) extra.over(ctx, X, Y);
+    return { X, Y };
+  }
+
+  /* ===== Trees ===== */
+  const TP = blobs(5, 70);
+  let tf = 0, timp = 'gini';
+  const imp = (a, b) => { const n = a + b; if (!n) return 0; const p = a / n, q = b / n; return timp === 'gini' ? 1 - p * p - q * q : -(p ? p * Math.log2(p) : 0) - (q ? q * Math.log2(q) : 0); };
+  function splitStats(f, th) {
+    const L = TP.filter((p) => p[f] <= th), R = TP.filter((p) => p[f] > th);
+    const c = (S) => [S.filter((p) => !p[2]).length, S.filter((p) => p[2]).length];
+    const [l0, l1] = c(L), [r0, r1] = c(R), [p0, p1] = c(TP);
+    const parent = imp(p0, p1), child = (L.length * imp(l0, l1) + R.length * imp(r0, r1)) / TP.length;
+    return { l0, l1, r0, r1, parent, li: imp(l0, l1), ri: imp(r0, r1), child, gain: parent - child };
+  }
+  function tDraw() {
+    const th = +$('#t-th').value; $('#t-th-v').textContent = th.toFixed(2);
+    const S = splitStats(tf, th);
+    scatter($('#t-plot'), TP, { bg: (ctx, X, Y, w, h) => { ctx.fillStyle = 'rgba(139,140,255,.06)'; if (tf === 0) ctx.fillRect(X(th), 0, w, h); else ctx.fillRect(0, 0, w, Y(th)); }, over: (ctx, X, Y) => { ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); if (tf === 0) { ctx.moveTo(X(th), Y(0)); ctx.lineTo(X(th), Y(10)); } else { ctx.moveTo(X(0), Y(th)); ctx.lineTo(X(10), Y(th)); } ctx.stroke(); ctx.setLineDash([]); } });
+    const ths = Array.from({ length: 200 }, (_, i) => 0.05 + i * 0.05);
+    plot($('#t-scan'), [{ type: 'area', data: ths.map((t) => [t, splitStats(tf, t).gain]), color: '#8b8cff', alpha: 0.2 }, { type: 'line', data: ths.map((t) => [t, splitStats(tf, t).gain]), color: '#8b8cff' }, { type: 'vline', data: th, color: '#e5e7eb', width: 1.5 }], { h: 130, xmin: 0, xmax: 10, ymin: 0, ticks: 4, xlabel: 'threshold on x' + (tf + 1) });
+    const side = tf === 0 ? ['left (x₁ ≤ t)', 'right (x₁ > t)'] : ['below (x₂ ≤ t)', 'above (x₂ > t)'];
+    $('#t-tbl').innerHTML = '<thead><tr><th>node</th><th>class 0 / 1</th><th>' + timp + '</th></tr></thead><tbody><tr><td>parent</td><td>' + (S.l0 + S.r0) + ' / ' + (S.l1 + S.r1) + '</td><td>' + fmt(S.parent, 3) + '</td></tr><tr><td>' + side[0] + '</td><td>' + S.l0 + ' / ' + S.l1 + '</td><td>' + fmt(S.li, 3) + '</td></tr><tr><td>' + side[1] + '</td><td>' + S.r0 + ' / ' + S.r1 + '</td><td>' + fmt(S.ri, 3) + '</td></tr><tr><td><b>gain</b></td><td></td><td><b>' + fmt(S.gain, 3) + '</b></td></tr></tbody>';
+  }
+  segc('t-f', (v) => { tf = +v; tDraw(); });
+  segc('t-imp', (v) => { timp = v; tDraw(); });
+  $('#t-th').addEventListener('input', tDraw);
+  $('#t-best').addEventListener('click', () => { let best = [-1, 0, 5]; [0, 1].forEach((f) => { for (let t = 0.05; t < 10; t += 0.05) { const g = splitStats(f, t).gain; if (g > best[0]) best = [g, f, t]; } }); tf = best[1]; $$('#t-f button').forEach((x) => x.classList.toggle('on', +x.dataset.v === tf)); $('#t-th').value = best[2].toFixed(2); tDraw(); });
+
+  /* ===== Ensembles ===== */
+  const ER = rng(21); const EX = Array.from({ length: 60 }, () => ER() * 10).sort((a, b) => a - b); const ftrue = (x) => Math.sin(x * 0.9) * 2 + 0.25 * x; const EY = EX.map((x) => ftrue(x) + 0.7 * ER.normal());
+  function tree(X, Y, depth) {
+    const mean = Y.reduce((a, v) => a + v, 0) / (Y.length || 1);
+    if (depth === 0 || X.length < 4) return () => mean;
+    let best = null;
+    const idx = X.map((_, i) => i).sort((a, b) => X[a] - X[b]);
+    for (let k = 2; k < idx.length - 1; k++) {
+      const t = (X[idx[k - 1]] + X[idx[k]]) / 2; const L = idx.slice(0, k), R = idx.slice(k);
+      const sse = (I) => { const m = I.reduce((a, i) => a + Y[i], 0) / I.length; return I.reduce((a, i) => a + (Y[i] - m) ** 2, 0); };
+      const s = sse(L) + sse(R); if (!best || s < best[0]) best = [s, t, L, R];
+    }
+    if (!best) return () => mean;
+    const [, t, L, R] = best;
+    const lf = tree(L.map((i) => X[i]), L.map((i) => Y[i]), depth - 1), rf = tree(R.map((i) => X[i]), R.map((i) => Y[i]), depth - 1);
+    return (x) => (x <= t ? lf(x) : rf(x));
+  }
+  const BAG = []; const BR = rng(99);
+  for (let m = 0; m < 60; m++) { const I = EX.map(() => Math.floor(BR() * EX.length)); BAG.push(tree(I.map((i) => EX[i]), I.map((i) => EY[i]), 6)); }
+  let emode = 'bag';
+  function eDraw() {
+    const n = +$('#e-n').value, lr = +$('#e-lr').value; $('#e-n-v').textContent = n; $('#e-lr-v').textContent = lr.toFixed(2);
+    $('#e-lr-f').style.display = emode === 'boost' ? '' : 'none';
+    const xs = Array.from({ length: 201 }, (_, i) => i * 0.05);
+    const layers = [{ type: 'line', data: xs.map((x) => [x, ftrue(x)]), color: '#e5e7eb', dash: [5, 4], width: 1.5 }];
+    let pred;
+    if (emode === 'bag') {
+      const T = BAG.slice(0, n);
+      T.slice(0, 12).forEach((t) => layers.push({ type: 'line', data: xs.map((x) => [x, t(x)]), color: '#8b8cff44', width: 1 }));
+      pred = (x) => T.reduce((a, t) => a + t(x), 0) / T.length;
+    } else {
+      const base = EY.reduce((a, v) => a + v) / EY.length; const stumps = []; let F = EX.map(() => base);
+      for (let m = 0; m < n; m++) { const res = EY.map((y, i) => y - F[i]); const s = tree(EX, res, 1); stumps.push(s); F = F.map((f, i) => f + lr * s(EX[i])); }
+      pred = (x) => base + stumps.reduce((a, s) => a + lr * s(x), 0);
+      if (stumps.length) { const last = stumps[stumps.length - 1]; layers.push({ type: 'line', data: xs.map((x) => [x, lr * last(x)]), color: '#8b8cff88', width: 1.2 }); }
+    }
+    layers.push({ type: 'points', data: EX.map((x, i) => [x, EY[i]]), color: '#5fb3f9', r: 3 });
+    layers.push({ type: 'line', data: xs.map((x) => [x, pred(x)]), color: '#fbbf24', width: 2.5 });
+    plot($('#e-plot'), layers, { h: 290, xmin: 0, xmax: 10, ymin: -3.5, ymax: 6, ticks: 4 });
+    const tr = EX.reduce((a, x, i) => a + (pred(x) - EY[i]) ** 2, 0) / EX.length;
+    const te = xs.reduce((a, x) => a + (pred(x) - ftrue(x)) ** 2, 0) / xs.length + 0.49;
+    $('#e-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(tr, 3) + '</div><div class="k">train MSE</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(te, 3) + '</div><div class="k">expected test MSE</div></div>';
+    $('#e-note').innerHTML = emode === 'bag' ? (n === 1 ? '<div class="err-box">One deep tree: it chases the noise (low bias, high variance). Add trees.</div>' : '<div class="ok-box">Averaging ' + n + ' bootstrapped trees smooths the wiggles away — variance drops, bias stays about the same. More trees never overfits, it just plateaus.</div>') : (n < 8 ? '<div class="err-box">A few stumps are too simple (high bias). Each new stump (faint line, ×learning rate) fits the remaining residuals.</div>' : n > 45 && lr > 0.6 ? '<div class="err-box">Many trees with a high learning rate start fitting noise — boosting <b>can</b> overfit. Use a small learning rate + early stopping on validation.</div>' : '<div class="ok-box">Sequentially fitting residuals drives bias down step by step.</div>');
+  }
+  segc('e-m', (v) => { emode = v; $('#e-n-l').textContent = v === 'bag' ? 'number of trees' : 'boosting rounds'; eDraw(); });
+  ['e-n', 'e-lr'].forEach((id) => $('#' + id).addEventListener('input', eDraw));
+
+  /* ===== SVM ===== */
+  function svmTrain(P, C) {
+    let w = [0, 0], b = 0; const n = P.length; const lam = 1 / (C * n);
+    const Xc = P.map(([x, y]) => [(x - 5) / 2.5, (y - 5) / 2.5]); const Y = P.map((p) => (p[2] ? 1 : -1));
+    for (let t = 1; t <= 4000; t++) {
+      const eta = 1 / (lam * t);
+      let gw = [lam * w[0], lam * w[1]], gb = 0;
+      for (let i = 0; i < n; i++) { if (Y[i] * (w[0] * Xc[i][0] + w[1] * Xc[i][1] + b) < 1) { gw[0] -= Y[i] * Xc[i][0] / n; gw[1] -= Y[i] * Xc[i][1] / n; gb -= Y[i] / n; } }
+      const e = Math.min(eta, 2); w = [w[0] - e * gw[0], w[1] - e * gw[1]]; b -= e * gb * 0.5;
+    }
+    // back to original coords: f(x) = w·(x-5)/2.5 + b
+    return { f: (x, y) => w[0] * (x - 5) / 2.5 + w[1] * (y - 5) / 2.5 + b, w, b, Xc, Y };
+  }
+  const SP0 = (() => { const r = rng(8); const P = []; for (let i = 0; i < 36; i++) { const c = i % 2; P.push([Math.max(0.3, Math.min(9.7, (c ? 6.8 : 3.2) + 0.9 * r.normal())), Math.max(0.3, Math.min(9.7, (c ? 6.5 : 3.6) + 0.9 * r.normal())), c]); } return P; })();
+  const svmCache = {};
+  function sDraw() {
+    const lc = +$('#s-c').value, C = Math.pow(10, lc); $('#s-c-v').textContent = fmt(C, 2);
+    const P = $('#s-out').checked ? SP0.concat([[4.4, 4.6, 1]]) : SP0;
+    const key = lc + '|' + P.length; const M = svmCache[key] || (svmCache[key] = svmTrain(P, C));
+    const sv = P.filter((p) => (p[2] ? 1 : -1) * M.f(p[0], p[1]) <= 1.001);
+    const line = (ctx, X, Y, level, col, dash) => { const [a, b2] = M.w; const pts = []; for (let x = 0; x <= 10; x += 0.05) { if (Math.abs(b2) < 1e-9) continue; const y = 5 + 2.5 * ((level - M.b) - a * (x - 5) / 2.5) / b2; pts.push([x, y]); } ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); ctx.stroke(); ctx.setLineDash([]); };
+    scatter($('#s-plot'), P, {
+      bg: (ctx, X, Y, w, h) => { for (let gx = 0; gx < 10; gx += 0.25) for (let gy = 0; gy < 10; gy += 0.25) { const v = M.f(gx + 0.125, gy + 0.125); ctx.fillStyle = v > 0 ? 'rgba(244,114,182,.07)' : 'rgba(95,179,249,.07)'; ctx.fillRect(X(gx), Y(gy + 0.25), X(gx + 0.25) - X(gx) + 1, Y(gy) - Y(gy + 0.25) + 1); } },
+      over: (ctx, X, Y) => { ctx.save(); ctx.beginPath(); ctx.rect(X(0) - 16, Y(10) - 16, X(10) - X(0) + 32, Y(0) - Y(10) + 32); ctx.clip(); line(ctx, X, Y, 0, '#e5e7eb', []); line(ctx, X, Y, 1, '#646d82', [5, 4]); line(ctx, X, Y, -1, '#646d82', [5, 4]); ctx.restore(); sv.forEach(([x, y]) => { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(x), Y(y), 8, 0, 7); ctx.stroke(); }); },
+    });
+    const margin = 2 / Math.hypot(M.w[0] / 2.5, M.w[1] / 2.5);
+    const errs = P.filter((p) => (p[2] ? 1 : -1) * M.f(p[0], p[1]) < 0).length;
+    $('#s-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(margin, 2) + '</div><div class="k">margin width</div></div><div class="stat"><div class="v" style="font-size:17px">' + sv.length + '</div><div class="k">support vectors</div></div><div class="stat"><div class="v" style="font-size:17px">' + errs + '</div><div class="k">training errors</div></div>';
+    $('#s-note').innerHTML = C >= 10 ? '<div class="err-box">Large C: violations are expensive, so the margin shrinks to accommodate awkward points — higher variance.</div>' : C <= 0.1 ? '<div class="callout amber">' + MR.icon('alert') + '<div>Small C: a wide, soft margin with many support vectors inside it — more bias, more robust to noise.</div></div>' : '<div class="ok-box">Moderate C. Only the circled points matter: move any other point (outside the margin) and the boundary doesn\'t change.</div>';
+  }
+  $('#s-c').addEventListener('input', sDraw); $('#s-out').addEventListener('change', sDraw);
+
+  /* ===== k-NN ===== */
+  const KP = blobs(13, 80);
+  function kDraw() {
+    const k = +$('#k-k').value; $('#k-k-v').textContent = k;
+    const vote = (x, y, excl) => { const d = KP.map((p, i) => [i === excl ? Infinity : (p[0] - x) ** 2 + (p[1] - y) ** 2, p[2]]).sort((a, b) => a[0] - b[0]).slice(0, k); return d.filter((v) => v[1]).length / k; };
+    scatter($('#k-plot'), KP, { bg: (ctx, X, Y) => { const s = 0.2; for (let gx = 0; gx < 10; gx += s) for (let gy = 0; gy < 10; gy += s) { const v = vote(gx + s / 2, gy + s / 2); ctx.fillStyle = v > 0.5 ? 'rgba(244,114,182,' + (0.06 + 0.18 * (v - 0.5) * 2) + ')' : 'rgba(95,179,249,' + (0.06 + 0.18 * (0.5 - v) * 2) + ')'; ctx.fillRect(X(gx), Y(gy + s), X(gx + s) - X(gx) + 1, Y(gy) - Y(gy + s) + 1); } } });
+    const train = KP.filter((p) => (vote(p[0], p[1]) > 0.5 ? 1 : 0) === p[2]).length / KP.length;
+    const loo = KP.filter((p, i) => (vote(p[0], p[1], i) > 0.5 ? 1 : 0) === p[2]).length / KP.length;
+    $('#k-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(train * 100, 0) + '%</div><div class="k">training accuracy</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(loo * 100, 0) + '%</div><div class="k">leave-one-out accuracy</div></div>';
+    $('#k-note').innerHTML = k === 1 ? '<div class="err-box">k = 1: 100% training accuracy by definition (each point is its own neighbour) and islands around every outlier — overfitting.</div>' : k >= 31 ? '<div class="callout amber">' + MR.icon('alert') + '<div>Large k: very smooth boundary, it starts ignoring local structure (bias ↑).</div></div>' : '<div class="ok-box">Choose k by cross-validation; odd k avoids ties in binary problems.</div>';
+  }
+  $('#k-k').addEventListener('input', kDraw);
+  function curse() {
+    const r = rng(3); const dims = [1, 2, 3, 5, 10, 20, 50, 100, 200, 500];
+    const data = dims.map((d) => { const pts = Array.from({ length: 200 }, () => Array.from({ length: d }, () => r())); const q = Array.from({ length: d }, () => r()); const ds = pts.map((p) => Math.sqrt(p.reduce((a, v, j) => a + (v - q[j]) ** 2, 0))); const mn = Math.min(...ds), mx = Math.max(...ds); return [Math.log10(d), (mx - mn) / mn]; });
+    plot($('#k-curse'), [{ type: 'line', data: data.map(([x, y]) => [x, Math.log10(y)]), color: '#8b8cff' }, { type: 'points', data: data.map(([x, y]) => [x, Math.log10(y)]), color: '#8b8cff' }], { h: 170, xmin: 0, xmax: Math.log10(500), ymin: -1.5, ymax: 3, ticks: 4, xlabel: 'dimensions (log)', ylabel: '(max−min)/min dist, log₁₀', xfmt: (v) => Math.round(Math.pow(10, v)), yfmt: (v) => fmt(Math.pow(10, v), 2) });
+  }
+
+  MR.init('models', (id) => { ({ linear: lDraw, trees: tDraw, ensembles: eDraw, svm: sDraw, knn: () => { kDraw(); curse(); } })[id](); });
+})();
+</script>
+</body>
+</html>

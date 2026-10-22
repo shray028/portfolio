@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ML System Design: Framework, A/B Testing, Offline vs Online Metrics, Drift & Safe Deployment — ML Interview Revision</title>
+  <meta name="description" content="A structured way to answer ML system design interviews: the step-by-step framework with a worked example, an A/B-test sample-size and duration calculator, why offline gains don't always show up online, a PSI drift calculator, and safe rollout patterns.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .fw { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .fstep { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; text-align: left; }
+    .fstep b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .fstep.on { border-color: rgba(139,140,255,.7); background: rgba(139,140,255,.1); }
+    .say { padding: 12px 14px; border-radius: 11px; border-left: 3px solid #8b8cff; background: var(--panel-2); font-size: 13.5px; line-height: 1.65; color: var(--text-2); }
+    .say ul { padding-left: 18px; margin-top: 4px; }
+    .chk { display: grid; gap: 6px; }
+    .chk label { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .chk label b { display: block; }
+    .chk label span.small { color: var(--muted); }
+    .pipe2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font: 12px var(--font-mono); }
+    .pipe2 span { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); }
+    .pipe2 span.on { border-color: rgba(139,140,255,.7); color: var(--text); background: rgba(139,140,255,.1); }
+    @media (max-width: 900px) { .fw { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 12 · SYSTEM DESIGN</span>
+      <h1>ML system <span class="grad">design</span></h1>
+      <p class="desc">Design rounds reward structure more than cleverness: clarify the goal, define metrics and labels, start with a simple baseline, then scale up — and show you know what happens after launch: experiments, monitoring, drift and safe rollouts. Recommender-specific design is in the next module.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Framework walkthrough · A/B sample-size calculator · offline-vs-online investigator · PSI drift calculator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="framework"><span class="n">1</span>The framework</button>
+      <button class="tab" data-tab="abtest"><span class="n">2</span>A/B testing</button>
+      <button class="tab" data-tab="offline"><span class="n">3</span>Offline vs online</button>
+      <button class="tab" data-tab="monitor"><span class="n">4</span>Drift &amp; safe deployment</button>
+    </div></div>
+
+    <!-- ============ FRAMEWORK ============ -->
+    <section class="tab-panel" data-panel="framework">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Eight steps, always in this order <span class="imp">Must-know</span></h3>
+        <p>Spend the first minutes on requirements — interviewers penalise jumping straight to a model. Then: business goal → ML framing and metrics → data and labels → features → baseline then model → offline evaluation → serving architecture and latency → online experiment → monitoring and iteration. Say the trade-offs out loud and propose a simple version 1 before the sophisticated one. Click through the worked example: <em>"Design a system that flags fraudulent transactions at checkout."</em></p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · a worked answer</div>
+      <div class="card card-pad">
+        <div class="fw" id="f-steps"></div>
+        <div class="say mt" id="f-say"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="design:framework"></div>
+    </section>
+
+    <!-- ============ ABTEST ============ -->
+    <section class="tab-panel" data-panel="abtest" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Decide the metric, the effect size and the duration before you start <span class="imp">Must-know</span></h3>
+        <p class="formula">\( n_{\text{per arm}} \approx \frac{(z_{1-\alpha/2}+z_{1-\beta})^2\,[p_1(1-p_1)+p_2(1-p_2)]}{(p_2-p_1)^2} \)</p>
+        <p>Randomise users (not requests) into control and treatment, pick one <strong>primary metric</strong> plus <strong>guardrails</strong> (latency, errors, returns, revenue), compute the sample size for the smallest effect worth detecting (MDE), run for whole weeks to cover weekly cycles, and don't stop early when the p-value dips below 0.05 ("peeking" inflates false positives). Watch for novelty effects, sample-ratio mismatch, and interference between groups (shared inventory, marketplaces, in-store staff).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · how long must the test run?</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">baseline conversion rate</span><div class="range-row"><input type="range" id="a-p" min="0.005" max="0.3" step="0.005" value="0.04"><span class="val" id="a-p-v"></span></div></div>
+          <div class="field"><span class="label-t">minimum detectable effect (relative lift)</span><div class="range-row"><input type="range" id="a-m" min="0.01" max="0.3" step="0.01" value="0.05"><span class="val" id="a-m-v"></span></div></div>
+          <div class="field"><span class="label-t">significance α (two-sided)</span><div class="seg" id="a-a"><button data-v="0.05" class="on">0.05</button><button data-v="0.01">0.01</button><button data-v="0.1">0.10</button></div></div>
+          <div class="field"><span class="label-t">power 1 − β</span><div class="seg" id="a-b"><button data-v="0.8" class="on">0.80</button><button data-v="0.9">0.90</button></div></div>
+          <div class="field"><label for="a-t">eligible users per day (both arms)</label><input class="input mono" id="a-t" type="number" value="40000"></div>
+        </div>
+        <div><div class="grid-2" id="a-out"></div><canvas class="viz mt" id="a-plot"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>days needed vs MDE (current traffic)</span></div><div id="a-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="design:abtest"></div>
+    </section>
+
+    <!-- ============ OFFLINE ============ -->
+    <section class="tab-panel" data-panel="offline" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>"Offline NDCG went up, online conversion went down." <span class="imp">Must-know</span></h3>
+        <p>Offline metrics are computed on logged data generated by the <em>old</em> system, with a proxy label, without latency, and frozen in time. Online metrics measure real behaviour under the new system. They disagree for predictable reasons; investigate from cheapest-to-verify to deepest: experiment validity → serving correctness → system effects → objective mismatch. Tick the checks as you'd talk through them.</p>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Investigation checklist</div>
+      <div class="card card-pad split">
+        <div class="chk" id="o-chk"></div>
+        <div><div id="o-prog"></div><div class="tbl-wrap mt"><table class="tbl"><thead><tr><th>Offline metric</th><th>What it misses</th><th>Online counterpart</th></tr></thead><tbody>
+          <tr><td>AUC / log-loss</td><td>Position, threshold, calibration effects</td><td>CTR, conversion</td></tr>
+          <tr><td>NDCG@K / Recall@K</td><td>Only labels the old system exposed; no diversity or freshness</td><td>Conversion, revenue per session</td></tr>
+          <tr><td>Precision on clicks</td><td>Clicks ≠ purchases ≠ kept purchases</td><td>Orders net of returns</td></tr>
+          <tr><td>Any offline score</td><td>Latency, failures, stale features</td><td>p95 latency, error rate, bounce</td></tr>
+        </tbody></table></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="design:offline"></div>
+    </section>
+
+    <!-- ============ MONITOR ============ -->
+    <section class="tab-panel" data-panel="monitor" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Data drift, concept drift, and bugs that look like drift <span class="imp">Must-know</span></h3>
+        <p><strong>Data (covariate) drift</strong>: the input distribution changes (new users, new products, a marketing campaign). <strong>Concept drift</strong>: the relationship between inputs and the label changes (fraudsters adapt, a pandemic changes buying). <strong>Label/prior shift</strong>: the base rate changes. But first rule out <strong>pipeline bugs</strong> — a feature silently null, a unit change, a schema change — which cause most "drift". Monitor three layers: system health (latency, errors), data health (schema, nulls, feature distributions — PSI, KS), and model/business outcomes (prediction distribution, delayed-label performance, KPIs). The Population Stability Index compares binned distributions:</p>
+        <p class="formula">\( \text{PSI}=\sum_{b}\big(a_b-e_b\big)\ln\frac{a_b}{e_b},\qquad <0.1 \text{ stable},\ 0.1\text{–}0.25 \text{ moderate},\ >0.25 \text{ significant} \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · PSI of a feature this week vs training</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">shift in mean (σ units)</span><div class="range-row"><input type="range" id="p-mu" min="-1.5" max="1.5" step="0.05" value="0.3"><span class="val" id="p-mu-v"></span></div></div>
+          <div class="field"><span class="label-t">change in spread (×)</span><div class="range-row"><input type="range" id="p-sd" min="0.5" max="2" step="0.05" value="1"><span class="val" id="p-sd-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="p-bug"> pipeline bug: 30% of values arrive as 0</label>
+          <div class="grid-2" id="p-out"></div>
+          <div id="p-note"></div>
+        </div>
+        <div><canvas class="viz" id="p-plot"></canvas><div class="legend"><span><i style="background:#646d82"></i>training distribution (expected)</span><span><i style="background:#8b8cff"></i>production this week (actual)</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="layers"></i>Shipping a new model safely</div>
+      <div class="card card-pad">
+        <div class="pipe2" id="d-pipe"></div>
+        <div class="say mt" id="d-say"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="design:monitor"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, plot } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Framework ===== */
+  const F = [
+    ['1. Clarify', 'goal, scope, constraints', '<b>Ask:</b> what is the business goal (reduce fraud losses without hurting good customers)? Card or UPI? Real-time decision at checkout? Latency budget (say 100 ms p99)? Scale (transactions/second)? What actions exist — approve, decline, step-up verification? Cost of a missed fraud vs a blocked good customer?'],
+    ['2. Frame & metrics', 'ML task + offline/online', 'Binary classification producing a risk score, with thresholds mapping to approve / step-up / decline. <b>Offline:</b> PR-AUC, recall at a fixed false-positive rate, expected cost. <b>Online:</b> fraud loss rate, approval rate, step-up rate, customer complaints (guardrails), latency.'],
+    ['3. Data & labels', 'sources, label delay, leakage', 'Transactions, user/device/merchant history, chargebacks. Labels arrive late (chargebacks take weeks) — handle delayed labels and keep a recent unlabelled window out of training. Fraud is ~0.1%: imbalance. Beware feedback loops: declined transactions never get labels (selection bias) — keep a small random holdout or use proxy labels.'],
+    ['4. Features', 'point-in-time correct', 'Velocity features (transactions in last 1 h/24 h per card, device, IP), amount vs user\'s typical amount, new device/location, merchant risk, time of day. Computed point-in-time from a feature store so training matches serving; streaming aggregates for real-time features.'],
+    ['5. Model', 'baseline → stronger', 'Start with rules + logistic regression (explainable baseline). Then gradient-boosted trees on tabular features (strong, fast, handles missing values). Consider graph features (shared devices/cards) or sequence models later. Class weights or downsampling + recalibration.'],
+    ['6. Offline evaluation', 'time-based split', 'Train on months 1–6, validate on month 7, test on month 8 — never random splits. Report PR-AUC, recall at the FPR the business accepts, cost curve, slices (new users, merchants, regions), calibration.'],
+    ['7. Serving', 'latency & reliability', 'Synchronous scoring service at checkout: fetch online features (Redis), score in a few ms, apply thresholds and rules, return decision. Timeouts with a safe fallback (rules-only), model versioning, shadow mode before go-live, and logging of features + score for future training.'],
+    ['8. Launch & monitor', 'experiment, drift, retrain', 'A/B or staged rollout by traffic share; monitor fraud loss, approval rate, latency; feature drift (PSI), score distribution, delayed-label performance; retrain on a schedule or on drift; human review queue feeding new labels; adversaries adapt, so expect concept drift.'],
+  ];
+  let fi = 0;
+  function fDraw() {
+    $('#f-steps').innerHTML = F.map((s, i) => '<button class="fstep ' + (i === fi ? 'on' : '') + '" data-i="' + i + '"><b>' + s[0] + '</b>' + esc(s[1]) + '</button>').join('');
+    $('#f-say').innerHTML = F[fi][2];
+  }
+  $('#f-steps').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; fi = +b.dataset.i; fDraw(); });
+
+  /* ===== A/B ===== */
+  const zq = (p) => { // inverse normal CDF (Acklam approximation)
+    const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00], b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01], c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00], d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+    const pl = 0.02425; let q, r;
+    if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+    if (p > 1 - pl) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+    q = p - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+  };
+  let alpha = 0.05, power = 0.8;
+  const nper = (p1, mde) => { const p2 = p1 * (1 + mde); const z = zq(1 - alpha / 2) + zq(power); return z * z * (p1 * (1 - p1) + p2 * (1 - p2)) / ((p2 - p1) ** 2); };
+  function aDraw() {
+    const p = +$('#a-p').value, m = +$('#a-m').value, T = Math.max(1, +$('#a-t').value);
+    $('#a-p-v').textContent = (p * 100).toFixed(1) + '%'; $('#a-m-v').textContent = '+' + Math.round(m * 100) + '%';
+    const n = nper(p, m); const days = 2 * n / T;
+    $('#a-out').innerHTML = '<div class="stat"><div class="v" style="font-size:18px">' + Math.round(n).toLocaleString() + '</div><div class="k">users per arm</div></div><div class="stat"><div class="v" style="font-size:18px">' + fmt(days, 1) + ' days</div><div class="k">at current traffic → run ' + Math.max(7, Math.ceil(days / 7) * 7) + ' days (whole weeks)</div></div><div class="stat"><div class="v" style="font-size:18px">' + (p * 100).toFixed(2) + '% → ' + (p * (1 + m) * 100).toFixed(2) + '%</div><div class="k">absolute change to detect</div></div><div class="stat"><div class="v" style="font-size:18px">z = ' + fmt(zq(1 - alpha / 2), 2) + ' + ' + fmt(zq(power), 2) + '</div><div class="k">z(1−α/2) + z(power)</div></div>';
+    const ms = Array.from({ length: 30 }, (_, i) => 0.01 + i * 0.01);
+    plot($('#a-plot'), [{ type: 'line', data: ms.map((x) => [x * 100, Math.min(120, 2 * nper(p, x) / T)]), color: '#8b8cff' }, { type: 'points', data: [[m * 100, Math.min(120, days), '#fbbf24']], r: 5 }, { type: 'hline', data: 28, color: '#646d82', dash: [4, 4], width: 1 }], { h: 200, xmin: 1, xmax: 30, ymin: 0, ymax: 120, ticks: 4, xlabel: 'MDE (% relative lift)', ylabel: 'days', xfmt: (v) => Math.round(v) + '%', yfmt: (v) => Math.round(v) });
+    $('#a-note').innerHTML = days > 28 ? '<div class="err-box">More than four weeks. Options: accept a larger MDE, use a more sensitive metric (e.g. add-to-cart instead of purchase), variance reduction (CUPED), or more traffic per arm.</div>' : '<div class="ok-box">Feasible. Halving the MDE roughly quadruples the sample size — small effects on rare events are expensive to detect.</div>';
+  }
+  ['a-p', 'a-m', 'a-t'].forEach((id) => $('#' + id).addEventListener('input', aDraw));
+  segc('a-a', (v) => { alpha = +v; aDraw(); });
+  segc('a-b', (v) => { power = +v; aDraw(); });
+
+  /* ===== Offline vs online ===== */
+  const CHK = [
+    ['Experiment validity', 'Sample-ratio mismatch? Correct randomisation unit (users, not requests)? Enough duration and power? Novelty effects? Bucketing bug or bot traffic?'],
+    ['Logging & metric definitions', 'Is conversion computed the same way in both arms? Missing events, attribution windows, dashboards on different time zones.'],
+    ['Training/serving skew', 'Do online features match offline ones (same code, same freshness)? Missing features at serving defaulting to 0? Different preprocessing or model version deployed?'],
+    ['Leakage in the offline eval', 'Did a feature use post-impression information (e.g. clicked-today counts) or random rather than time-based splits? Inflated offline gains then vanish online.'],
+    ['Stale or unavailable inventory', 'Does the new ranker surface items that are out of stock, discontinued or not deliverable to the user? Offline data didn\'t penalise them.'],
+    ['Latency and failures', 'Is the new model slower (p95), timing out to a fallback, or erroring for some segments? Every 100 ms can cost conversion.'],
+    ['Objective mismatch', 'Trained on clicks but the business metric is purchases (or purchases net of returns)? Clickbait items win NDCG on clicks and lose sales.'],
+    ['Selection & position bias', 'Offline labels only exist for items the old system showed, in the positions it showed them. The new ranker\'s novel items have no labels — counterfactual evaluation (IPS) or interleaving helps.'],
+    ['Diversity & feedback loops', 'Higher NDCG by concentrating on popular items can reduce discovery and session depth; check coverage, diversity and long-term metrics.'],
+    ['Segment effects', 'Average up but a big segment down (new users, mobile, a region)? Slice the results.'],
+  ];
+  const chk = new Set();
+  function oDraw() {
+    $('#o-chk').innerHTML = CHK.map(([t, d], i) => '<label><input type="checkbox" data-i="' + i + '" ' + (chk.has(i) ? 'checked' : '') + '><span><b>' + (i + 1) + '. ' + t + '</b><span class="small">' + d + '</span></span></label>').join('');
+    $('#o-prog').innerHTML = '<div class="' + (chk.size === CHK.length ? 'ok-box' : 'callout blue') + '">' + (chk.size === CHK.length ? '' : MR.icon('info')) + '<div>' + chk.size + ' / ' + CHK.length + ' covered. A strong answer walks through validity → correctness → system effects → objective, and ends with a fix: align the training label with the business metric, add guardrail metrics, and use interleaving or counterfactual evaluation before the next A/B test.</div></div>';
+  }
+  $('#o-chk').addEventListener('change', (e) => { const i = +e.target.dataset.i; e.target.checked ? chk.add(i) : chk.delete(i); oDraw(); });
+
+  /* ===== PSI ===== */
+  const Phi = (z) => 0.5 * (1 + (function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); })(z / Math.SQRT2));
+  function pDraw() {
+    const mu = +$('#p-mu').value, sd = +$('#p-sd').value, bug = $('#p-bug').checked; $('#p-mu-v').textContent = (mu >= 0 ? '+' : '') + mu.toFixed(2); $('#p-sd-v').textContent = sd.toFixed(2) + '×';
+    const edges = [-Infinity, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, Infinity];
+    const e = [], a = [];
+    for (let i = 0; i < 10; i++) { e.push(Phi(edges[i + 1]) - Phi(edges[i])); a.push(Phi((edges[i + 1] - mu) / sd) - Phi((edges[i] - mu) / sd)); }
+    if (bug) { for (let i = 0; i < 10; i++) a[i] *= 0.7; a[5] += 0.3; }
+    let psi = 0; for (let i = 0; i < 10; i++) psi += (a[i] - e[i]) * Math.log(Math.max(1e-6, a[i]) / Math.max(1e-6, e[i]));
+    const L = [];
+    for (let i = 0; i < 10; i++) { const x = i - 4.5; L.push({ type: 'area', data: [[x - 0.42, e[i]], [x - 0.02, e[i]]], color: '#646d82', alpha: 0.8 }, { type: 'area', data: [[x + 0.02, a[i]], [x + 0.42, a[i]]], color: '#8b8cff', alpha: 0.85 }); }
+    plot($('#p-plot'), L, { h: 250, xmin: -5, xmax: 5, ymin: 0, ymax: Math.max(0.45, ...a) * 1.05, ticks: 4, xfmt: () => '', xlabel: 'bins (σ from training mean)' });
+    const lvl = psi < 0.1 ? 'stable' : psi < 0.25 ? 'moderate drift' : 'significant drift';
+    $('#p-out').innerHTML = '<div class="stat"><div class="v" style="font-size:19px">' + fmt(psi, 3) + '</div><div class="k">PSI</div></div><div class="stat"><div class="v" style="font-size:17px">' + lvl + '</div><div class="k">rule of thumb</div></div>';
+    $('#p-note').innerHTML = bug ? '<div class="err-box">A spike in one bin with everything else scaled down is the signature of a pipeline bug (defaults, nulls → 0), not real-world drift. Check the upstream job and schema before retraining anything.</div>' : psi >= 0.25 ? '<div class="err-box">Significant shift. Investigate the cause (new segment? campaign? upstream change?), check model performance on recent labels, and retrain or recalibrate if performance dropped.</div>' : psi >= 0.1 ? '<div class="callout amber">' + MR.icon('alert') + '<div>Moderate: watch the trend and check performance on delayed labels; drift alone doesn\'t prove the model got worse.</div></div>' : '<div class="ok-box">Stable distribution.</div>';
+  }
+  ['p-mu', 'p-sd', 'p-bug'].forEach((id) => $('#' + id).addEventListener('input', pDraw));
+
+  const DEP = [
+    ['Offline gate', 'New model must beat the current one on a fixed evaluation set and on key slices, with calibration and latency checks, before it can ship. Model, features, data snapshot and code are versioned together.'],
+    ['Shadow', 'The new model scores live traffic in parallel but its decisions are discarded. Compare predictions, latency and error rates with production at zero user risk; catches training/serving skew.'],
+    ['Canary', 'Route 1–5% of traffic to the new model with automated guardrails (errors, latency, business KPIs). Roll back automatically if a guardrail trips.'],
+    ['A/B test', 'Ramp to a proper experiment split, run for the pre-computed duration, decide on the primary metric with guardrails.'],
+    ['Full rollout', 'Promote, keep the previous model warm for instant rollback, and keep a small holdout to measure long-term impact.'],
+    ['Monitor & retrain', 'Feature freshness, drift, prediction distribution, delayed-label performance, latency/error SLOs, cost; scheduled or trigger-based retraining through the same gates.'],
+  ];
+  let dI = 0;
+  function dDraw() { $('#d-pipe').innerHTML = DEP.map((d, i) => '<span class="' + (i === dI ? 'on' : '') + '" data-i="' + i + '" style="cursor:pointer">' + d[0] + '</span>' + (i < DEP.length - 1 ? '→' : '')).join(' '); $('#d-say').innerHTML = '<b>' + DEP[dI][0] + ':</b> ' + DEP[dI][1]; }
+  $('#d-pipe').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; dI = +b.dataset.i; dDraw(); });
+
+  MR.init('design', (id) => { ({ framework: fDraw, abtest: aDraw, offline: oDraw, monitor: () => { pDraw(); dDraw(); } })[id](); });
+})();
+</script>
+</body>
+</html>

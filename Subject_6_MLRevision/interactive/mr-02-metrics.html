@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Precision, Recall, ROC vs PR, Imbalance & Calibration — ML Interview Revision</title>
+  <meta name="description" content="Move a decision threshold and watch the confusion matrix, precision, recall and F1 change; see why ROC-AUC hides class imbalance while PR-AUC doesn't; compare MSE and MAE under outliers; and read a calibration curve — with interview answers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .cm { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 6px; font: 12.5px var(--font-mono); }
+    .cm .h { color: var(--dim); font-size: 11px; text-align: center; align-self: end; }
+    .cm .rh { color: var(--dim); font-size: 11px; align-self: center; }
+    .cm .cell { padding: 12px 8px; border-radius: 10px; text-align: center; border: 1px solid var(--line); }
+    .cm .cell b { display: block; font-size: 20px; color: var(--text); }
+    .cm .tp { background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.45); }
+    .cm .tn { background: rgba(95,179,249,.1); border-color: rgba(95,179,249,.4); }
+    .cm .fp { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.45); }
+    .cm .fn { background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.45); }
+    .mets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .met { padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); }
+    .met .v { font: 800 18px var(--font-mono); }
+    .met .k { font-size: 11.5px; color: var(--muted); }
+    .met .f { font: 10.5px var(--font-mono); color: var(--dim); margin-top: 2px; }
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    @media (max-width: 760px) { .mets { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 02 · EVALUATION</span>
+      <h1>Evaluation <span class="grad">metrics</span></h1>
+      <p class="desc">Every classifier outputs a score; a <strong>threshold</strong> turns it into a decision. Precision, recall, F1, ROC and PR curves are all just different views of where you put that threshold — and of how many positives exist in the first place. Interviewers want you to pick the metric from the <em>cost of each error</em>, not from habit.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Threshold explorer · ROC vs PR under imbalance · outlier-robust metrics · reliability diagram</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="confusion"><span class="n">1</span>Precision &amp; recall</button>
+      <button class="tab" data-tab="curves"><span class="n">2</span>ROC vs PR</button>
+      <button class="tab" data-tab="imbalance"><span class="n">3</span>Class imbalance</button>
+      <button class="tab" data-tab="regression"><span class="n">4</span>Regression metrics</button>
+      <button class="tab" data-tab="calibration"><span class="n">5</span>Calibration</button>
+    </div></div>
+
+    <!-- ============ CONFUSION ============ -->
+    <section class="tab-panel" data-panel="confusion">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Precision: "when I say positive, am I right?" Recall: "of all positives, how many did I catch?" <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \text{Precision}=\frac{TP}{TP+FP} \qquad \text{Recall (TPR)}=\frac{TP}{TP+FN} \qquad F_1=\frac{2PR}{P+R} \qquad \text{FPR}=\frac{FP}{FP+TN} \)</p>
+        <p>Raising the threshold makes the model more conservative: fewer false positives (precision ↑) but more missed positives (recall ↓). Choose by cost: missing cancer or fraud is expensive → favour recall; flagging a legitimate email as spam or blocking a good customer is expensive → favour precision. F1 is the harmonic mean, so it is only high when <em>both</em> are.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · move the threshold</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">decision threshold</span><div class="range-row"><input type="range" id="c-t" min="0" max="1" step="0.01" value="0.5"><span class="val" id="c-t-v"></span></div></div>
+          <div class="field"><span class="label-t">class separation (model quality)</span><div class="range-row"><input type="range" id="c-d" min="0.2" max="3.5" step="0.1" value="1.8"><span class="val" id="c-d-v"></span></div></div>
+          <div class="field"><span class="label-t">positive rate (prevalence)</span><div class="range-row"><input type="range" id="c-p" min="0.01" max="0.5" step="0.01" value="0.2"><span class="val" id="c-p-v"></span></div></div>
+          <div class="presets"><span class="small muted">Use case:</span><button class="btn btn-sm" data-pre="screen">cancer screening</button><button class="btn btn-sm" data-pre="spam">spam filter</button><button class="btn btn-sm" data-pre="f1">max F1</button></div>
+          <div id="c-pre-note"></div>
+        </div>
+        <div>
+          <canvas class="viz" id="c-hist"></canvas>
+          <div class="legend"><span><i style="background:#5fb3f9"></i>negatives</span><span><i style="background:#f472b6"></i>positives</span><span><i style="background:#e5e7eb"></i>threshold</span></div>
+        </div>
+      </div>
+      <div class="card card-pad split mt">
+        <div>
+          <div class="label" style="margin-bottom:8px">confusion matrix · 1,000 cases</div>
+          <div class="cm" id="c-cm"></div>
+        </div>
+        <div class="mets" id="c-mets"></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="threshold.py">
+from sklearn.metrics import precision_recall_curve, confusion_matrix, classification_report
+proba = model.predict_proba(X_val)[:, 1]
+prec, rec, thr = precision_recall_curve(y_val, proba)
+# pick the threshold from the business constraint, e.g. "recall >= 0.95"
+t = thr[(rec[:-1] >= 0.95).nonzero()[0][-1]]
+y_hat = (proba >= t).astype(int)
+print(confusion_matrix(y_val, y_hat)); print(classification_report(y_val, y_hat))
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="metrics:confusion"></div>
+    </section>
+
+    <!-- ============ CURVES ============ -->
+    <section class="tab-panel" data-panel="curves" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>ROC-AUC barely notices imbalance; PR-AUC does <span class="imp">Must-know</span></h3>
+        <p>The <strong>ROC curve</strong> plots TPR vs FPR over all thresholds; AUC is the probability that a random positive scores above a random negative (0.5 = random, 1 = perfect). Both axes are rates <em>within</em> a class, so ROC is unchanged by prevalence. The <strong>PR curve</strong> plots precision vs recall; precision depends on how many negatives there are, so when positives are rare (fraud, ads clicks, disease) PR-AUC drops sharply while ROC-AUC still looks great. Baseline PR-AUC = prevalence, not 0.5.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · same model, rarer positives</div>
+      <div class="card card-pad">
+        <div class="grid-2">
+          <div class="field"><span class="label-t">positive rate (prevalence)</span><div class="range-row"><input type="range" id="r-p" min="0.005" max="0.5" step="0.005" value="0.05"><span class="val" id="r-p-v"></span></div></div>
+          <div class="field"><span class="label-t">class separation</span><div class="range-row"><input type="range" id="r-d" min="0.3" max="3.5" step="0.1" value="1.8"><span class="val" id="r-d-v"></span></div></div>
+        </div>
+        <div class="grid-2 mt">
+          <div><div class="label" style="margin-bottom:6px">ROC curve · AUC <b id="r-auc"></b></div><canvas class="viz" id="r-roc"></canvas></div>
+          <div><div class="label" style="margin-bottom:6px">Precision–Recall · AP <b id="r-ap"></b></div><canvas class="viz" id="r-pr"></canvas></div>
+        </div>
+        <div id="r-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="metrics:curves"></div>
+    </section>
+
+    <!-- ============ IMBALANCE ============ -->
+    <section class="tab-panel" data-panel="imbalance" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Accuracy lies when one class is rare <span class="imp">Must-know</span></h3>
+        <p>With 1% fraud, a model that says "not fraud" for everyone is 99% accurate and useless. Fix it at three levels: <strong>metrics</strong> (PR-AUC, recall at a fixed precision, F1, cost-weighted metrics), <strong>training</strong> (class weights, focal loss, under-/over-sampling, SMOTE — inside CV folds only), and <strong>decision</strong> (tune the threshold on validation data). Keep validation and test sets at the real-world ratio.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the accuracy paradox</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">fraud rate</span><div class="range-row"><input type="range" id="i-p" min="0.001" max="0.2" step="0.001" value="0.01"><span class="val" id="i-p-v"></span></div></div>
+          <div class="field"><span class="label-t">a real model's recall / precision</span><div class="grid-2"><input class="input mono" id="i-rec" type="number" step="0.05" value="0.8"><input class="input mono" id="i-prec" type="number" step="0.05" value="0.3"></div></div>
+        </div>
+        <div><div class="tbl-wrap"><table class="tbl" id="i-tbl"></table></div><div id="i-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="layers"></i>The toolbox</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Technique</th><th>What it does</th><th>Watch out for</th></tr></thead>
+        <tbody>
+          <tr><td>Class weights</td><td><code>class_weight="balanced"</code> / <code>pos_weight</code> scales the loss of rare-class errors</td><td>Shifts probabilities — recalibrate if you need real probabilities</td></tr>
+          <tr><td>Threshold tuning</td><td>Keep the model, move the cut-off to hit a precision/recall target</td><td>Tune on validation, never on test</td></tr>
+          <tr><td>Undersampling</td><td>Drop majority examples</td><td>Throws away information; fine with huge data</td></tr>
+          <tr><td>Oversampling / SMOTE</td><td>Duplicate or interpolate minority examples</td><td>Do it inside each training fold only — never before the split</td></tr>
+          <tr><td>Focal loss</td><td>Down-weights easy examples so training focuses on hard ones</td><td>Extra hyperparameter γ</td></tr>
+          <tr><td>Anomaly detection</td><td>Model "normal" when positives are extremely rare or unlabelled</td><td>Harder to evaluate</td></tr>
+        </tbody>
+      </table></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="metrics:imbalance"></div>
+    </section>
+
+    <!-- ============ REGRESSION ============ -->
+    <section class="tab-panel" data-panel="regression" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>MSE punishes big errors, MAE treats every unit the same</h3>
+        <p class="formula">\( \text{MSE}=\tfrac1n\sum(y-\hat y)^2 \quad \text{RMSE}=\sqrt{\text{MSE}} \quad \text{MAE}=\tfrac1n\sum|y-\hat y| \quad R^2 = 1-\frac{\sum(y-\hat y)^2}{\sum(y-\bar y)^2} \)</p>
+        <p>Squaring makes MSE/RMSE dominated by a few large errors and outliers (and minimising MSE predicts the <em>mean</em>); MAE is robust and minimising it predicts the <em>median</em>. RMSE is in the target's units. R² is the share of variance explained versus predicting the mean — it can be negative. MAPE breaks near zero targets. Drag the outlier.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one outlier vs two loss functions</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">outlier y-value (at x = 9)</span><div class="range-row"><input type="range" id="g-o" min="0" max="40" step="0.5" value="9"><span class="val" id="g-o-v"></span></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="g-tbl"></table></div>
+        </div>
+        <div><canvas class="viz" id="g-plot"></canvas><div class="legend"><span><i style="background:#5fb3f9"></i>data</span><span><i style="background:#f87171"></i>fit minimising MSE (OLS)</span><span><i style="background:#4ade80"></i>fit minimising MAE</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="metrics:regression"></div>
+    </section>
+
+    <!-- ============ CALIBRATION ============ -->
+    <section class="tab-panel" data-panel="calibration" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>A calibrated 0.8 means "right 80% of the time"</h3>
+        <p>Ranking metrics (AUC) only care about order. When the probability itself drives a decision — expected revenue = p(click) × bid in ads, risk pricing, combining models — it must be <strong>calibrated</strong>. Check with a reliability diagram (predicted vs observed rate per bin), the Brier score or log-loss, and fix with <strong>Platt scaling</strong> (a logistic fit on the scores) or <strong>isotonic regression</strong> on a held-out set. Boosted trees and over-trained nets tend to be overconfident; class re-weighting or downsampling shifts probabilities and needs correcting.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · reliability diagram</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">model</span><div class="seg" id="k-m"><button data-v="over" class="on">overconfident</button><button data-v="under">underconfident</button><button data-v="ds">trained on downsampled negatives</button><button data-v="good">calibrated</button></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="k-fix"> apply isotonic / Platt calibration</label>
+          <div class="grid-2" id="k-stats"></div>
+          <div id="k-note"></div>
+        </div>
+        <div><canvas class="viz" id="k-plot"></canvas><div class="legend"><span><i style="background:#e5e7eb"></i>perfect calibration</span><span><i style="background:#8b8cff"></i>model</span></div></div>
+      </div>
+      <textarea class="py" data-title="calibration.py">
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.metrics import brier_score_loss, log_loss
+cal = CalibratedClassifierCV(base_model, method="isotonic", cv=5).fit(X_train, y_train)  # or "sigmoid" (Platt)
+p = cal.predict_proba(X_test)[:, 1]
+frac_pos, mean_pred = calibration_curve(y_test, p, n_bins=10)
+print(brier_score_loss(y_test, p), log_loss(y_test, p))
+# downsampled negatives at rate w? correct: p_true = p / (p + (1 - p) / w)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="metrics:calibration"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, fmt } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const erf = (x) => { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; };
+  const Phi = (z) => 0.5 * (1 + erf(z / Math.SQRT2));
+  const pdf = (z) => Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI);
+  // scores in [0,1]: negatives ~ N(0.5 - d*s/2, s), positives ~ N(0.5 + d*s/2, s)
+  const S = 0.14;
+  const model = (d) => ({ m0: 0.5 - d * S / 2, m1: 0.5 + d * S / 2 });
+  const rates = (t, d) => { const { m0, m1 } = model(d); return { tpr: 1 - Phi((t - m1) / S), fpr: 1 - Phi((t - m0) / S) }; };
+
+  /* ===== Confusion ===== */
+  function cDraw() {
+    const t = +$('#c-t').value, d = +$('#c-d').value, p = +$('#c-p').value;
+    $('#c-t-v').textContent = t.toFixed(2); $('#c-d-v').textContent = d.toFixed(1); $('#c-p-v').textContent = (p * 100).toFixed(0) + '%';
+    const { m0, m1 } = model(d); const xs = Array.from({ length: 201 }, (_, i) => i / 200);
+    const neg = xs.map((x) => [x, (1 - p) * pdf((x - m0) / S) / S]), pos = xs.map((x) => [x, p * pdf((x - m1) / S) / S]);
+    plot($('#c-hist'), [
+      { type: 'area', data: neg, color: '#5fb3f9', alpha: 0.28 }, { type: 'line', data: neg, color: '#5fb3f9' },
+      { type: 'area', data: pos, color: '#f472b6', alpha: 0.35 }, { type: 'line', data: pos, color: '#f472b6' },
+      { type: 'vline', data: t, color: '#e5e7eb', width: 2 },
+    ], { h: 220, xmin: 0, xmax: 1, ymin: 0, ticks: 4, xlabel: 'model score', yfmt: () => '' });
+    const { tpr, fpr } = rates(t, d); const N = 1000, P = Math.round(N * p), Ng = N - P;
+    const TP = Math.round(P * tpr), FN = P - TP, FP = Math.round(Ng * fpr), TN = Ng - FP;
+    $('#c-cm').innerHTML = '<span></span><span class="h">predicted +</span><span class="h">predicted −</span>' +
+      '<span class="rh">actual +</span><div class="cell tp"><b>' + TP + '</b>TP</div><div class="cell fn"><b>' + FN + '</b>FN · missed</div>' +
+      '<span class="rh">actual −</span><div class="cell fp"><b>' + FP + '</b>FP · false alarm</div><div class="cell tn"><b>' + TN + '</b>TN</div>';
+    const prec = TP + FP ? TP / (TP + FP) : 0, rec = P ? TP / P : 0, f1 = prec + rec ? 2 * prec * rec / (prec + rec) : 0, acc = (TP + TN) / N, spec = Ng ? TN / Ng : 0;
+    const M = [['precision', prec, 'TP/(TP+FP)'], ['recall · TPR', rec, 'TP/(TP+FN)'], ['F1', f1, '2PR/(P+R)'], ['accuracy', acc, '(TP+TN)/N'], ['specificity', spec, 'TN/(TN+FP)'], ['FPR', fpr, 'FP/(FP+TN)']];
+    $('#c-mets').innerHTML = M.map(([k, v, fx]) => '<div class="met"><div class="v">' + fmt(v, 3) + '</div><div class="k">' + k + '</div><div class="f">' + fx + '</div></div>').join('');
+  }
+  ['c-t', 'c-d', 'c-p'].forEach((id) => $('#' + id).addEventListener('input', () => { $('#c-pre-note').innerHTML = ''; cDraw(); }));
+  $$('[data-pre]').forEach((b) => b.addEventListener('click', () => {
+    const d = +$('#c-d').value, p = +$('#c-p').value;
+    let best = 0.5, note = '';
+    if (b.dataset.pre === 'screen') { for (let t = 1; t >= 0; t -= 0.005) { if (rates(t, d).tpr >= 0.95) { best = t; break; } } note = 'Screening: a missed cancer (FN) costs far more than a follow-up test (FP). Lowest threshold that still gives recall ≥ 95% — precision drops, and that is accepted.'; }
+    else if (b.dataset.pre === 'spam') { for (let t = 0; t <= 1; t += 0.005) { const r = rates(t, d); const pr = r.tpr * p / (r.tpr * p + r.fpr * (1 - p) || 1); if (pr >= 0.98) { best = t; break; } } note = 'Spam: losing a real email (FP) is worse than letting some spam through. Lowest threshold that gives precision ≥ 98%.'; }
+    else { let bf = -1; for (let t = 0; t <= 1; t += 0.005) { const r = rates(t, d); const pr = r.tpr * p / (r.tpr * p + r.fpr * (1 - p) || 1); const f = 2 * pr * r.tpr / (pr + r.tpr || 1); if (f > bf) { bf = f; best = t; } } note = 'Threshold that maximises F1 — a sensible default when both errors cost about the same. It is rarely 0.5 on imbalanced data.'; }
+    $('#c-t').value = best.toFixed(2); cDraw(); $('#c-pre-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>' + note + '</div></div>';
+  }));
+
+  /* ===== Curves ===== */
+  function rDraw() {
+    const p = +$('#r-p').value, d = +$('#r-d').value; $('#r-p-v').textContent = (p * 100).toFixed(1) + '%'; $('#r-d-v').textContent = d.toFixed(1);
+    const ts = Array.from({ length: 401 }, (_, i) => 1.4 - i * (1.8 / 400));
+    const roc = ts.map((t) => { const r = rates(t, d); return [r.fpr, r.tpr]; });
+    let auc = 0; for (let i = 1; i < roc.length; i++) auc += (roc[i][0] - roc[i - 1][0]) * (roc[i][1] + roc[i - 1][1]) / 2;
+    const pr = ts.map((t) => { const r = rates(t, d); const prec = r.tpr * p + r.fpr * (1 - p) > 1e-12 ? r.tpr * p / (r.tpr * p + r.fpr * (1 - p)) : 1; return [r.tpr, prec]; });
+    let ap = 0; for (let i = 1; i < pr.length; i++) ap += (pr[i][0] - pr[i - 1][0]) * pr[i][1];
+    plot($('#r-roc'), [{ type: 'line', data: [[0, 0], [1, 1]], color: '#646d82', dash: [4, 4], width: 1 }, { type: 'area', data: roc, color: '#8b8cff', alpha: 0.15 }, { type: 'line', data: roc, color: '#8b8cff', width: 2.5 }], { h: 250, xmin: 0, xmax: 1, ymin: 0, ymax: 1, ticks: 4, xlabel: 'FPR', ylabel: 'TPR' });
+    plot($('#r-pr'), [{ type: 'hline', data: p, color: '#646d82', dash: [4, 4], width: 1 }, { type: 'area', data: pr, color: '#f472b6', alpha: 0.15 }, { type: 'line', data: pr, color: '#f472b6', width: 2.5 }], { h: 250, xmin: 0, xmax: 1, ymin: 0, ymax: 1, ticks: 4, xlabel: 'recall', ylabel: 'precision' });
+    $('#r-auc').textContent = fmt(auc, 3); $('#r-ap').textContent = fmt(ap, 3);
+    $('#r-note').innerHTML = p <= 0.05 ? '<div class="err-box">At ' + (p * 100).toFixed(1) + '% positives ROC-AUC is still ' + fmt(auc, 2) + ', but average precision is ' + fmt(ap, 2) + ': at useful recall, most alerts are false. Report PR-AUC (dashed line = random baseline = prevalence).</div>' : '<div class="ok-box">With balanced-ish classes both curves tell a similar story. Lower the prevalence and watch only the PR curve move.</div>';
+  }
+  ['r-p', 'r-d'].forEach((id) => $('#' + id).addEventListener('input', rDraw));
+
+  /* ===== Imbalance ===== */
+  function iDraw() {
+    const p = +$('#i-p').value, rec = Math.min(1, Math.max(0, +$('#i-rec').value)), prec = Math.min(1, Math.max(0.001, +$('#i-prec').value));
+    $('#i-p-v').textContent = (p * 100).toFixed(1) + '%';
+    const N = 100000, P = N * p, TP = rec * P, FP = TP / prec - TP, TN = N - P - FP;
+    const accReal = (TP + TN) / N, f1 = 2 * prec * rec / (prec + rec);
+    $('#i-tbl').innerHTML = '<thead><tr><th>model</th><th>accuracy</th><th>recall</th><th>precision</th><th>F1</th></tr></thead><tbody>' +
+      '<tr><td>always "not fraud"</td><td><b>' + fmt((1 - p) * 100, 2) + '%</b></td><td>0</td><td>—</td><td>0</td></tr>' +
+      '<tr><td>your model</td><td>' + (TN < 0 ? 'invalid combo' : fmt(accReal * 100, 2) + '%') + '</td><td>' + fmt(rec, 2) + '</td><td>' + fmt(prec, 2) + '</td><td>' + fmt(f1, 3) + '</td></tr></tbody>';
+    $('#i-note').innerHTML = '<div class="callout amber">' + MR.icon('alert') + '<div>The do-nothing model wins on accuracy' + (TN >= 0 && accReal < 1 - p ? '' : ' or ties') + ' while catching zero fraud. Your model catches ' + Math.round(TP) + ' of ' + Math.round(P) + ' fraud cases per 100k transactions at the cost of ' + Math.round(FP) + ' false alarms — that trade-off is what to discuss.</div></div>';
+  }
+  ['i-p', 'i-rec', 'i-prec'].forEach((id) => $('#' + id).addEventListener('input', iDraw));
+
+  /* ===== Regression ===== */
+  const GX = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], GY = [1.2, 1.9, 3.1, 3.8, 5.2, 5.8, 7.1, 8.2, 8.8];
+  function ols(x, y) { const n = x.length, mx = x.reduce((a, b) => a + b) / n, my = y.reduce((a, b) => a + b) / n; let sxy = 0, sxx = 0; x.forEach((v, i) => { sxy += (v - mx) * (y[i] - my); sxx += (v - mx) ** 2; }); const b = sxy / sxx; return [my - b * mx, b]; }
+  function lad(x, y) { let [a, b] = ols(x, y); for (let it = 0; it < 60; it++) { const w = x.map((v, i) => 1 / Math.max(1e-3, Math.abs(y[i] - a - b * v))); const sw = w.reduce((s, v) => s + v); const mx = x.reduce((s, v, i) => s + w[i] * v, 0) / sw, my = y.reduce((s, v, i) => s + w[i] * v, 0) / sw; let sxy = 0, sxx = 0; x.forEach((v, i) => { sxy += w[i] * (v - mx) * (y[i] - my); sxx += w[i] * (v - mx) ** 2; }); b = sxy / sxx; a = my - b * mx; } return [a, b]; }
+  function gDraw() {
+    const o = +$('#g-o').value; $('#g-o-v').textContent = o;
+    const y = GY.concat([o]);
+    const A = ols(GX, y), B = lad(GX, y);
+    const met = ([a, b]) => { const e = GX.map((x, i) => y[i] - a - b * x); const n = e.length; const mse = e.reduce((s, v) => s + v * v, 0) / n; const my = y.reduce((s, v) => s + v) / n; const r2 = 1 - e.reduce((s, v) => s + v * v, 0) / y.reduce((s, v) => s + (v - my) ** 2, 0); return { mse, rmse: Math.sqrt(mse), mae: e.reduce((s, v) => s + Math.abs(v), 0) / n, r2 }; };
+    const m1 = met(A), m2 = met(B);
+    plot($('#g-plot'), [
+      { type: 'line', data: [[0, A[0]], [9, A[0] + 9 * A[1]]], color: '#f87171', width: 2.5 },
+      { type: 'line', data: [[0, B[0]], [9, B[0] + 9 * B[1]]], color: '#4ade80', width: 2.5 },
+      { type: 'points', data: GX.map((x, i) => [x, y[i], i === 9 ? '#fbbf24' : '#5fb3f9']), r: 5 },
+    ], { h: 280, xmin: -0.3, xmax: 9.3, ymin: 0, ymax: 40, ticks: 4, xfmt: (v) => Math.round(v) });
+    $('#g-tbl').innerHTML = '<thead><tr><th></th><th>MSE fit</th><th>MAE fit</th></tr></thead><tbody>' + [['slope', A[1], B[1]], ['MSE', m1.mse, m2.mse], ['RMSE', m1.rmse, m2.rmse], ['MAE', m1.mae, m2.mae], ['R²', m1.r2, m2.r2]].map(([k, a, b]) => '<tr><td>' + k + '</td><td>' + fmt(a, 2) + '</td><td>' + fmt(b, 2) + '</td></tr>').join('') + '</tbody>';
+  }
+  $('#g-o').addEventListener('input', gDraw);
+
+  /* ===== Calibration ===== */
+  let km = 'over';
+  const MAPS = { over: (p) => 0.5 + (p - 0.5) * 0.55, under: (p) => Math.min(1, Math.max(0, 0.5 + (p - 0.5) * 1.6)), ds: (p) => p / (p + (1 - p) / 0.1), good: (p) => p };
+  // "true observed rate" as function of predicted p for each model
+  function kDraw() {
+    const fix = $('#k-fix').checked;
+    const bins = Array.from({ length: 10 }, (_, i) => (i + 0.5) / 10);
+    const obs = bins.map((p) => (fix ? p + (MAPS[km](p) - p) * 0.08 : MAPS[km](p)));
+    const ece = bins.reduce((a, p, i) => a + Math.abs(obs[i] - p), 0) / 10;
+    const brier = bins.reduce((a, p, i) => a + (obs[i] * (1 - p) ** 2 + (1 - obs[i]) * p * p), 0) / 10;
+    plot($('#k-plot'), [{ type: 'line', data: [[0, 0], [1, 1]], color: '#e5e7eb', dash: [5, 4], width: 1.5 }, { type: 'line', data: bins.map((p, i) => [p, obs[i]]), color: '#8b8cff', width: 2.5 }, { type: 'points', data: bins.map((p, i) => [p, obs[i]]), color: '#8b8cff', r: 4.5 }], { h: 280, xmin: 0, xmax: 1, ymin: 0, ymax: 1, ticks: 5, xlabel: 'mean predicted probability', ylabel: 'observed positive rate' });
+    $('#k-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(ece, 3) + '</div><div class="k">ECE (avg |gap|)</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(brier, 3) + '</div><div class="k">Brier score</div></div>';
+    const N = { over: 'Points below the diagonal at high p and above at low p: the model is more extreme than reality — predicted 0.9 happens ~72% of the time.', under: 'S-shaped the other way: predictions hug 0.5 more than they should (common with bagging/random forests).', ds: 'Trained after keeping 10% of negatives, every probability is inflated. Correct with p / (p + (1 − p)/w), w = 0.1.', good: 'On the diagonal: predicted probabilities match observed frequencies.' };
+    $('#k-note').innerHTML = fix ? '<div class="ok-box">After fitting isotonic/Platt on held-out data the curve sits on the diagonal. Ranking (AUC) is unchanged — only the probabilities moved.</div>' : '<div class="callout blue">' + MR.icon('info') + '<div>' + N[km] + '</div></div>';
+  }
+  segc('k-m', (v) => { km = v; kDraw(); });
+  $('#k-fix').addEventListener('change', kDraw);
+
+  MR.init('metrics', (id) => { ({ confusion: cDraw, curves: rDraw, imbalance: iDraw, regression: gDraw, calibration: kDraw })[id](); });
+})();
+</script>
+</body>
+</html>

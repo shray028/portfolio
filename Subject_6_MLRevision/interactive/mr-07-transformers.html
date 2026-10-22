@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Self-Attention, Positional Encoding, Encoder vs Decoder & the KV Cache — ML Interview Revision</title>
+  <meta name="description" content="Transformer interview questions made visual: an attention heatmap with causal masking, why attention scores are divided by √d, sinusoidal positional encodings, encoder vs decoder architectures, and a KV-cache memory calculator for MHA, GQA and MQA.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .hm { display: grid; gap: 2px; font: 11px var(--font-mono); }
+    .hm span { padding: 6px 2px; text-align: center; border-radius: 4px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hm .lab { background: none; color: var(--muted); text-align: right; padding-right: 6px; }
+    .hm .top { background: none; color: var(--muted); writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; height: 70px; padding: 2px; }
+    .hm .q { color: #fbbf24; font-weight: 700; }
+    .toks { display: flex; flex-wrap: wrap; gap: 5px; }
+    .toks button { padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); font: 12.5px var(--font-mono); }
+    .toks button.on { border-color: #fbbf24; color: #fbbf24; }
+    .arch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .arch .card { padding: 16px; }
+    .arch h4 { font-size: 15px; margin-bottom: 4px; }
+    .mask { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; width: 120px; margin: 10px 0; }
+    .mask i { aspect-ratio: 1; border-radius: 2px; }
+    .scn { padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); }
+    .scn .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .scn .opts button { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font: 600 12px var(--font-mono); }
+    .scn .opts button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .scn .opts button.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); }
+    .scn .why { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+    .sc { display: grid; gap: 8px; }
+    @media (max-width: 900px) { .arch { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 07 · DEEP LEARNING</span>
+      <h1>Attention &amp; <span class="grad">transformers</span></h1>
+      <p class="desc">Every LLM, embedding model and re-ranker you will discuss is a transformer. Interviewers expect you to explain self-attention from Q, K and V, justify the √d scaling, say why positions must be injected, compare encoder and decoder models, and reason about the KV cache that dominates LLM serving memory.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Attention heatmap · softmax-saturation demo · positional-encoding map · KV-cache calculator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="attention"><span class="n">1</span>Self-attention</button>
+      <button class="tab" data-tab="positional"><span class="n">2</span>Positional encoding</button>
+      <button class="tab" data-tab="architectures"><span class="n">3</span>Encoder vs decoder</button>
+      <button class="tab" data-tab="kvcache"><span class="n">4</span>KV cache &amp; GQA</button>
+    </div></div>
+
+    <!-- ============ ATTENTION ============ -->
+    <section class="tab-panel" data-panel="attention">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Each token asks a question (Q), every token offers a key (K) and a value (V) <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \text{Attention}(Q,K,V)=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}+M\right)V \)</p>
+        <p>Q, K and V are learned linear projections of the token embeddings. A token's output is a weighted average of all values, weighted by how well its query matches each key — so "it" can pull in information from "animal" in one step, however far apart they are. <strong>Multi-head</strong> attention runs several smaller attentions in parallel so different heads can track different relations (syntax, coreference, position). The mask M adds −∞ to forbidden positions (future tokens in a decoder).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · who does each token attend to?</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">query token (click)</span><div class="toks" id="a-toks"></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="a-causal"> causal mask (decoder: no peeking at future tokens)</label>
+          <div class="field"><span class="label-t">softmax temperature</span><div class="range-row"><input type="range" id="a-t" min="0.2" max="3" step="0.1" value="1"><span class="val" id="a-t-v"></span></div></div>
+          <div id="a-note"></div>
+          <p class="small muted">Scores are hand-set to show a typical coreference head; real heads learn them.</p>
+        </div>
+        <div><div class="hm" id="a-hm"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · why divide by √dₖ?</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">head dimension dₖ</span><div class="range-row"><input type="range" id="s-d" min="2" max="512" step="2" value="128"><span class="val" id="s-d-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="s-scale" checked> divide scores by √dₖ</label>
+          <div class="grid-2" id="s-stats"></div>
+          <div id="s-note"></div>
+        </div>
+        <div><canvas class="viz" id="s-plot"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>softmax weights over 16 keys (q, k ~ N(0, 1))</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="attention.py" data-imp>
+import torch, math
+import torch.nn.functional as F
+
+def attention(q, k, v, causal=False):            # (batch, heads, seq, d_k)
+    scores = q @ k.transpose(-2, -1) / math.sqrt(q.size(-1))
+    if causal:
+        n = q.size(-2)
+        mask = torch.triu(torch.ones(n, n, dtype=torch.bool), diagonal=1)
+        scores = scores.masked_fill(mask, float("-inf"))
+    w = F.softmax(scores, dim=-1)                 # each row sums to 1
+    return w @ v, w
+
+# fused, memory-efficient (FlashAttention kernels when available):
+out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transformers:attention"></div>
+    </section>
+
+    <!-- ============ POSITIONAL ============ -->
+    <section class="tab-panel" data-panel="positional" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Attention is order-blind — positions must be added</h3>
+        <p>Self-attention treats its input as a set: shuffle the tokens and each output is just shuffled the same way. So "dog bites man" and "man bites dog" would look identical. The original transformer adds <strong>sinusoidal</strong> encodings — each dimension pair is a sine/cosine of a different wavelength, so every position gets a unique pattern and relative offsets are linear functions. BERT/GPT-2 <strong>learn</strong> absolute position embeddings. Modern LLMs use <strong>RoPE</strong> (rotate Q and K by a position-dependent angle so their dot product depends on relative distance) or <strong>ALiBi</strong> (a distance penalty on scores), which extend better to longer contexts.</p>
+        <p class="formula">\( PE_{(pos,2i)}=\sin\!\big(pos/10000^{2i/d}\big),\qquad PE_{(pos,2i+1)}=\cos\!\big(pos/10000^{2i/d}\big) \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the sinusoidal encoding matrix</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">model dimension d</span><div class="range-row"><input type="range" id="p-d" min="16" max="128" step="16" value="64"><span class="val" id="p-d-v"></span></div></div>
+          <div class="field"><span class="label-t">compare position</span><div class="range-row"><input type="range" id="p-pos" min="0" max="99" value="20"><span class="val" id="p-pos-v"></span></div></div>
+          <canvas class="viz" id="p-sim"></canvas>
+          <div class="legend"><span><i style="background:#8b8cff"></i>dot product of PE(pos) with every other position</span></div>
+          <p class="small muted">Similarity peaks at the position itself and decays smoothly with distance — nearby positions look alike.</p>
+        </div>
+        <div><canvas class="viz" id="p-heat"></canvas><p class="small muted">Rows = positions 0–99, columns = dimensions. Left columns oscillate fast, right columns slowly.</p></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transformers:positional"></div>
+    </section>
+
+    <!-- ============ ARCHITECTURES ============ -->
+    <section class="tab-panel" data-panel="architectures" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="arch">
+        <div class="card"><span class="chip">Encoder-only</span><h4 class="mt">BERT, RoBERTa, embedding models</h4><div class="mask" id="m-enc"></div><p class="small">Bidirectional attention: every token sees every other token. Pre-trained with masked-language modelling. Best for understanding: classification, NER, embeddings for search, cross-encoder re-rankers.</p></div>
+        <div class="card"><span class="chip">Decoder-only</span><h4 class="mt">GPT, Llama, Claude-style LLMs</h4><div class="mask" id="m-dec"></div><p class="small">Causal attention: each token sees only the past. Pre-trained with next-token prediction, which scales simply and makes every task text generation. The default for chat and agents.</p></div>
+        <div class="card"><span class="chip">Encoder–decoder</span><h4 class="mt">T5, BART, original Transformer</h4><div class="mask" id="m-x"></div><p class="small">Encoder reads the input bidirectionally; decoder generates causally and uses <strong>cross-attention</strong> to the encoder output. Natural for input→output tasks: translation, summarisation.</p></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Drill · which architecture?</div>
+      <div class="card card-pad"><div class="sc" id="q-list"></div><div class="mt" id="q-score"></div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transformers:architectures"></div>
+    </section>
+
+    <!-- ============ KV CACHE ============ -->
+    <section class="tab-panel" data-panel="kvcache" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Generation recomputes nothing it has seen: it caches K and V <span class="imp">Must-know</span></h3>
+        <p>Autoregressive decoding produces one token at a time. Without a cache, step t would recompute keys and values for all t previous tokens — quadratic work. The <strong>KV cache</strong> stores every layer's K and V so each new token only computes its own, making decoding memory-bandwidth bound. The cache grows linearly with sequence length and batch size and often exceeds the weights. <strong>GQA</strong> (grouped-query) and <strong>MQA</strong> (multi-query) let many query heads share fewer KV heads, shrinking the cache; PagedAttention (vLLM) avoids fragmentation; quantising the cache (FP8) halves it again.</p>
+        <p class="formula">\( \text{KV bytes} = 2 \times L \times n_{kv} \times d_{head} \times \text{seq} \times \text{batch} \times \text{bytes/value} \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · KV-cache memory</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="btn-row"><span class="small muted">Presets:</span><button class="btn btn-sm" data-pre="32,32,8,128">8B-class (GQA)</button><button class="btn btn-sm" data-pre="80,64,8,128">70B-class (GQA)</button><button class="btn btn-sm" data-pre="32,32,32,128">7B-class (MHA)</button></div>
+          <div class="grid-2">
+            <div class="field"><label for="k-L">layers L</label><input class="input mono" id="k-L" type="number" value="32"></div>
+            <div class="field"><label for="k-h">query heads</label><input class="input mono" id="k-h" type="number" value="32"></div>
+            <div class="field"><label for="k-kv">KV heads</label><input class="input mono" id="k-kv" type="number" value="8"></div>
+            <div class="field"><label for="k-d">head dim</label><input class="input mono" id="k-d" type="number" value="128"></div>
+          </div>
+          <div class="field"><span class="label-t">context length (tokens)</span><div class="range-row"><input type="range" id="k-s" min="10" max="17" step="1" value="13"><span class="val" id="k-s-v"></span></div></div>
+          <div class="field"><span class="label-t">concurrent sequences (batch)</span><div class="range-row"><input type="range" id="k-b" min="1" max="64" value="8"><span class="val" id="k-b-v"></span></div></div>
+          <div class="field"><span class="label-t">cache precision</span><div class="seg" id="k-p"><button data-v="2" class="on">FP16/BF16</button><button data-v="1">FP8</button></div></div>
+        </div>
+        <div>
+          <div class="grid-2" id="k-stats"></div>
+          <div class="tbl-wrap mt"><table class="tbl" id="k-tbl"></table></div>
+          <div id="k-note" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="transformers:kvcache"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt, canvas } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Attention heatmap ===== */
+  const T = ['The', 'animal', 'didn\'t', 'cross', 'the', 'street', 'because', 'it', 'was', 'tired'];
+  // hand-set raw scores [query][key]
+  const S = T.map((_, i) => T.map((_, j) => (i === j ? 1.2 : 0) - Math.abs(i - j) * 0.08));
+  const set = (i, j, v) => { S[i][j] = v; };
+  set(7, 1, 4.2); set(7, 5, 2.0); set(7, 9, 1.6); set(9, 7, 2.8); set(9, 1, 2.6); set(3, 1, 2.2); set(3, 5, 2.6); set(5, 4, 1.8); set(1, 0, 1.9); set(8, 7, 2.2); set(8, 9, 1.4); set(2, 3, 2.0); set(6, 3, 1.4); set(6, 7, 1.0);
+  let qi = 7;
+  function aDraw() {
+    const tmp = +$('#a-t').value, causal = $('#a-causal').checked; $('#a-t-v').textContent = tmp.toFixed(1);
+    $('#a-toks').innerHTML = T.map((t, i) => '<button data-i="' + i + '" class="' + (i === qi ? 'on' : '') + '">' + esc(t) + '</button>').join('');
+    const W = S.map((row, i) => { const z = row.map((v, j) => (causal && j > i ? -Infinity : v / tmp)); const m = Math.max(...z); const e = z.map((v) => Math.exp(v - m)); const s = e.reduce((a, b) => a + b, 0); return e.map((v) => v / s); });
+    let html = '<span></span>' + T.map((t) => '<span class="top">' + esc(t) + '</span>').join('');
+    W.forEach((row, i) => { html += '<span class="lab ' + (i === qi ? 'q' : '') + '">' + esc(T[i]) + '</span>' + row.map((w, j) => '<span title="' + fmt(w, 3) + '" style="background:' + (causal && j > i ? '#121624' : 'rgba(139,140,255,' + (0.06 + 0.94 * Math.pow(w, 0.7)) + ')') + ';' + (i === qi ? 'outline:1px solid #fbbf24;' : '') + '">' + (w >= 0.1 ? Math.round(w * 100) : '') + '</span>').join(''); });
+    $('#a-hm').style.gridTemplateColumns = '64px repeat(' + T.length + ', minmax(0, 1fr))';
+    $('#a-hm').innerHTML = html;
+    const row = W[qi]; const top = row.map((w, j) => [w, j]).sort((a, b) => b[0] - a[0]).slice(0, 3);
+    $('#a-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>"<b>' + esc(T[qi]) + '</b>" attends mostly to ' + top.map(([w, j]) => '"' + esc(T[j]) + '" (' + Math.round(w * 100) + '%)').join(', ') + '.' + (causal && qi < 9 ? ' With the causal mask it can\'t see later tokens — e.g. "it" can\'t look ahead to "tired".' : '') + (tmp < 0.5 ? ' Low temperature: attention collapses onto one token.' : tmp > 2 ? ' High temperature: attention spreads almost uniformly.' : '') + '</div></div>';
+  }
+  $('#a-toks').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; qi = +b.dataset.i; aDraw(); });
+  ['a-t', 'a-causal'].forEach((id) => $('#' + id).addEventListener('input', aDraw));
+
+  /* ===== Scaling ===== */
+  function sDraw() {
+    const d = +$('#s-d').value, sc = $('#s-scale').checked; $('#s-d-v').textContent = d;
+    const r = rng(5); const q = Array.from({ length: d }, () => r.normal());
+    const sc0 = Array.from({ length: 16 }, () => { let s = 0; for (let i = 0; i < d; i++) s += q[i] * r.normal(); return sc ? s / Math.sqrt(d) : s; });
+    const m = Math.max(...sc0); const e = sc0.map((v) => Math.exp(v - m)); const Z = e.reduce((a, b) => a + b, 0); const w = e.map((v) => v / Z);
+    plot($('#s-plot'), w.map((v, i) => ({ type: 'area', data: [[i + 0.6, v], [i + 1.4, v]], color: '#8b8cff', alpha: 0.85 })), { h: 220, xmin: 0.5, xmax: 16.5, ymin: 0, ymax: 1, ticks: 4, xfmt: (v) => Math.round(v), xlabel: 'key' });
+    const std = Math.sqrt(sc0.reduce((a, v) => a + v * v, 0) / 16);
+    const ent = -w.reduce((a, v) => a + (v > 0 ? v * Math.log2(v) : 0), 0);
+    $('#s-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(std, 2) + '</div><div class="k">std of scores</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(Math.max(...w) * 100, 1) + '%</div><div class="k">largest weight</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(ent, 2) + ' / 4</div><div class="k">entropy (bits)</div></div>';
+    $('#s-note').innerHTML = !sc && d >= 32 ? '<div class="err-box">Unscaled, a dot product of d random unit-variance terms has std ≈ √d = ' + fmt(Math.sqrt(d), 1) + '. Softmax of such large numbers is nearly one-hot, so its gradient is nearly zero for every other key — training stalls.</div>' : '<div class="ok-box">Dividing by √d keeps score variance ≈ 1 whatever the head size, so softmax stays in its sensitive range and gradients flow.</div>';
+  }
+  ['s-d', 's-scale'].forEach((id) => $('#' + id).addEventListener('input', sDraw));
+
+  /* ===== Positional ===== */
+  const PE = (pos, d) => Array.from({ length: d }, (_, k) => { const i = Math.floor(k / 2); const a = pos / Math.pow(10000, 2 * i / d); return k % 2 ? Math.cos(a) : Math.sin(a); });
+  function pDraw() {
+    const d = +$('#p-d').value, p0 = +$('#p-pos').value; $('#p-d-v').textContent = d; $('#p-pos-v').textContent = p0;
+    const cv = $('#p-heat'); const { ctx, w, h } = canvas(cv, 300); const N = 100; const cw = w / d, ch = h / N;
+    for (let p = 0; p < N; p++) { const v = PE(p, d); for (let k = 0; k < d; k++) { const t = (v[k] + 1) / 2; ctx.fillStyle = 'rgb(' + Math.round(30 + 200 * t) + ',' + Math.round(40 + 100 * t) + ',' + Math.round(90 + 165 * (1 - t)) + ')'; ctx.fillRect(k * cw, p * ch, cw + 0.5, ch + 0.5); } }
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.strokeRect(0, p0 * ch, w, ch);
+    const a = PE(p0, d); const sims = Array.from({ length: N }, (_, p) => { const b = PE(p, d); return [p, a.reduce((s, v, k) => s + v * b[k], 0) / (d / 2)]; });
+    plot($('#p-sim'), [{ type: 'line', data: sims, color: '#8b8cff' }, { type: 'vline', data: p0, color: '#fbbf24', width: 1, dash: [3, 3] }], { h: 170, xmin: 0, xmax: 99, ticks: 4, xlabel: 'position', xfmt: (v) => Math.round(v) });
+  }
+  ['p-d', 'p-pos'].forEach((id) => $('#' + id).addEventListener('input', pDraw));
+
+  /* ===== Architectures ===== */
+  function masks() {
+    const mk = (fn) => Array.from({ length: 36 }, (_, k) => { const i = Math.floor(k / 6), j = k % 6; return '<i style="background:' + fn(i, j) + '"></i>'; }).join('');
+    $('#m-enc').innerHTML = mk(() => '#8b8cff');
+    $('#m-dec').innerHTML = mk((i, j) => (j <= i ? '#8b8cff' : '#1d2335'));
+    $('#m-x').innerHTML = mk((i, j) => (j < 3 ? '#f472b6' : j - 3 <= i - 3 && i >= 3 ? '#8b8cff' : '#1d2335'));
+  }
+  const QZ = [['Classify support tickets into 12 categories, 5 ms latency budget', 'encoder', 'A fine-tuned small encoder (BERT/DeBERTa) is cheap, fast and accurate for fixed-label classification.'], ['Chat assistant that writes and explains code', 'decoder', 'Open-ended generation → decoder-only LLM.'], ['Embed 10M product descriptions for semantic search', 'encoder', 'Bi-encoder embedding models are encoder-based (mean-pooled or CLS vectors).'], ['Translate English documents into Hindi', 'encdec', 'Classic sequence-to-sequence task (though large decoder-only LLMs also translate well).'], ['Re-rank the top 50 retrieved passages for a query', 'encoder', 'A cross-encoder reads query and passage together bidirectionally and outputs a relevance score.'], ['Agent that plans tool calls and writes the final answer', 'decoder', 'Tool use and free-form generation → decoder-only LLM.']];
+  const NM = { encoder: 'encoder-only', decoder: 'decoder-only', encdec: 'encoder–decoder' };
+  const ans = {};
+  function qDraw() {
+    $('#q-list').innerHTML = QZ.map(([q, r, why], i) => '<div class="scn"><div>' + q + '</div><div class="opts">' + Object.keys(NM).map((o) => '<button data-i="' + i + '" data-o="' + o + '" class="' + (ans[i] ? (o === r ? 'right' : o === ans[i] ? 'wrong' : '') : '') + '">' + NM[o] + '</button>').join('') + '</div>' + (ans[i] ? '<div class="why">' + why + '</div>' : '') + '</div>').join('');
+    const n = Object.keys(ans).length, c = Object.entries(ans).filter(([i, o]) => QZ[i][1] === o).length;
+    $('#q-score').innerHTML = n ? '<span class="chip">' + c + ' / ' + n + ' correct</span>' : '';
+  }
+  $('#q-list').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (!b || ans[b.dataset.i]) return; ans[b.dataset.i] = b.dataset.o; qDraw(); });
+
+  /* ===== KV cache ===== */
+  let kp = 2;
+  function kDraw() {
+    const L = +$('#k-L').value, H = +$('#k-h').value, KV = Math.max(1, Math.min(H, +$('#k-kv').value)), D = +$('#k-d').value;
+    const S2 = Math.pow(2, +$('#k-s').value), B = +$('#k-b').value; $('#k-s-v').textContent = S2.toLocaleString(); $('#k-b-v').textContent = B;
+    const gb = (kv) => 2 * L * kv * D * S2 * B * kp / 1e9;
+    const per = 2 * L * KV * D * kp; // bytes per token
+    $('#k-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:19px">' + fmt(gb(KV), 1) + ' GB</div><div class="k">KV cache total</div></div><div class="stat"><div class="v" style="font-size:19px">' + fmt(per / 1024, 0) + ' KB</div><div class="k">per token</div></div>';
+    $('#k-tbl').innerHTML = '<thead><tr><th>attention type</th><th>KV heads</th><th>cache</th></tr></thead><tbody><tr><td>MHA (every head has K/V)</td><td>' + H + '</td><td>' + fmt(gb(H), 1) + ' GB</td></tr><tr><td>GQA (groups share K/V)</td><td>' + KV + '</td><td>' + fmt(gb(KV), 1) + ' GB</td></tr><tr><td>MQA (one shared K/V)</td><td>1</td><td>' + fmt(gb(1), 2) + ' GB</td></tr></tbody>';
+    $('#k-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>Doubling context or batch doubles the cache. ' + (KV < H ? 'GQA here saves ' + fmt((1 - KV / H) * 100, 0) + '% vs MHA with a small quality cost — why most open LLMs use it.' : 'This is full multi-head attention: try 8 KV heads.') + ' On an 80 GB GPU the weights and this cache must fit together, which caps how many users you can serve at once.</div></div>';
+  }
+  ['k-L', 'k-h', 'k-kv', 'k-d', 'k-s', 'k-b'].forEach((id) => $('#' + id).addEventListener('input', kDraw));
+  segc('k-p', (v) => { kp = +v; kDraw(); });
+  $$('[data-pre]').forEach((b) => b.addEventListener('click', () => { const [L, H, KV, D] = b.dataset.pre.split(','); $('#k-L').value = L; $('#k-h').value = H; $('#k-kv').value = KV; $('#k-d').value = D; kDraw(); }));
+
+  MR.init('transformers', (id) => { ({ attention: () => { aDraw(); sDraw(); }, positional: pDraw, architectures: () => { masks(); qDraw(); }, kvcache: kDraw })[id](); });
+})();
+</script>
+</body>
+</html>

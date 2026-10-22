@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bias–Variance Tradeoff, Regularization & Cross-Validation — ML Interview Revision</title>
+  <meta name="description" content="See the bias–variance tradeoff: fit polynomials to many noisy datasets, decompose test error into bias², variance and noise, compare L1 and L2 regularization, read learning curves, and spot data leakage — with interview answers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .decomp { display: grid; gap: 8px; }
+    .drow { display: grid; grid-template-columns: 92px 1fr 64px; gap: 10px; align-items: center; font: 12.5px var(--font-mono); color: var(--text-2); }
+    .dbar { height: 16px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .dbar span { display: block; height: 100%; border-radius: 4px; transition: width .3s; }
+    .folds { display: grid; gap: 4px; }
+    .frow { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; font: 11.5px var(--font-mono); color: var(--muted); }
+    .fcells { display: grid; gap: 2px; }
+    .fcells span { height: 18px; border-radius: 3px; }
+    .coefs { display: flex; align-items: center; gap: 4px; height: 150px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .coefs div { flex: 1; position: relative; height: 100%; }
+    .coefs i { position: absolute; left: 0; right: 0; border-radius: 3px; }
+    .coefs b { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font: 10px var(--font-mono); color: var(--dim); font-weight: 600; }
+    .scn { padding: 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); }
+    .scn .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .scn .opts button { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font: 600 12px var(--font-mono); }
+    .scn .opts button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .scn .opts button.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); }
+    .scn .why { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+    .sc { display: grid; gap: 8px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 01 · FUNDAMENTALS</span>
+      <h1>Bias, variance &amp; <span class="grad">generalization</span></h1>
+      <p class="desc">The single most-asked ML interview question, made visible. Fit the same model to many noisy training sets: how far the <em>average</em> fit is from the truth is <strong>bias</strong>; how much the fits disagree with each other is <strong>variance</strong>. Then control it with regularization, diagnose it with learning curves, and measure it honestly with cross-validation.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Bias–variance decomposer · L1 vs L2 lab · learning-curve doctor · leakage drill</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="tradeoff"><span class="n">1</span>Bias–variance tradeoff</button>
+      <button class="tab" data-tab="regularization"><span class="n">2</span>Regularization</button>
+      <button class="tab" data-tab="curves"><span class="n">3</span>Learning curves</button>
+      <button class="tab" data-tab="validation"><span class="n">4</span>Validation &amp; leakage</button>
+    </div></div>
+
+    <!-- ============ TRADEOFF ============ -->
+    <section class="tab-panel" data-panel="tradeoff">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Expected error = bias² + variance + irreducible noise <span class="imp">Must-know</span></h3>
+        <p><strong>Bias</strong> is error from wrong assumptions — the model is too simple to capture the pattern, so even the average of many fits misses (underfitting: high train <em>and</em> test error). <strong>Variance</strong> is error from sensitivity to the particular training sample — the model fits the noise, so retraining on new data gives a very different fit (overfitting: low train error, high test error). Increasing complexity trades one for the other; the sweet spot minimises their sum. Noise (σ²) is the floor no model can beat.</p>
+        <p class="formula">\( \mathbb{E}\big[(y-\hat f(x))^2\big] = \underbrace{\big(f(x)-\mathbb{E}[\hat f(x)]\big)^2}_{\text{bias}^2} + \underbrace{\mathbb{E}\big[(\hat f(x)-\mathbb{E}[\hat f(x)])^2\big]}_{\text{variance}} + \sigma^2 \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · 30 training sets, one model class</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">polynomial degree (model complexity)</span><div class="range-row"><input type="range" id="t-deg" min="1" max="12" value="3"><span class="val" id="t-deg-v"></span></div></div>
+          <div class="field"><span class="label-t">training points per dataset</span><div class="range-row"><input type="range" id="t-n" min="12" max="80" step="4" value="20"><span class="val" id="t-n-v"></span></div></div>
+          <div class="field"><span class="label-t">noise σ</span><div class="range-row"><input type="range" id="t-sig" min="0.05" max="0.6" step="0.05" value="0.3"><span class="val" id="t-sig-v"></span></div></div>
+          <div class="decomp" id="t-dec"></div>
+          <div id="t-verdict"></div>
+        </div>
+        <div>
+          <canvas class="viz" id="t-fit"></canvas>
+          <div class="legend"><span><i style="background:#e5e7eb"></i>true f(x)</span><span><i style="background:#8b8cff66"></i>30 individual fits</span><span><i style="background:#fbbf24"></i>average fit</span><span><i style="background:#5fb3f9"></i>one training set</span></div>
+          <canvas class="viz mt" id="t-curve"></canvas>
+          <div class="legend"><span><i style="background:#4ade80"></i>train error</span><span><i style="background:#f87171"></i>test error</span><span><i style="background:#fbbf24"></i>bias²</span><span><i style="background:#8b8cff"></i>variance</span></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="bias_variance.py">
+import numpy as np
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+
+x_test = np.linspace(-1, 1, 200)[:, None]
+f = lambda x: np.sin(3 * x).ravel()
+preds = []
+for seed in range(30):                                  # many training sets
+    rng = np.random.default_rng(seed)
+    x = rng.uniform(-1, 1, (20, 1)); y = f(x) + rng.normal(0, 0.3, 20)
+    model = make_pipeline(PolynomialFeatures(degree=9), LinearRegression()).fit(x, y)
+    preds.append(model.predict(x_test))
+preds = np.array(preds)
+bias2 = ((preds.mean(0) - f(x_test)) ** 2).mean()
+variance = preds.var(0).mean()
+print(f"bias^2={bias2:.3f}  variance={variance:.3f}")
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="gen:tradeoff"></div>
+    </section>
+
+    <!-- ============ REGULARIZATION ============ -->
+    <section class="tab-panel" data-panel="regularization" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3>L2 shrinks, L1 selects <span class="imp">Must-know</span></h3>
+          <p>Regularization adds a penalty on weight size so the model prefers simpler fits: more bias, much less variance. <strong>L2 (ridge)</strong> adds \(\lambda\sum w_j^2\): every weight shrinks smoothly towards zero but rarely hits it, and correlated features share the weight. <strong>L1 (lasso)</strong> adds \(\lambda\sum |w_j|\): weights hit exactly zero, so it doubles as feature selection. <strong>Elastic net</strong> mixes both.</p>
+        </div>
+        <div class="card lesson">
+          <h3>Why L1 gives zeros: the geometry</h3>
+          <svg viewBox="0 0 320 170" style="width:100%;max-height:190px" aria-label="L1 diamond and L2 circle constraint regions touched by loss contours">
+            <g transform="translate(80,90)"><line x1="-65" y1="0" x2="65" y2="0" stroke="#323c55"/><line x1="0" y1="-75" x2="0" y2="75" stroke="#323c55"/>
+              <polygon points="0,-38 38,0 0,38 -38,0" fill="rgba(139,140,255,.18)" stroke="#8b8cff" stroke-width="2"/>
+              <ellipse cx="44" cy="-62" rx="38" ry="18" transform="rotate(30 44 -62)" fill="none" stroke="#fbbf24" stroke-width="1.5"/>
+              <ellipse cx="44" cy="-62" rx="60" ry="30" transform="rotate(30 44 -62)" fill="none" stroke="#fbbf2477" stroke-width="1.2"/>
+              <circle cx="0" cy="-38" r="4.5" fill="#f87171"/><text x="-58" y="66" fill="#9fb0c8" font-size="11" font-family="JetBrains Mono">L1: corner → w₁ = 0</text></g>
+            <g transform="translate(240,90)"><line x1="-65" y1="0" x2="65" y2="0" stroke="#323c55"/><line x1="0" y1="-75" x2="0" y2="75" stroke="#323c55"/>
+              <circle cx="0" cy="0" r="38" fill="rgba(95,179,249,.16)" stroke="#5fb3f9" stroke-width="2"/>
+              <ellipse cx="44" cy="-62" rx="38" ry="18" transform="rotate(30 44 -62)" fill="none" stroke="#fbbf24" stroke-width="1.5"/>
+              <ellipse cx="44" cy="-62" rx="62" ry="31" transform="rotate(30 44 -62)" fill="none" stroke="#fbbf2477" stroke-width="1.2"/>
+              <circle cx="15" cy="-35" r="4.5" fill="#f87171"/><text x="-58" y="66" fill="#9fb0c8" font-size="11" font-family="JetBrains Mono">L2: smooth → both ≠ 0</text></g>
+          </svg>
+          <p class="small muted">The loss contours (amber) first touch the L1 diamond at a corner, where one weight is exactly zero. The L2 circle has no corners.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · a degree-12 polynomial, tamed</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">penalty</span><div class="seg" id="r-type"><button data-v="l2" class="on">L2 · ridge</button><button data-v="l1">L1 · lasso</button></div></div>
+          <div class="field"><span class="label-t">λ (log scale)</span><div class="range-row"><input type="range" id="r-lam" min="-6" max="1" step="0.25" value="-3"><span class="val" id="r-lam-v"></span></div></div>
+          <div class="grid-2" id="r-stats"></div>
+          <div class="label" style="margin-top:6px">coefficients w₁ … w₁₂ (standardized features)</div>
+          <div class="coefs" id="r-coefs"></div>
+        </div>
+        <div><canvas class="viz" id="r-fit"></canvas><div class="legend"><span><i style="background:#e5e7eb"></i>true f(x)</span><span><i style="background:#5fb3f9"></i>training points</span><span><i style="background:#8b8cff"></i>regularized fit</span></div><div id="r-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="regularization.py">
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+ridge = make_pipeline(StandardScaler(), Ridge(alpha=1.0))      # L2
+lasso = make_pipeline(StandardScaler(), Lasso(alpha=0.01))     # L1 -> sparse coef_
+enet  = make_pipeline(StandardScaler(), ElasticNet(alpha=0.01, l1_ratio=0.5))
+# scale first: the penalty treats every weight the same, so feature units matter
+# LogisticRegression(C=...) uses C = 1/λ  (smaller C = stronger regularization)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="gen:regularization"></div>
+    </section>
+
+    <!-- ============ CURVES ============ -->
+    <section class="tab-panel" data-panel="curves" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Learning curves tell you which problem you have <span class="imp">Must-know</span></h3>
+        <p>Plot training and validation error against training-set size. <strong>High bias</strong>: both curves plateau close together at a high error — more data won't help; add capacity or features. <strong>High variance</strong>: a large gap between a low training error and a higher validation error that is still falling — more data, regularization or a simpler model will help. Pick the scenario and read the diagnosis.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · diagnose the model</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">scenario</span><div class="seg" id="c-sc"><button data-v="bias" class="on">linear model, curved data</button><button data-v="var">deep tree, small data</button><button data-v="good">well-tuned</button><button data-v="leak">suspiciously good</button></div></div>
+          <div id="c-dx"></div>
+        </div>
+        <div><canvas class="viz" id="c-plot"></canvas><div class="legend"><span><i style="background:#4ade80"></i>training error</span><span><i style="background:#f87171"></i>validation error</span><span><i style="background:#e5e7eb"></i>target / irreducible error</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="learning_curve.py">
+from sklearn.model_selection import learning_curve
+sizes, train_scores, val_scores = learning_curve(
+    model, X, y, cv=5, scoring="neg_mean_squared_error",
+    train_sizes=np.linspace(0.1, 1.0, 8), n_jobs=-1)
+train_err, val_err = -train_scores.mean(1), -val_scores.mean(1)
+# big gap, val still falling -> variance;  both high & flat -> bias
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="gen:curves"></div>
+    </section>
+
+    <!-- ============ VALIDATION ============ -->
+    <section class="tab-panel" data-panel="validation" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Your split must mimic production <span class="imp">Must-know</span></h3>
+        <p>Use <strong>train</strong> to fit, <strong>validation</strong> (or cross-validation) to choose models and hyperparameters, and touch the <strong>test</strong> set once at the end. k-fold CV averages over k train/validation splits for a lower-variance estimate. The split must match how the model meets new data: <em>stratified</em> for imbalanced classes, <em>time-based</em> when predicting the future, <em>grouped</em> when the same user or patient appears many times. Anything learned from validation data before the split — scaling, imputation, target encoding — is <strong>leakage</strong>.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · how the folds are cut</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">strategy</span><div class="seg" id="v-type"><button data-v="kfold" class="on">k-fold</button><button data-v="strat">stratified</button><button data-v="time">time series</button><button data-v="group">grouped</button></div></div>
+          <div class="field"><span class="label-t">k</span><div class="range-row"><input type="range" id="v-k" min="2" max="10" value="5"><span class="val" id="v-k-v"></span></div></div>
+          <div id="v-note"></div>
+        </div>
+        <div><div class="folds" id="v-folds"></div><div class="legend mt" id="v-legend"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Drill · leakage or fine?</div>
+      <div class="card card-pad"><div class="sc" id="l-list"></div><div class="mt" id="l-score"></div></div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="no_leakage.py" data-imp>
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, GroupKFold, cross_val_score
+
+pipe = Pipeline([("prep", ColumnTransformer([...])),      # imputer, scaler, encoder
+                 ("model", LogisticRegression(max_iter=1000))])
+# the pipeline is re-fit inside every fold -> preprocessing never sees validation rows
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)   # imbalanced classes
+# cv = TimeSeriesSplit(n_splits=5)       # forecasting: always train on the past
+# cv = GroupKFold(n_splits=5)            # same user/patient never on both sides
+scores = cross_val_score(pipe, X, y, cv=cv, scoring="roc_auc")  # groups=user_id for GroupKFold
+print(scores.mean(), scores.std())
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="gen:validation"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const f = (x) => Math.sin(3 * x);
+  const GRID = Array.from({ length: 101 }, (_, i) => -1 + i * 0.02);
+
+  // least squares with optional ridge on raw polynomial features (x in [-1,1])
+  function solve(A, b) {
+    const n = b.length; const M = A.map((r, i) => r.concat([b[i]]));
+    for (let c = 0; c < n; c++) {
+      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      [M[c], M[p]] = [M[p], M[c]];
+      const d = M[c][c] || 1e-12;
+      for (let r = 0; r < n; r++) if (r !== c) { const k = M[r][c] / d; for (let j = c; j <= n; j++) M[r][j] -= k * M[c][j]; }
+    }
+    return M.map((r, i) => r[n] / (r[i] || 1e-12));
+  }
+  // Legendre-like stable basis: Chebyshev polynomials
+  const cheb = (x, d) => { const T = [1, x]; for (let k = 2; k <= d; k++) T.push(2 * x * T[k - 1] - T[k - 2]); return T.slice(0, d + 1); };
+  function fitPoly(xs, ys, d, lam) {
+    const P = d + 1, A = Array.from({ length: P }, () => new Array(P).fill(0)), b = new Array(P).fill(0);
+    xs.forEach((x, i) => { const t = cheb(x, d); for (let a = 0; a < P; a++) { b[a] += t[a] * ys[i]; for (let c = 0; c < P; c++) A[a][c] += t[a] * t[c]; } });
+    for (let a = 1; a < P; a++) A[a][a] += (lam || 1e-3);
+    const w = solve(A, b);
+    return (x) => cheb(x, d).reduce((s, t, i) => s + t * w[i], 0);
+  }
+  function dataset(seed, n, sig) { const r = rng(seed); const xs = [], ys = []; for (let i = 0; i < n; i++) { const x = r() * 2 - 1; xs.push(x); ys.push(f(x) + sig * r.normal()); } return { xs, ys }; }
+  function experiment(d, n, sig) {
+    const fits = []; let train = 0;
+    for (let s = 0; s < 30; s++) { const D = dataset(1000 + s * 7919, n, sig); const m = fitPoly(D.xs, D.ys, d); fits.push(m); train += D.xs.reduce((a, x, i) => a + (m(x) - D.ys[i]) ** 2, 0) / n; }
+    train /= 30;
+    const P = fits.map((m) => GRID.map(m));
+    const mean = GRID.map((_, j) => P.reduce((a, p) => a + p[j], 0) / 30);
+    const bias2 = GRID.reduce((a, x, j) => a + (mean[j] - f(x)) ** 2, 0) / GRID.length;
+    const variance = GRID.reduce((a, _, j) => a + P.reduce((s, p) => s + (p[j] - mean[j]) ** 2, 0) / 30, 0) / GRID.length;
+    return { fits, P, mean, bias2, variance, train, test: bias2 + variance + sig * sig };
+  }
+  const cache = {};
+  function exp(d, n, sig) { const k = d + '|' + n + '|' + sig; return cache[k] || (cache[k] = experiment(d, n, sig)); }
+  function tDraw() {
+    const d = +$('#t-deg').value, n = +$('#t-n').value, sig = +$('#t-sig').value;
+    $('#t-deg-v').textContent = d; $('#t-n-v').textContent = n; $('#t-sig-v').textContent = sig.toFixed(2);
+    const E = exp(d, n, sig);
+    const one = dataset(1000, n, sig);
+    const layers = E.P.map((p) => ({ type: 'line', data: GRID.map((x, j) => [x, p[j]]), color: '#8b8cff55', width: 1 }));
+    layers.push({ type: 'line', data: GRID.map((x) => [x, f(x)]), color: '#e5e7eb', width: 2, dash: [5, 4] });
+    layers.push({ type: 'line', data: GRID.map((x, j) => [x, E.mean[j]]), color: '#fbbf24', width: 3 });
+    layers.push({ type: 'points', data: one.xs.map((x, i) => [x, one.ys[i]]), color: '#5fb3f9', r: 3.2 });
+    plot($('#t-fit'), layers, { h: 260, xmin: -1, xmax: 1, ymin: -2.2, ymax: 2.2, ticks: 4, xlabel: 'x' });
+    // error vs degree
+    const curve = []; for (let k = 1; k <= 12; k++) { const e = exp(k, n, sig); curve.push([k, e.train, e.test, e.bias2, e.variance]); }
+    const cap = Math.min(2.5, Math.max(...curve.map((c) => c[2])) * 1.05);
+    const P = plot($('#t-curve'), [
+      { type: 'line', data: curve.map((c) => [c[0], c[1]]), color: '#4ade80' },
+      { type: 'line', data: curve.map((c) => [c[0], c[2]]), color: '#f87171' },
+      { type: 'line', data: curve.map((c) => [c[0], c[3]]), color: '#fbbf24', dash: [4, 3] },
+      { type: 'line', data: curve.map((c) => [c[0], c[4]]), color: '#8b8cff', dash: [4, 3] },
+      { type: 'vline', data: d, color: '#9fb0c8', width: 1, dash: [2, 3] },
+    ], { h: 200, xmin: 1, xmax: 12, ymin: 0, ymax: cap, ticks: 4, xlabel: 'degree', xfmt: (v) => Math.round(v) });
+    const tot = E.bias2 + E.variance + sig * sig;
+    const row = (k, v, c) => '<div class="drow"><span>' + k + '</span><div class="dbar"><span style="width:' + Math.min(100, v / Math.max(tot, 1e-6) * 100) + '%;background:' + c + '"></span></div><span>' + fmt(v, 3) + '</span></div>';
+    $('#t-dec').innerHTML = row('bias²', E.bias2, '#fbbf24') + row('variance', E.variance, '#8b8cff') + row('noise σ²', sig * sig, '#646d82') + row('test MSE', tot, '#f87171') + row('train MSE', E.train, '#4ade80');
+    const best = curve.reduce((a, c) => (c[2] < a[2] ? c : a));
+    $('#t-verdict').innerHTML = E.bias2 > 2 * E.variance && d < best[0] ? '<div class="err-box">Underfitting: the average fit (amber) misses the curve. Bias dominates — add capacity or features.</div>' : E.variance > 2 * E.bias2 && d > best[0] ? '<div class="err-box">Overfitting: individual fits swing wildly between datasets. Variance dominates — more data, regularization or a simpler model.</div>' : '<div class="ok-box">Near the sweet spot. Lowest test error here is at degree ' + best[0] + '.</div>';
+  }
+  ['t-deg', 't-n', 't-sig'].forEach((id) => $('#' + id).addEventListener('input', tDraw));
+
+  /* ===== Regularization ===== */
+  let rtype = 'l2';
+  const RD = dataset(42, 24, 0.3), DEG = 12;
+  function features(x) { const t = []; for (let k = 1; k <= DEG; k++) t.push(Math.pow(x, k)); return t; }
+  const FX = RD.xs.map(features);
+  const mu = Array.from({ length: DEG }, (_, j) => FX.reduce((a, r) => a + r[j], 0) / FX.length);
+  const sd = Array.from({ length: DEG }, (_, j) => Math.sqrt(FX.reduce((a, r) => a + (r[j] - mu[j]) ** 2, 0) / FX.length) || 1);
+  const Z = FX.map((r) => r.map((v, j) => (v - mu[j]) / sd[j]));
+  const ymu = RD.ys.reduce((a, b) => a + b, 0) / RD.ys.length;
+  const yc = RD.ys.map((y) => y - ymu);
+  function ridge(lam) {
+    const A = Array.from({ length: DEG }, (_, a) => Array.from({ length: DEG }, (_, c) => Z.reduce((s, r) => s + r[a] * r[c], 0) / Z.length + (a === c ? lam : 0)));
+    const b = Array.from({ length: DEG }, (_, a) => Z.reduce((s, r, i) => s + r[a] * yc[i], 0) / Z.length);
+    return solve(A, b);
+  }
+  function lasso(lam) {
+    const w = new Array(DEG).fill(0), n = Z.length;
+    for (let it = 0; it < 600; it++) {
+      for (let j = 0; j < DEG; j++) {
+        let rho = 0; for (let i = 0; i < n; i++) { let pred = 0; for (let k = 0; k < DEG; k++) if (k !== j) pred += Z[i][k] * w[k]; rho += Z[i][j] * (yc[i] - pred); }
+        rho /= n; w[j] = Math.sign(rho) * Math.max(0, Math.abs(rho) - lam);
+      }
+    }
+    return w;
+  }
+  function rDraw() {
+    const lam = Math.pow(10, +$('#r-lam').value); $('#r-lam-v').textContent = lam < 0.01 ? lam.toExponential(0) : fmt(lam, 3);
+    const w = rtype === 'l2' ? ridge(lam) : lasso(lam);
+    const pred = (x) => ymu + features(x).reduce((s, v, j) => s + (v - mu[j]) / sd[j] * w[j], 0);
+    const tr = RD.xs.reduce((a, x, i) => a + (pred(x) - RD.ys[i]) ** 2, 0) / RD.xs.length;
+    const te = GRID.reduce((a, x) => a + (pred(x) - f(x)) ** 2, 0) / GRID.length + 0.09;
+    plot($('#r-fit'), [
+      { type: 'line', data: GRID.map((x) => [x, f(x)]), color: '#e5e7eb', dash: [5, 4] },
+      { type: 'line', data: GRID.map((x) => [x, pred(x)]), color: '#8b8cff', width: 2.5 },
+      { type: 'points', data: RD.xs.map((x, i) => [x, RD.ys[i]]), color: '#5fb3f9' },
+    ], { h: 280, xmin: -1, xmax: 1, ymin: -2.2, ymax: 2.2, ticks: 4 });
+    const m = Math.max(0.05, ...w.map(Math.abs));
+    $('#r-coefs').innerHTML = w.map((v, j) => { const hgt = Math.abs(v) / m * 50; return '<div><i style="' + (v >= 0 ? 'bottom:50%' : 'top:50%') + ';height:' + hgt + '%;background:' + (Math.abs(v) < 1e-6 ? '#323c55' : v >= 0 ? '#8b8cff' : '#f472b6') + '"></i><b>' + (j + 1) + '</b></div>'; }).join('');
+    const zeros = w.filter((v) => Math.abs(v) < 1e-6).length;
+    $('#r-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(tr, 3) + '</div><div class="k">train MSE</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(te, 3) + '</div><div class="k">expected test MSE</div></div><div class="stat"><div class="v" style="font-size:17px">' + zeros + ' / 12</div><div class="k">weights exactly 0</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(w.reduce((a, v) => a + v * v, 0), 2) + '</div><div class="k">‖w‖²</div></div>';
+    const lg = +$('#r-lam').value;
+    $('#r-note').innerHTML = lg <= -5 ? '<div class="err-box">λ ≈ 0: a wiggly degree-12 fit that chases the noise (high variance).</div>' : lg >= 0 ? '<div class="err-box">λ too large: the fit flattens towards the mean (high bias).</div>' : '<div class="ok-box">' + (rtype === 'l1' ? 'Lasso zeroed ' + zeros + ' of 12 coefficients — built-in feature selection.' : 'Ridge shrinks every coefficient but keeps all 12 non-zero.') + '</div>';
+  }
+  segc('r-type', (v) => { rtype = v; rDraw(); });
+  $('#r-lam').addEventListener('input', rDraw);
+
+  /* ===== Learning curves ===== */
+  const SC = {
+    bias: { tr: (m) => 0.30 - 0.06 * Math.exp(-m / 150), va: (m) => 0.32 + 0.5 * Math.exp(-m / 120), dx: '<div class="err-box">High bias (underfitting). Both errors converge at a high plateau far above the target.</div><ul class="small mt"><li>More data will <b>not</b> help — the curves already met.</li><li>Add capacity: polynomial/interaction features, a non-linear model, deeper network.</li><li>Reduce regularization; train longer.</li></ul>' },
+    var: { tr: (m) => 0.02 + 0.03 * (m / 1000), va: (m) => 0.12 + 0.9 / Math.sqrt(m / 12 + 1), dx: '<div class="err-box">High variance (overfitting). Training error is near zero, validation error is far higher and still falling.</div><ul class="small mt"><li>More data will help — the gap is closing.</li><li>Regularize: limit depth / min_samples_leaf, L2, dropout, early stopping.</li><li>Simplify features; use bagging (random forest).</li></ul>' },
+    good: { tr: (m) => 0.09 + 0.02 * (1 - Math.exp(-m / 200)), va: (m) => 0.115 + 0.6 * Math.exp(-m / 140), dx: '<div class="ok-box">Healthy: small gap, both close to the target error. Gains now come from better features or data quality, not tuning.</div>' },
+    leak: { tr: (m) => 0.01, va: (m) => 0.012 + 0.05 * Math.exp(-m / 100), dx: '<div class="err-box">Too good to be true. Validation error near zero on a hard problem usually means leakage: a feature that encodes the label, duplicates across splits, preprocessing fit on all data, or future information.</div><ul class="small mt"><li>Check feature importance for one dominant feature.</li><li>Re-split by time or by group; dedupe.</li><li>Fit every transform inside the CV pipeline.</li></ul>' },
+  };
+  let sc = 'bias';
+  function cDraw() {
+    const S = SC[sc]; const ms = Array.from({ length: 40 }, (_, i) => 20 + i * 25);
+    plot($('#c-plot'), [
+      { type: 'hline', data: 0.1, color: '#e5e7eb', width: 1, dash: [5, 4] },
+      { type: 'line', data: ms.map((m) => [m, S.tr(m)]), color: '#4ade80' },
+      { type: 'line', data: ms.map((m) => [m, S.va(m)]), color: '#f87171' },
+    ], { h: 260, xmin: 20, xmax: 995, ymin: 0, ymax: 0.9, ticks: 4, xlabel: 'training examples', ylabel: 'error', xfmt: (v) => Math.round(v) });
+    $('#c-dx').innerHTML = S.dx;
+  }
+  segc('c-sc', (v) => { sc = v; cDraw(); });
+
+  /* ===== Validation ===== */
+  let vt = 'kfold';
+  function vDraw() {
+    const k = +$('#v-k').value; $('#v-k-v').textContent = k;
+    const N = 30; const r = rng(7);
+    const labels = Array.from({ length: N }, (_, i) => (i % 5 === 0 ? 1 : 0));
+    const groups = Array.from({ length: N }, (_, i) => Math.floor(i / 3));
+    const col = { train: '#323c55', val: '#8b8cff', unused: 'transparent' };
+    let rows = '';
+    for (let f2 = 0; f2 < k; f2++) {
+      const cells = [];
+      for (let i = 0; i < N; i++) {
+        let role;
+        if (vt === 'time') { const size = Math.floor(N / (k + 1)); const end = size * (f2 + 1); role = i < end ? 'train' : i < end + size ? 'val' : 'unused'; }
+        else if (vt === 'group') role = groups[i] % k === f2 ? 'val' : 'train';
+        else if (vt === 'strat') { const idx = labels.slice(0, i).filter((l) => l === labels[i]).length; role = idx % k === f2 ? 'val' : 'train'; }
+        else role = Math.floor(i / (N / k)) === f2 ? 'val' : 'train';
+        const pos = labels[i] === 1;
+        cells.push('<span style="background:' + col[role] + ';' + (role === 'unused' ? 'border:1px dashed #323c55;' : '') + (pos && vt === 'strat' ? 'box-shadow:inset 0 -4px 0 #f472b6;' : '') + (vt === 'group' ? 'outline:1px solid #090b12;' : '') + '"></span>');
+      }
+      rows += '<div class="frow"><span>fold ' + (f2 + 1) + '</span><div class="fcells" style="grid-template-columns:repeat(' + N + ',1fr)">' + cells.join('') + '</div></div>';
+    }
+    $('#v-folds').innerHTML = rows;
+    $('#v-legend').innerHTML = '<span><i style="background:#323c55"></i>train</span><span><i style="background:#8b8cff"></i>validation</span>' + (vt === 'strat' ? '<span><i style="background:#f472b6"></i>positive class (1 in 5)</span>' : '') + (vt === 'time' ? '<span><i style="border:1px dashed #323c55"></i>future, unused</span>' : '') + (vt === 'group' ? '<span>blocks of 3 = one user</span>' : '');
+    const N2 = { kfold: 'Each row is one fold: every sample is validated exactly once. Shuffle first unless order matters.', strat: 'Each validation fold keeps the 20% positive rate, so a rare class never vanishes from a fold.', time: 'Train always precedes validation in time (expanding window). Random k-fold here would let the model peek at the future.', group: 'All rows of one user land in the same fold, so the model can\'t memorise a user and look good on that same user.' };
+    $('#v-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>' + N2[vt] + '</div></div>';
+  }
+  segc('v-type', (v) => { vt = v; vDraw(); });
+  $('#v-k').addEventListener('input', vDraw);
+
+  const LEAK = [
+    ['Fit <code>StandardScaler</code> on the full dataset, then split into train and test.', 'leak', 'The scaler saw test-set means and variances. Small effect for scaling, large for imputation or target encoding — fit transforms on train only (Pipeline).'],
+    ['Predicting hospital readmission with a feature <code>discharge_summary_length</code>.', 'leak', 'Only known after the outcome-defining stay ended — check every feature is available at prediction time.'],
+    ['Target-encode <code>city</code> using the mean label over the whole training set, then cross-validate.', 'leak', 'Each row\'s own label leaks into its encoding. Use out-of-fold target encoding.'],
+    ['Random 80/20 split of a stock-price dataset to predict tomorrow\'s return.', 'leak', 'Training on days after the test days leaks the future. Split by time.'],
+    ['Stratified 5-fold CV on a fraud dataset with 0.5% positives.', 'fine', 'Correct: stratification keeps positives in every fold.'],
+    ['Same customer appears in train and test with near-identical rows.', 'leak', 'The model memorises the customer. Use GroupKFold / split by customer.'],
+    ['Choosing the decision threshold on the validation set, reporting on an untouched test set.', 'fine', 'Correct: threshold is a hyperparameter; the test set stays clean.'],
+  ];
+  const ans = {};
+  function lDraw() {
+    $('#l-list').innerHTML = LEAK.map(([q, right, why], i) => '<div class="scn"><div>' + q + '</div><div class="opts">' + ['leak', 'fine'].map((o) => '<button data-i="' + i + '" data-o="' + o + '" class="' + (ans[i] ? (o === right ? 'right' : o === ans[i] ? 'wrong' : '') : '') + '">' + (o === 'leak' ? 'leakage' : 'fine') + '</button>').join('') + '</div>' + (ans[i] ? '<div class="why">' + why + '</div>' : '') + '</div>').join('');
+    const n = Object.keys(ans).length, c = Object.entries(ans).filter(([i, o]) => LEAK[i][1] === o).length;
+    $('#l-score').innerHTML = n ? '<span class="chip">' + c + ' / ' + n + ' correct</span>' : '';
+  }
+  $('#l-list').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (!b || ans[b.dataset.i]) return; ans[b.dataset.i] = b.dataset.o; lDraw(); });
+  lDraw();
+
+  MR.init('gen', (id) => { if (id === 'tradeoff') tDraw(); if (id === 'regularization') rDraw(); if (id === 'curves') cDraw(); if (id === 'validation') vDraw(); });
+})();
+</script>
+</body>
+</html>

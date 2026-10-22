@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tokenization, Temperature & Top-p, Prompt vs RAG vs Fine-Tuning, LoRA, RLHF & DPO — ML Interview Revision</title>
+  <meta name="description" content="LLM interview questions made interactive: watch BPE merges build a vocabulary, tune temperature, top-k and top-p and sample tokens, decide between prompting, RAG and fine-tuning, count LoRA parameters, and follow pre-training → SFT → RLHF/DPO.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .wordrow { display: flex; flex-wrap: wrap; gap: 10px; }
+    .word { display: flex; gap: 2px; padding: 6px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); }
+    .word span { padding: 3px 6px; border-radius: 5px; font: 13px var(--font-mono); background: rgba(139,140,255,.18); }
+    .word span.new { background: rgba(251,191,36,.3); }
+    .word small { align-self: center; color: var(--dim); font: 10.5px var(--font-mono); margin-left: 4px; }
+    .vocab { display: flex; flex-wrap: wrap; gap: 4px; }
+    .vocab span { padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); font: 11.5px var(--font-mono); color: var(--text-2); }
+    .vocab span.new { border-color: #fbbf24; color: #fbbf24; }
+    .probs { display: grid; gap: 4px; }
+    .prow { display: grid; grid-template-columns: 90px 1fr 56px; gap: 8px; align-items: center; font: 12.5px var(--font-mono); }
+    .prow .b { height: 16px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .prow .b i { display: block; height: 100%; transition: width .25s; }
+    .prow.cut { opacity: .35; text-decoration: line-through; }
+    .samples { display: flex; flex-wrap: wrap; gap: 6px; }
+    .samples span { padding: 4px 9px; border-radius: 7px; background: var(--panel-2); border: 1px solid var(--line); font: 12.5px var(--font-mono); }
+    .qs { display: grid; gap: 6px; }
+    .qs label { display: flex; gap: 8px; align-items: start; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .pstep { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; text-align: left; }
+    .pstep b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+    .pstep.on { border-color: rgba(139,140,255,.7); background: rgba(139,140,255,.1); }
+    @media (max-width: 900px) { .pipe { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 08 · LLMs</span>
+      <h1>LLMs: tokens, decoding &amp; <span class="grad">fine-tuning</span></h1>
+      <p class="desc">The GenAI round: how text becomes tokens, how a probability distribution becomes text, when to prompt vs retrieve vs fine-tune, why LoRA makes fine-tuning cheap, and how a pre-trained model becomes a helpful assistant.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">BPE merge stepper · sampling lab · prompt/RAG/fine-tune advisor · LoRA calculator · alignment pipeline</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="tokens"><span class="n">1</span>Tokenization</button>
+      <button class="tab" data-tab="decoding"><span class="n">2</span>Temperature, top-k, top-p</button>
+      <button class="tab" data-tab="adapt"><span class="n">3</span>Prompt vs RAG vs fine-tune</button>
+      <button class="tab" data-tab="align"><span class="n">4</span>SFT, RLHF &amp; DPO</button>
+    </div></div>
+
+    <!-- ============ TOKENS ============ -->
+    <section class="tab-panel" data-panel="tokens">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>BPE: start from characters, repeatedly merge the most frequent pair <span class="imp">Must-know</span></h3>
+        <p>Byte-Pair Encoding learns a vocabulary from a corpus: begin with bytes/characters, count adjacent pairs, merge the most frequent into a new token, repeat until the vocabulary hits its size (32k–200k). Common words become single tokens; rare words split into sub-words, so there is never an out-of-vocabulary word. Side effects interviewers like: models see "strawberry" as a few chunks, not letters (hence letter-counting mistakes); numbers split inconsistently (arithmetic errors); non-English text uses more tokens per word (higher cost and shorter effective context). WordPiece (BERT) and SentencePiece/Unigram are close cousins.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · learn merges on a tiny corpus</div>
+      <div class="card card-pad">
+        <div class="btn-row"><button class="btn btn-primary" id="b-step"><i data-icon="step"></i>Next merge</button><button class="btn" id="b-reset"><i data-icon="reset"></i>Reset</button><span class="small muted" id="b-info"></span></div>
+        <div class="wordrow mt" id="b-words"></div>
+        <div class="label mt" style="margin-bottom:6px">vocabulary</div>
+        <div class="vocab" id="b-vocab"></div>
+        <div id="b-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="llm:tokens"></div>
+    </section>
+
+    <!-- ============ DECODING ============ -->
+    <section class="tab-panel" data-panel="decoding" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The model gives a distribution; the decoding strategy picks a token <span class="imp">Must-know</span></h3>
+        <p class="formula">\( p_i=\frac{e^{z_i/T}}{\sum_j e^{z_j/T}} \)</p>
+        <p><strong>Temperature T</strong> rescales logits: T → 0 approaches greedy (always the top token), T &gt; 1 flattens the distribution (more random). <strong>Top-k</strong> keeps only the k most likely tokens. <strong>Top-p (nucleus)</strong> keeps the smallest set whose probabilities sum to p — adaptive: few tokens when the model is confident, many when it isn't. Use low temperature for extraction, classification, code and RAG answers; higher for brainstorming and creative writing. Greedy and beam search are deterministic but can be repetitive.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · next token after "<span id="d-prompt"></span>"</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">prompt</span><div class="seg" id="d-p"><button data-v="fact" class="on">factual</button><button data-v="open">open-ended</button></div></div>
+          <div class="field"><span class="label-t">temperature</span><div class="range-row"><input type="range" id="d-t" min="0.05" max="2" step="0.05" value="1"><span class="val" id="d-t-v"></span></div></div>
+          <div class="field"><span class="label-t">top-k (0 = off)</span><div class="range-row"><input type="range" id="d-k" min="0" max="10" value="0"><span class="val" id="d-k-v"></span></div></div>
+          <div class="field"><span class="label-t">top-p</span><div class="range-row"><input type="range" id="d-pp" min="0.1" max="1" step="0.05" value="1"><span class="val" id="d-pp-v"></span></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="d-sample"><i data-icon="play"></i>Sample 12 times</button></div>
+          <div class="samples" id="d-samples"></div>
+        </div>
+        <div><div class="probs" id="d-probs"></div><div id="d-note" class="mt"></div><p class="small muted">Logits are illustrative.</p></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="llm:decoding"></div>
+    </section>
+
+    <!-- ============ ADAPT ============ -->
+    <section class="tab-panel" data-panel="adapt" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Prompting changes the instructions, RAG changes the knowledge, fine-tuning changes the behaviour <span class="imp">Must-know</span></h3>
+        <p>Start with <strong>prompt engineering</strong> (clear instructions, few-shot examples, structured output) — cheapest and fastest to iterate. Add <strong>RAG</strong> when answers depend on private, large or frequently changing knowledge, or need citations. <strong>Fine-tune</strong> when you need a consistent style or format, a specialised skill or vocabulary, or a smaller/cheaper model to match a big one on a narrow task — not to teach facts that change. They combine: a fine-tuned model can still use RAG.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · which approach fits?</div>
+      <div class="card card-pad split">
+        <div class="qs" id="a-qs"></div>
+        <div><div id="a-rec"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · LoRA parameter count</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="grid-2">
+            <div class="field"><label for="r-dm">hidden size d</label><input class="input mono" id="r-dm" type="number" value="4096"></div>
+            <div class="field"><label for="r-L">layers</label><input class="input mono" id="r-L" type="number" value="32"></div>
+          </div>
+          <div class="field"><span class="label-t">rank r</span><div class="range-row"><input type="range" id="r-r" min="1" max="7" value="4"><span class="val" id="r-r-v"></span></div></div>
+          <div class="field"><span class="label-t">adapt which projections</span><div class="seg" id="r-t"><button data-v="2">q, v</button><button data-v="4" class="on">q, k, v, o</button><button data-v="7">all linear (incl. MLP)</button></div></div>
+          <div class="field"><span class="label-t">base model size (B params)</span><div class="range-row"><input type="range" id="r-B" min="1" max="70" value="8"><span class="val" id="r-B-v"></span></div></div>
+        </div>
+        <div><div class="grid-2" id="r-stats"></div><div id="r-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="lora.py">
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+
+bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4")   # QLoRA: 4-bit frozen base
+model = AutoModelForCausalLM.from_pretrained("base-model", quantization_config=bnb)
+cfg = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
+                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj"], task_type="CAUSAL_LM")
+model = get_peft_model(model, cfg)
+model.print_trainable_parameters()      # typically well under 1% of the base model
+# W' = W + (alpha / r) * B @ A   with A: r x d_in, B: d_out x r, B initialised to 0
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="llm:adapt"></div>
+    </section>
+
+    <!-- ============ ALIGN ============ -->
+    <section class="tab-panel" data-panel="align" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>From next-token predictor to assistant <span class="imp">Must-know</span></h3>
+        <p>A base model trained on web-scale text predicts plausible continuations — it knows a lot but doesn't follow instructions. <strong>SFT</strong> fine-tunes it on curated instruction→response demonstrations. <strong>Preference optimisation</strong> then teaches which of two responses humans (or AI judges) prefer: <strong>RLHF</strong> trains a reward model and optimises the policy with PPO under a KL penalty to stay close to the SFT model; <strong>DPO</strong> optimises the same preference objective directly as a classification loss on (chosen, rejected) pairs — no reward model or RL loop, simpler and more stable.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the training pipeline</div>
+      <div class="card card-pad">
+        <div class="pipe" id="g-pipe"></div>
+        <div class="split mt"><div id="g-detail"></div><div id="g-data"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="llm:align"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, rng, codeBlock } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== BPE ===== */
+  const CORPUS = [['low', 5], ['lower', 2], ['newest', 6], ['widest', 3], ['lowest', 2], ['newer', 3]];
+  let words, vocab, merges, lastNew;
+  function bReset() { words = CORPUS.map(([w, c]) => ({ toks: w.split('').concat(['_']), c })); vocab = [...new Set(CORPUS.flatMap(([w]) => w.split('')).concat(['_']))]; merges = []; lastNew = null; bDraw(); }
+  function bStep() {
+    const counts = {};
+    words.forEach(({ toks, c }) => { for (let i = 0; i < toks.length - 1; i++) { const k = toks[i] + '\u0001' + toks[i + 1]; counts[k] = (counts[k] || 0) + c; } });
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!best) return;
+    const [a, b] = best[0].split('\u0001'); const nt = a + b;
+    words.forEach((w) => { const out = []; for (let i = 0; i < w.toks.length; i++) { if (i < w.toks.length - 1 && w.toks[i] === a && w.toks[i + 1] === b) { out.push(nt); i++; } else out.push(w.toks[i]); } w.toks = out; });
+    vocab.push(nt); merges.push([a, b, best[1]]); lastNew = nt; bDraw();
+  }
+  function bDraw() {
+    $('#b-words').innerHTML = words.map(({ toks, c }) => '<div class="word">' + toks.map((t) => '<span class="' + (t === lastNew ? 'new' : '') + '">' + esc(t) + '</span>').join('') + '<small>×' + c + '</small></div>').join('');
+    $('#b-vocab').innerHTML = vocab.map((v) => '<span class="' + (v === lastNew ? 'new' : '') + '">' + esc(v) + '</span>').join('');
+    const total = words.reduce((s, w) => s + w.toks.length * w.c, 0);
+    $('#b-info').textContent = merges.length + ' merges · vocab ' + vocab.length + ' · corpus = ' + total + ' tokens';
+    const m = merges[merges.length - 1];
+    $('#b-note').innerHTML = m ? '<div class="callout blue">' + MR.icon('info') + '<div>Merged <b>' + esc(m[0]) + '</b> + <b>' + esc(m[1]) + '</b> → <b>' + esc(m[0] + m[1]) + '</b> (pair appeared ' + m[2] + ' times). "_" marks the end of a word. Keep merging: frequent pieces like "est_" and "low" become single tokens; an unseen word such as "slowest" would still tokenize from learned pieces (s + low + est_).</div></div>' : '<div class="callout blue">' + MR.icon('info') + '<div>Every word starts as characters. Press "Next merge".</div></div>';
+  }
+  $('#b-step').addEventListener('click', bStep); $('#b-reset').addEventListener('click', bReset);
+
+  /* ===== Decoding ===== */
+  const PROMPTS = {
+    fact: ['The capital of France is', [['Paris', 9.0], ['the', 5.6], ['a', 5.0], ['located', 4.4], ['Lyon', 3.2], ['one', 3.0], ['famous', 2.8], ['known', 2.6], ['not', 2.0], ['Berlin', 1.2]]],
+    open: ['My favourite thing about the monsoon is', [['the', 5.0], ['how', 4.8], ['that', 4.5], ['watching', 4.3], ['sitting', 4.0], ['chai', 3.9], ['petrichor', 3.6], ['rain', 3.5], ['listening', 3.2], ['nothing', 2.4]]],
+  };
+  let dp = 'fact', last = null;
+  function dist() {
+    const T = +$('#d-t').value, k = +$('#d-k').value, p = +$('#d-pp').value;
+    const L = PROMPTS[dp][1]; const z = L.map(([, l]) => l / T); const m = Math.max(...z); const e = z.map((v) => Math.exp(v - m)); const s = e.reduce((a, b) => a + b, 0);
+    let P = L.map(([t], i) => ({ t, p: e[i] / s, keep: true }));
+    const order = P.map((x, i) => i).sort((a, b) => P[b].p - P[a].p);
+    if (k > 0) order.forEach((i, r) => { if (r >= k) P[i].keep = false; });
+    let cum = 0; order.forEach((i) => { if (!P[i].keep) return; if (cum >= p - 1e-9) P[i].keep = false; cum += P[i].p; });
+    const Z = P.filter((x) => x.keep).reduce((a, x) => a + x.p, 0);
+    P.forEach((x) => { x.q = x.keep ? x.p / Z : 0; });
+    return P;
+  }
+  function dDraw() {
+    $('#d-t-v').textContent = (+$('#d-t').value).toFixed(2); $('#d-k-v').textContent = +$('#d-k').value || 'off'; $('#d-pp-v').textContent = (+$('#d-pp').value).toFixed(2);
+    $('#d-prompt').textContent = PROMPTS[dp][0] + ' …';
+    const P = dist();
+    $('#d-probs').innerHTML = '<div class="label">token · probability after temperature (bar) and after top-k/top-p renormalising (number)</div>' + P.map((x) => '<div class="prow ' + (x.keep ? '' : 'cut') + '"><span>' + esc(x.t) + '</span><div class="b"><i style="width:' + x.p * 100 + '%;background:' + (x.keep ? '#8b8cff' : '#323c55') + '"></i></div><span>' + (x.keep ? fmt(x.q * 100, 1) + '%' : '—') + '</span></div>').join('');
+    const kept = P.filter((x) => x.keep).length, T = +$('#d-t').value;
+    $('#d-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>' + kept + ' candidate' + (kept > 1 ? 's' : '') + ' survive. ' + (T < 0.3 ? 'Near-greedy: almost always the top token — deterministic, good for factual answers and code.' : T > 1.4 ? 'High temperature: unlikely tokens ("Berlin") get real probability — creative but error-prone. Top-p trims that tail.' : 'Top-p adapts: on the factual prompt one token holds most of the mass, so p = 0.9 keeps very few; on the open prompt it keeps many.') + '</div></div>';
+  }
+  $('#d-sample').addEventListener('click', () => { const P = dist(); const r = rng(Math.floor(Math.random() * 1e9)); const out = []; for (let i = 0; i < 12; i++) { let u = r(); let pick = P[0].t; for (const x of P) { if (!x.keep) continue; if (u < x.q) { pick = x.t; break; } u -= x.q; } out.push(pick); } $('#d-samples').innerHTML = out.map((t) => '<span>' + esc(t) + '</span>').join(''); });
+  ['d-t', 'd-k', 'd-pp'].forEach((id) => $('#' + id).addEventListener('input', () => { $('#d-samples').innerHTML = ''; dDraw(); }));
+  segc('d-p', (v) => { dp = v; $('#d-samples').innerHTML = ''; dDraw(); });
+
+  /* ===== Adapt advisor ===== */
+  const QS = [
+    ['facts', 'Answers depend on private or frequently changing documents (policies, product catalogue, tickets)'],
+    ['cite', 'Users need citations / you must show where an answer came from'],
+    ['style', 'Output must follow a strict house style, format or tone every time'],
+    ['skill', 'The task is a narrow specialised skill the base model does poorly even with good prompts'],
+    ['data', 'You have thousands of high-quality labelled examples'],
+    ['cost', 'You must cut latency/cost by moving to a much smaller model'],
+    ['fast', 'You need something working this week and requirements are still changing'],
+  ];
+  const sel = new Set(['facts', 'cite', 'fast']);
+  function aDraw() {
+    $('#a-qs').innerHTML = QS.map(([k, t]) => '<label><input type="checkbox" data-k="' + k + '" ' + (sel.has(k) ? 'checked' : '') + '> <span>' + t + '</span></label>').join('');
+    const has = (k) => sel.has(k);
+    const rag = has('facts') || has('cite');
+    const ft = (has('style') || has('skill') || has('cost')) && has('data');
+    const ftWant = has('style') || has('skill') || has('cost');
+    const items = [];
+    items.push(['Prompt engineering', true, 'Always the first step: clear instructions, few-shot examples, output schema, and an eval set to measure changes.']);
+    if (rag) items.push(['RAG', true, 'Knowledge lives in a retrievable store, updates without retraining, and every answer can cite its sources.']);
+    if (ftWant) items.push(['Fine-tuning (LoRA / QLoRA)', ft, ft ? 'Behaviour, format or a narrow skill — and you have the data. Distil into a smaller model if cost matters.' : 'Tempting, but without enough good examples you will overfit; collect data first (or generate and filter synthetic data).']);
+    if (has('fast') && ftWant) items.push(['Defer fine-tuning', true, 'Requirements are moving; a fine-tune bakes in today\'s spec. Prompt + RAG first, fine-tune once stable.']);
+    $('#a-rec').innerHTML = '<div class="label" style="margin-bottom:8px">recommendation</div>' + items.map(([n, ok, why]) => '<div class="' + (ok ? 'ok-box' : 'err-box') + ' mt" style="margin-top:8px"><b>' + (ok ? '✓ ' : '✗ ') + n + '</b> — ' + why + '</div>').join('') + (has('facts') && !rag ? '' : '') + '<div class="callout amber mt">' + MR.icon('alert') + '<div>Fine-tuning is a poor way to add facts: they are learned unreliably, can\'t be updated or cited, and can raise hallucination on unseen questions.</div></div>';
+  }
+  $('#a-qs').addEventListener('change', (e) => { const k = e.target.dataset.k; if (!k) return; e.target.checked ? sel.add(k) : sel.delete(k); aDraw(); });
+
+  /* ===== LoRA ===== */
+  let rt = 4;
+  function rDraw() {
+    const d = +$('#r-dm').value, L = +$('#r-L').value, r = Math.pow(2, +$('#r-r').value - 1), B = +$('#r-B').value;
+    $('#r-r-v').textContent = r; $('#r-B-v').textContent = B + 'B';
+    const mlp = 3.5 * d; // approximate intermediate size ratio
+    let per = 0;
+    if (rt >= 2) per += 2 * (r * d + d * r); // q, v (square d x d)
+    if (rt >= 4) per += 2 * (r * d + d * r); // k, o
+    if (rt >= 7) per += 3 * (r * d + r * mlp); // gate, up, down
+    const train = per * L; const frac = train / (B * 1e9);
+    const fullMem = B * 16; // GB: weights+grads+Adam states in mixed precision ~16 bytes/param
+    const loraMem = B * 2 + train * 16 / 1e9; const qloraMem = B * 0.55 + train * 16 / 1e9;
+    $('#r-stats').innerHTML = [[ (train / 1e6).toFixed(1) + 'M', 'trainable parameters'], [fmt(frac * 100, 3) + '%', 'of the base model'], ['≈' + Math.round(fullMem) + ' GB', 'full fine-tune (weights + grads + Adam)'], ['≈' + Math.round(loraMem) + ' / ' + Math.round(qloraMem) + ' GB', 'LoRA (bf16 base) / QLoRA (4-bit base)']].map(([v, k]) => '<div class="stat"><div class="v" style="font-size:17px">' + v + '</div><div class="k">' + k + '</div></div>').join('');
+    $('#r-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>Each adapted d×d matrix W gets W + BA with A (r×d) and B (d×r): 2·r·d parameters instead of d². Memory figures are rough (excluding activations and KV cache). Adapters are tiny files you can swap per customer or task on one shared base model.</div></div>';
+  }
+  ['r-dm', 'r-L', 'r-r', 'r-B'].forEach((id) => $('#' + id).addEventListener('input', rDraw));
+  segc('r-t', (v) => { rt = +v; rDraw(); });
+
+  /* ===== Alignment pipeline ===== */
+  const PIPE = [
+    ['1. Pre-training', 'next-token prediction on trillions of tokens', 'Self-supervised: predict the next token on web text, books, code. Learns language, facts and reasoning patterns. By far the most compute. Output: a base model that continues text but doesn\'t follow instructions reliably.', '{"text": "Photosynthesis converts light energy into chemical energy stored in glucose. In plants, it takes place in the chloroplasts..."}'],
+    ['2. SFT', 'instruction → ideal response', 'Supervised fine-tuning on thousands to millions of curated (prompt, response) demonstrations: answering, refusing harmful requests, formatting, tool calls. Loss only on the response tokens.', '{"messages": [{"role": "user", "content": "Explain photosynthesis to a 10-year-old."},\n              {"role": "assistant", "content": "Plants are like tiny chefs..."}]}'],
+    ['3a. RLHF', 'reward model + PPO', 'Collect pairs of responses ranked by humans; train a reward model to score responses; optimise the policy with PPO to maximise reward minus a KL penalty that keeps it close to the SFT model (to avoid reward hacking and gibberish). Powerful but complex and unstable.', '{"prompt": "Explain photosynthesis to a 10-year-old.",\n "chosen": "Plants are like tiny chefs that use sunlight...",\n "rejected": "Photosynthesis is 6CO2 + 6H2O → C6H12O6 + 6O2."}'],
+    ['3b. DPO', 'preference pairs, no reward model', 'Direct Preference Optimisation turns the same objective into a simple loss: increase the log-probability ratio of the chosen over the rejected response relative to a frozen reference model. No sampling loop or separate reward model — cheaper and more stable, now very common (alongside variants like IPO, KTO, ORPO).', 'loss = -log σ( β·[ log π(chosen)/π_ref(chosen) − log π(rejected)/π_ref(rejected) ] )'],
+  ];
+  let gi = 0;
+  function gDraw() {
+    $('#g-pipe').innerHTML = PIPE.map((p, i) => '<button class="pstep ' + (i === gi ? 'on' : '') + '" data-i="' + i + '"><b>' + p[0] + '</b>' + esc(p[1]) + '</button>').join('');
+    $('#g-detail').innerHTML = '<div class="card lesson" style="margin:0"><p>' + PIPE[gi][2] + '</p></div>';
+    const h = $('#g-data'); h.innerHTML = ''; h.appendChild(codeBlock(PIPE[gi][3], { title: gi === 3 ? 'DPO objective' : 'training example', lang: gi === 3 ? undefined : 'json' }));
+  }
+  $('#g-pipe').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; gi = +b.dataset.i; gDraw(); });
+
+  MR.init('llm', (id) => { ({ tokens: () => { if (!words) bReset(); }, decoding: dDraw, adapt: () => { aDraw(); rDraw(); }, align: gDraw })[id](); });
+})();
+</script>
+</body>
+</html>

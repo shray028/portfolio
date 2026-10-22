@@ -2,6 +2,10 @@
 
 Static portfolio published at [shray028.github.io/portfolio](https://shray028.github.io/portfolio/). Project cards and case studies are defined in `app.js`; their images live under `Projects/`.
 
+## ML Revision hub
+
+[ML Revision](https://shray028.github.io/portfolio/#subjects/mlrevision) collects the most frequently asked machine-learning interview questions — classic ML, deep learning, transformers and LLMs, RAG, agents, ML system design and recommender systems — as 14 interactive modules with 190 model answers (60 marked must-know). Each concept has a lab that makes the answer visible: a bias–variance decomposer, threshold/ROC/PR explorers, an optimizer race, attention and KV-cache tools, a chunking playground, hybrid search with RRF, RAG evaluation and production-debugging scenarios, an A/B sample-size calculator, matrix factorisation and a bandit simulator. Pages live in `Subject_6_MLRevision/interactive/` and share `mr-lab.css`, `mr-lab.js` and `mr-qa.js`.
+
 ## PyTorch learning hub
 
 [PyTorch for Deep Learning](https://shray028.github.io/portfolio/#subjects/pytorch) is an interactive subject under *Interactive labs*: 15 modules (tensors, autograd, the training loop, `nn.Module`, losses and optimizers, `Dataset`/`DataLoader`, GPU training, dropout/BatchNorm/weight decay, Optuna, CNNs, transfer learning, RNNs, LSTMs, production essentials) with theory, copyable code, in-browser labs and a 116-question Q&A bank with must-know questions starred. The pages live in `Subject_4_PyTorch/interactive/` and share `pt-lab.css`, `pt-lab.js` and `pt-qa.js` (the single source for every question). Modules 01–13 follow the arc of CampusX's [Practical Deep Learning using PyTorch](https://www.youtube.com/playlist?list=PLKnIA16_Rmvboy8bmDCjwNHgTaYH2puK7) playlist.
