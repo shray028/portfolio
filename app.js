@@ -2187,6 +2187,7 @@
   const navLinks = document.querySelectorAll('.main-nav a[data-section]');
   const subjectsSection = $('subjects-section');
   const projectsSection = $('projects-section');
+  const careerSection = $('career-section');
 
   const subjectsList = $('subjects-list');
   const subjectGrid = $('subject-cards-grid');
@@ -2310,6 +2311,8 @@
     });
     subjectsSection.classList.toggle('active', sectionId === 'subjects');
     projectsSection.classList.toggle('active', sectionId === 'projects');
+    careerSection.classList.toggle('active', sectionId === 'career');
+    document.body.classList.toggle('in-career', sectionId === 'career');
   }
 
   function updateStats() {
@@ -2754,6 +2757,13 @@
       return;
     }
 
+    if (parts[0] === 'career') {
+      showSection('career');
+      closeSubject();
+      closeAllOverlays();
+      return;
+    }
+
     if (parts[0] === 'contact') {
       closeAllOverlays();
       return;
@@ -2776,6 +2786,17 @@
       if (target === projectsSection && currentSection !== 'projects') go('projects');
       requestAnimationFrame(() => target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }));
     });
+  });
+
+  // Career page: in-page jump links, and links out to other sections start at the top.
+  careerSection.querySelectorAll('[data-jump]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      $(link.dataset.jump).scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    });
+  });
+  careerSection.querySelectorAll('a[href^="#"]:not([data-jump])').forEach((link) => {
+    link.addEventListener('click', () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'auto' }), 0));
   });
 
   // Top-level nav: switching section scrolls back to the section start.
