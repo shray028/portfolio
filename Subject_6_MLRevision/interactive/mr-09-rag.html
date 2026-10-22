@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Fundamentals: Pipeline, Chunking, Embeddings, Hybrid Search & Re-ranking — ML Interview Revision</title>
+  <meta name="description" content="The most-asked RAG interview questions, interactive: the indexing and query pipeline, a chunk-size and overlap playground, cosine similarity on embeddings, BM25 vs dense vs hybrid search with reciprocal rank fusion, and cross-encoder re-ranking.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .pipe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .pstep { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; text-align: left; }
+    .pstep b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .pstep.on { border-color: rgba(139,140,255,.7); background: rgba(139,140,255,.1); }
+    .pstep.done { border-color: rgba(139,140,255,.3); }
+    .chunks { display: grid; gap: 6px; max-height: 460px; overflow-y: auto; padding-right: 4px; }
+    .chunk { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; line-height: 1.55; color: var(--text-2); }
+    .chunk .h { font: 10.5px var(--font-mono); color: var(--dim); margin-bottom: 3px; display: flex; justify-content: space-between; }
+    .chunk mark { background: rgba(251,191,36,.25); color: var(--text); border-radius: 3px; }
+    .chunk .ov { background: rgba(139,140,255,.22); border-radius: 3px; }
+    .chunk.hit { border-color: rgba(74,222,128,.6); }
+    .chunk.part { border-color: rgba(251,191,36,.6); }
+    .res { display: grid; gap: 6px; }
+    .ritem { display: grid; grid-template-columns: 26px 1fr 64px; gap: 8px; align-items: start; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12.5px; }
+    .ritem .r { font: 700 12px var(--font-mono); color: var(--dim); }
+    .ritem .s { font: 12px var(--font-mono); text-align: right; color: var(--muted); }
+    .ritem.rel { border-color: rgba(74,222,128,.55); }
+    .cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    @media (max-width: 1000px) { .pipe { grid-template-columns: 1fr 1fr; } .cols3 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 09 · RAG</span>
+      <h1>RAG <span class="grad">fundamentals</span></h1>
+      <p class="desc">Retrieval-Augmented Generation: fetch the right pieces of your own data at question time and give them to the LLM as context, so answers are current, private-data-aware and citable. Most RAG interview questions are really about the retrieval half — how you chunk, embed, search and re-rank.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Pipeline stepper · chunking playground · cosine explorer · BM25 vs dense vs hybrid · re-ranker</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="pipeline"><span class="n">1</span>The pipeline</button>
+      <button class="tab" data-tab="chunking"><span class="n">2</span>Chunking</button>
+      <button class="tab" data-tab="embeddings"><span class="n">3</span>Embeddings &amp; similarity</button>
+      <button class="tab" data-tab="search"><span class="n">4</span>Keyword, dense &amp; hybrid</button>
+      <button class="tab" data-tab="rerank"><span class="n">5</span>Re-ranking</button>
+    </div></div>
+
+    <!-- ============ PIPELINE ============ -->
+    <section class="tab-panel" data-panel="pipeline">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Index once (offline), retrieve and generate per question (online) <span class="imp">Must-know</span></h3>
+        <p><strong>Indexing:</strong> load documents → clean and parse (tables, headings) → split into chunks → embed each chunk → store vectors with text and metadata (source, date, access rights) in a vector index. <strong>Query time:</strong> optionally rewrite the question → embed it → retrieve top-k chunks (dense, keyword or hybrid, with metadata filters) → re-rank → build a prompt with the chunks and instructions to answer only from them and cite → generate → return answer with citations. LLMs alone are frozen at their training cut-off, don't know your private data and can't show sources; RAG fixes all three without retraining.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · follow one question</div>
+      <div class="card card-pad">
+        <div class="seg" id="p-mode"><button data-v="index" class="on">indexing (offline)</button><button data-v="query">query (online)</button></div>
+        <div class="pipe mt" id="p-steps"></div>
+        <div class="split mt"><div id="p-desc"></div><div id="p-data"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rag:pipeline"></div>
+    </section>
+
+    <!-- ============ CHUNKING ============ -->
+    <section class="tab-panel" data-panel="chunking" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Chunk size is a precision–context trade-off <span class="imp">Must-know</span></h3>
+        <p><strong>Too small</strong>: chunks lose context ("it", "the above"), answers get split across boundaries, and you need more of them. <strong>Too large</strong>: the embedding averages several topics so similarity gets fuzzy, irrelevant text dilutes the prompt, and fewer chunks fit in context. Typical starting points are 256–1024 tokens with 10–20% <strong>overlap</strong> so sentences at boundaries appear in both neighbours. Prefer structure-aware splitting (headings, paragraphs, sentences — "recursive" splitting) over fixed character counts, keep tables intact, attach metadata, and tune size on a retrieval eval set rather than guessing.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · chunk a policy document</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">strategy</span><div class="seg" id="c-s"><button data-v="fixed" class="on">fixed characters</button><button data-v="sentence">sentence-aware</button><button data-v="heading">by heading</button></div></div>
+          <div class="field" id="c-size-f"><span class="label-t">chunk size (characters)</span><div class="range-row"><input type="range" id="c-size" min="80" max="900" step="20" value="200"><span class="val" id="c-size-v"></span></div></div>
+          <div class="field" id="c-ov-f"><span class="label-t">overlap (characters)</span><div class="range-row"><input type="range" id="c-ov" min="0" max="200" step="10" value="0"><span class="val" id="c-ov-v"></span></div></div>
+          <div class="field"><span class="label-t">question</span><div class="seg" id="c-q"><button data-v="0" class="on">refund window for opened items?</button><button data-v="1">who pays return shipping?</button></div></div>
+          <div class="grid-2" id="c-stats"></div>
+          <div id="c-note"></div>
+        </div>
+        <div><div class="chunks" id="c-out"></div><div class="legend mt"><span><i style="background:rgba(251,191,36,.5)"></i>sentence that answers the question</span><span><i style="background:rgba(139,140,255,.4)"></i>overlap with previous chunk</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="chunking.py">
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=800, chunk_overlap=100,                  # in characters (or use a token-length function)
+    separators=["\n## ", "\n\n", "\n", ". ", " "])     # try big boundaries first
+chunks = splitter.create_documents([text], metadatas=[{"source": "returns-policy.md", "updated": "2026-09-01"}])
+
+# structure-first: split by headings, then size-limit each section
+by_heading = MarkdownHeaderTextSplitter([("#", "h1"), ("##", "h2")]).split_text(markdown)
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rag:chunking"></div>
+    </section>
+
+    <!-- ============ EMBEDDINGS ============ -->
+    <section class="tab-panel" data-panel="embeddings" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Embeddings place meaning in space; cosine similarity measures the angle <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \cos(q,d)=\frac{q\cdot d}{\lVert q\rVert\,\lVert d\rVert} \)</p>
+        <p>An embedding model (usually a transformer encoder trained contrastively on query–passage pairs) maps text to a vector of a few hundred to a few thousand dimensions, so that texts with similar meaning are close — "get my money back" lands near "refund". Cosine similarity ignores vector length and compares direction; for unit-normalised vectors it equals the dot product and ranks the same as Euclidean distance. Query and documents must use the <em>same</em> embedding model (re-embed everything if you change it). Exact search is O(n); vector databases use approximate nearest-neighbour indexes (HNSW graphs, IVF clusters, product quantisation) to search millions of vectors in milliseconds at slightly lower recall.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · a 2-D cartoon of embedding space</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">query</span><div class="seg" id="e-q"><button data-v="0" class="on">how do I get my money back?</button><button data-v="1">my glasses broke</button><button data-v="2">can't log in</button></div></div>
+          <div class="res" id="e-res"></div>
+          <p class="small muted">Real embeddings have hundreds of dimensions; positions here are hand-placed to show the idea.</p>
+        </div>
+        <div><canvas class="viz" id="e-plot"></canvas></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rag:embeddings"></div>
+    </section>
+
+    <!-- ============ SEARCH ============ -->
+    <section class="tab-panel" data-panel="search" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Keyword search finds exact terms, dense search finds meaning — hybrid gets both <span class="imp">Must-know</span></h3>
+        <p><strong>BM25</strong> (sparse) scores documents by matching terms, weighting rare terms (IDF) and saturating repeated ones; it nails error codes, product SKUs, names and acronyms, and needs no training — but misses synonyms. <strong>Dense</strong> retrieval matches paraphrases and intent but can miss exact identifiers and rare jargon. <strong>Hybrid</strong> runs both and fuses the ranked lists, commonly with <strong>Reciprocal Rank Fusion</strong>, which needs no score normalisation:</p>
+        <p class="formula">\( \text{RRF}(d)=\sum_{r\in\text{rankers}} \frac{1}{k+\text{rank}_r(d)},\quad k\approx 60 \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · three retrievers, one help-centre</div>
+      <div class="card card-pad">
+        <div class="field"><label for="s-q">query</label><input class="input" id="s-q" value="how do I get my money back for a product?"></div>
+        <div class="presets mt"><span class="small muted">Try:</span><button class="btn btn-sm" data-q="how do I get my money back for a product?">paraphrase</button><button class="btn btn-sm" data-q="E1047 at checkout">error code</button><button class="btn btn-sm" data-q="can't sign in after changing my password">mixed</button><button class="btn btn-sm" data-q="frame broke after 3 months, is it covered?">warranty</button></div>
+        <div class="cols3 mt">
+          <div><div class="label" style="margin-bottom:6px">BM25 (keyword)</div><div class="res" id="s-bm"></div></div>
+          <div><div class="label" style="margin-bottom:6px">dense (semantic)*</div><div class="res" id="s-de"></div></div>
+          <div><div class="label" style="margin-bottom:6px">hybrid · RRF (k = 60)</div><div class="res" id="s-hy"></div></div>
+        </div>
+        <p class="small muted mt">BM25 and RRF are computed for real. *Dense scores are simulated with a small synonym/concept map so the page runs offline.</p>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="hybrid.py">
+from rank_bm25 import BM25Okapi
+
+bm25 = BM25Okapi([tokenize(c.text) for c in chunks])
+sparse = bm25.get_scores(tokenize(query))                     # keyword scores
+dense = index.search(embed(query), k=50)                      # vector DB: [(chunk_id, cosine), ...]
+
+def rrf(rankings, k=60):
+    scores = {}
+    for ranking in rankings:                                  # each: list of ids, best first
+        for rank, doc_id in enumerate(ranking, start=1):
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank)
+    return sorted(scores, key=scores.get, reverse=True)
+
+candidates = rrf([top_ids(sparse, 50), [i for i, _ in dense]])[:20]
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rag:search"></div>
+    </section>
+
+    <!-- ============ RERANK ============ -->
+    <section class="tab-panel" data-panel="rerank" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Retrieve wide and cheap, then re-rank narrow and precise <span class="imp">Must-know</span></h3>
+        <p>A <strong>bi-encoder</strong> embeds query and document separately, so document vectors are pre-computed and search is fast — but the two texts never "see" each other. A <strong>cross-encoder</strong> reads the query and a document together through full attention and outputs a relevance score: far more accurate, far too slow to run on millions of documents. So retrieve the top 20–100 candidates with hybrid search (high recall), re-rank them with a cross-encoder (or an LLM re-ranker), and send only the top 3–8 to the LLM (high precision, fewer tokens, less "lost in the middle").</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · re-rank the hybrid top 8</div>
+      <div class="card card-pad">
+        <div class="field"><span class="label-t">query</span><div class="seg" id="r-q"><button data-v="0" class="on">get my money back</button><button data-v="1">sign in after password change</button><button data-v="2">frame broke, covered?</button></div></div>
+        <div class="grid-2 mt">
+          <div><div class="label" style="margin-bottom:6px">before · hybrid order</div><div class="res" id="r-before"></div></div>
+          <div><div class="label" style="margin-bottom:6px">after · cross-encoder*</div><div class="res" id="r-after"></div></div>
+        </div>
+        <div id="r-note" class="mt"></div>
+        <p class="small muted">*Cross-encoder scores are illustrative. Green border = actually answers the question.</p>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="rerank.py">
+from sentence_transformers import CrossEncoder
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+pairs = [(query, c.text) for c in candidates]          # 20-50 candidates from hybrid search
+scores = reranker.predict(pairs)                        # one forward pass per pair (batched)
+top = [c for _, c in sorted(zip(scores, candidates), key=lambda t: -t[0])][:5]
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="rag:rerank"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, codeBlock, plot } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Pipeline ===== */
+  const STEPS = {
+    index: [
+      ['Load', 'PDFs, wiki, tickets', 'Connectors pull documents with their metadata (source URL, owner, last updated, access groups).', '{"source": "help/returns-policy.pdf", "updated": "2026-09-01", "acl": ["public"]}'],
+      ['Parse & clean', 'text, tables, headings', 'Extract text while keeping structure: headings, lists, tables (as markdown), page numbers. Remove boilerplate (headers, footers, nav).', '## Refunds\nUnopened items: full refund within 30 days.\n| Item | Window |\n|---|---|\n| Frames | 14 days |'],
+      ['Chunk', '≈ 500 tokens, 10–20% overlap', 'Split along structure into retrievable units; prepend the section title so each chunk stands alone.', '{"chunk_id": "returns#3", "text": "Refunds > Opened items: Opened items can be returned within 14 days ...", "section": "Refunds"}'],
+      ['Embed', 'encoder → vector', 'Run every chunk through the embedding model (batch, cache by content hash so unchanged chunks aren\'t re-embedded).', '{"chunk_id": "returns#3", "vector": [0.021, -0.113, 0.087, ... 1024 dims]}'],
+      ['Store', 'vector DB + metadata', 'Upsert vectors with text and metadata into an ANN index (HNSW) — plus a BM25/keyword index for hybrid search.', 'upsert(id="returns#3", vector=v, payload={"text": ..., "source": ..., "updated": ..., "acl": [...]})'],
+    ],
+    query: [
+      ['Rewrite', 'clarify & expand', 'Turn chatty or follow-up questions into a standalone search query (using conversation history); optionally generate variants.', '"what about opened ones?"  →  "refund window for opened items"'],
+      ['Retrieve', 'hybrid top-k + filters', 'Embed the query, run dense + BM25 search with metadata filters (user\'s access rights, product, date), fuse with RRF → top 30.', '[returns#3 (0.83), returns#1 (0.79), faq#12 (0.71), ...]'],
+      ['Re-rank', 'cross-encoder → top 5', 'Score each (query, chunk) pair jointly; keep the 3–8 best; drop anything below a relevance threshold.', '[returns#3 (9.1), returns#1 (6.4), shipping#2 (1.2) ✗ dropped]'],
+      ['Generate', 'grounded prompt', 'Prompt = instructions + retrieved chunks with IDs + question. Instruct: answer only from the context, cite chunk IDs, say "I don\'t know" if missing.', 'Answer using ONLY the context. Cite sources like [returns#3].\nIf the answer is not in the context, say you don\'t know.\n<context>[returns#3] ...</context>\nQuestion: refund window for opened items?'],
+      ['Answer + cite', 'verify & log', 'Return the answer with clickable sources; optionally check every claim is supported; log query, chunks, answer and feedback for evaluation.', '"Opened items can be returned within 14 days for store credit [returns#3]."'],
+    ],
+  };
+  let pm = 'index', pi = 0;
+  function pDraw() {
+    const S = STEPS[pm];
+    $('#p-steps').innerHTML = S.map((s, i) => '<button class="pstep ' + (i === pi ? 'on' : i < pi ? 'done' : '') + '" data-i="' + i + '"><b>' + (i + 1) + '. ' + s[0] + '</b>' + esc(s[1]) + '</button>').join('');
+    $('#p-desc').innerHTML = '<div class="card lesson" style="margin:0"><p>' + S[pi][2] + '</p></div>';
+    const h = $('#p-data'); h.innerHTML = ''; h.appendChild(codeBlock(S[pi][3], { title: 'example', lang: S[pi][3].trim().startsWith('{') ? 'json' : undefined }));
+  }
+  $('#p-steps').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; pi = +b.dataset.i; pDraw(); });
+  segc('p-mode', (v) => { pm = v; pi = 0; pDraw(); });
+
+  /* ===== Chunking ===== */
+  const DOC = [
+    ['# Returns and refunds policy', ''],
+    ['## Eligibility', 'Most items bought from the online store can be returned. Items must be in their original packaging with all accessories. Personalised and prescription lenses cannot be returned.'],
+    ['## Refunds', 'Unopened items can be returned within 30 days of delivery for a full refund. Opened items can be returned within 14 days of delivery for store credit only. Refunds go back to the original payment method within 5–7 business days.'],
+    ['## Return shipping', 'Use the prepaid label in your account to send items back. The store pays return shipping when the item arrived damaged or was wrong. In all other cases a flat fee of 99 rupees is deducted from the refund.'],
+    ['## Exchanges', 'Exchanges for a different size or colour are free within 30 days. If the new item costs more, you pay the difference.'],
+  ];
+  const TEXT = DOC.map(([h, b]) => h + '\n' + b).join('\n\n');
+  const Q = [{ ans: 'Opened items can be returned within 14 days of delivery for store credit only.' }, { ans: 'The store pays return shipping when the item arrived damaged or was wrong. In all other cases a flat fee of 99 rupees is deducted from the refund.' }];
+  let cs = 'fixed', cq = 0;
+  function makeChunks() {
+    const size = +$('#c-size').value, ov = Math.min(+$('#c-ov').value, size - 20);
+    if (cs === 'heading') return DOC.filter(([, b]) => b).map(([h, b]) => ({ text: h.replace(/^#+ /, '') + ' — ' + b, start: TEXT.indexOf(b), ovl: 0 }));
+    if (cs === 'fixed') { const out = []; for (let s = 0; s < TEXT.length; s += size - ov) { out.push({ text: TEXT.slice(s, s + size), start: s, ovl: s ? ov : 0 }); if (s + size >= TEXT.length) break; } return out; }
+    const sents = TEXT.replace(/\n+/g, ' ').match(/[^.]+\.\s*|[^.]+$/g).map((x) => x.trim()).filter(Boolean);
+    const out = []; let cur = [];
+    const flush = () => { if (cur.length) out.push({ text: cur.join(' '), ovl: 0 }); };
+    sents.forEach((s) => { if (cur.join(' ').length + s.length > size && cur.length) { flush(); const keep = []; let n = 0; for (let i = cur.length - 1; i >= 0 && n + cur[i].length <= ov; i--) { keep.unshift(cur[i]); n += cur[i].length; } cur = keep.slice(); out.length && (out[out.length - 1].next = keep.length); cur.ovlCount = keep.length; } cur.push(s); });
+    flush();
+    return out.map((c, i) => ({ text: c.text, ovl: i && out[i - 1].next ? out[i - 1].next : 0, sentOv: true }));
+  }
+  function cDraw() {
+    $('#c-size-v').textContent = $('#c-size').value; $('#c-ov-v').textContent = $('#c-ov').value;
+    $('#c-size-f').style.opacity = cs === 'heading' ? 0.4 : 1; $('#c-ov-f').style.opacity = cs === 'heading' ? 0.4 : 1;
+    const C = makeChunks(); const ans = Q[cq].ans;
+    let full = -1, partial = [];
+    const html = C.map((c, i) => {
+      const t = c.text.replace(/\n+/g, ' ');
+      const has = t.includes(ans);
+      const piece = !has && ans.split(' ').length > 3 && (t.includes(ans.slice(0, 40)) || t.includes(ans.slice(-40)) || (ans.length > 60 && t.includes(ans.slice(30, 70))));
+      if (has && full < 0) full = i; if (piece) partial.push(i);
+      let body = esc(t);
+      if (c.ovl) { if (c.sentOv) { /* highlight first ovl sentences */ const parts = t.match(/[^.]+\.\s*|[^.]+$/g) || [t]; const head = parts.slice(0, c.ovl).join(''); body = '<span class="ov">' + esc(head) + '</span>' + esc(t.slice(head.length)); } else body = '<span class="ov">' + esc(t.slice(0, c.ovl)) + '</span>' + esc(t.slice(c.ovl)); }
+      if (has) body = body.replace(esc(ans), '<mark>' + esc(ans) + '</mark>');
+      return '<div class="chunk ' + (has ? 'hit' : piece ? 'part' : '') + '"><div class="h"><span>chunk ' + (i + 1) + '</span><span>' + t.length + ' chars</span></div>' + body + '</div>';
+    }).join('');
+    $('#c-out').innerHTML = html;
+    const avg = C.reduce((a, c) => a + c.text.length, 0) / C.length;
+    $('#c-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + C.length + '</div><div class="k">chunks</div></div><div class="stat"><div class="v" style="font-size:17px">' + Math.round(avg) + '</div><div class="k">avg characters (≈ ' + Math.round(avg / 4) + ' tokens)</div></div>';
+    let note;
+    if (full >= 0 && cs === 'heading') note = '<div class="ok-box">One section per chunk: the answer and its heading stay together, so the chunk is self-explanatory. Long sections would still need a size limit.</div>';
+    else if (full >= 0 && avg > 500) note = '<div class="callout amber">' + MR.icon('alert') + '<div>The answer is inside one chunk, but that chunk also covers other topics — its embedding is a blur of several subjects and it spends more of the context window.</div></div>';
+    else if (full >= 0) note = '<div class="ok-box">The full answer sits inside chunk ' + (full + 1) + '.' + (cs === 'fixed' && !+$('#c-ov').value ? ' Lucky — with fixed cuts and no overlap, a slightly different size can split it.' : '') + '</div>';
+    else note = '<div class="err-box">No single chunk contains the whole answer' + (partial.length ? ' — it is split across chunks ' + partial.map((i) => i + 1).join(' and ') : '') + '. Retrieval may return half an answer. Add overlap, switch to sentence-aware or heading-based splitting, or increase the size.</div>';
+    $('#c-note').innerHTML = note;
+  }
+  ['c-size', 'c-ov'].forEach((id) => $('#' + id).addEventListener('input', cDraw));
+  segc('c-s', (v) => { cs = v; cDraw(); });
+  segc('c-q', (v) => { cq = +v; cDraw(); });
+
+  /* ===== Embeddings ===== */
+  const EP = [
+    ['Refunds go back to the original payment method', 4.6, 6.6, 'money'], ['Items can be returned within 30 days', 3.8, 7.4, 'money'], ['Gift cards can\'t be exchanged for cash', 5.6, 5.6, 'money'], ['Cancel an order before it ships', 2.6, 6.0, 'money'],
+    ['Frames are covered for 12 months against defects', 7.6, 3.0, 'warranty'], ['Accidental damage is not covered', 8.3, 3.8, 'warranty'], ['Book a repair at the nearest store', 6.8, 2.2, 'warranty'],
+    ['Reset your password from Settings → Security', 1.6, 2.2, 'login'], ['Clear cached credentials and sign in again', 2.4, 1.4, 'login'], ['Two-factor codes expire after 60 seconds', 1.2, 3.2, 'login'],
+    ['Express delivery arrives in 1–2 days', 5.4, 8.8, 'ship'], ['Track your parcel with the courier link', 6.4, 9.2, 'ship'],
+  ];
+  const EQ = [['how do I get my money back?', 4.3, 7.0], ['my glasses broke', 7.4, 2.7], ['can\'t log in', 1.8, 1.9]];
+  const ECOL = { money: '#f472b6', warranty: '#fbbf24', login: '#5fb3f9', ship: '#4ade80' };
+  let eq = 0;
+  function eDraw() {
+    const [qt, qx, qy] = EQ[eq]; const cx = 5, cy = 5.2;
+    const v = (x, y) => [x - cx, y - cy]; const qv = v(qx, qy);
+    const cos = (a, b) => (a[0] * b[0] + a[1] * b[1]) / (Math.hypot(...a) * Math.hypot(...b));
+    const R = EP.map((p) => [p, cos(qv, v(p[1], p[2]))]).sort((a, b) => b[1] - a[1]);
+    const P = plot($('#e-plot'), [
+      ...R.slice(0, 3).map(([p]) => ({ type: 'line', data: [[cx, cy], [p[1], p[2]]], color: '#8b8cff66', width: 1.5, dash: [4, 3] })),
+      { type: 'line', data: [[cx, cy], [qx, qy]], color: '#e5e7eb', width: 2 },
+      { type: 'points', data: EP.map((p) => [p[1], p[2], ECOL[p[3]]]), r: 6 },
+      { type: 'points', data: [[qx, qy, '#e5e7eb']], r: 7 },
+    ], { h: 330, xmin: 0, xmax: 10, ymin: 0, ymax: 10, ticks: 4, grid: false, xfmt: () => '', yfmt: () => '' });
+    P.ctx.font = '11px Inter, sans-serif'; P.ctx.fillStyle = '#9fb0c8';
+    EP.forEach((p) => { P.ctx.fillText(p[0].length > 30 ? p[0].slice(0, 28) + '…' : p[0], P.X(p[1]) + 8, P.Y(p[2]) + 4); });
+    P.ctx.fillStyle = '#e5e7eb'; P.ctx.font = '600 12px Inter, sans-serif'; P.ctx.fillText('Q: ' + qt, P.X(qx) + 9, P.Y(qy) - 8);
+    $('#e-res').innerHTML = '<div class="label">top results by cosine (angle from the centre)</div>' + R.slice(0, 5).map(([p, s], i) => '<div class="ritem"><span class="r">' + (i + 1) + '</span><span>' + esc(p[0]) + '</span><span class="s">' + fmt(s, 3) + '</span></div>').join('');
+  }
+  segc('e-q', (v) => { eq = +v; eDraw(); });
+
+  /* ===== Search ===== */
+  const DOCS = [
+    'Refund policy: items can be returned within 30 days of delivery for a full refund to the original payment method.',
+    'Error E1047 appears when the payment gateway times out. Retry after 5 minutes or use another payment method.',
+    'To reset your password, open Settings, then Security, and choose Forgot password. A reset link is emailed to you.',
+    'Login fails after a password change? Clear cached credentials in the app and sign in again.',
+    'Standard delivery takes 3 to 5 business days; express delivery arrives in 1 to 2 days in metro cities.',
+    'Orders can be cancelled free of charge before they ship. After shipping, start a return instead.',
+    'Warranty: frames are covered for 12 months against manufacturing defects. Accidental damage is not covered.',
+    'Gift cards cannot be refunded or exchanged for cash and expire after 12 months.',
+  ];
+  const STOP = new Set('a an the to for of and or in on is are be my i do how can it after before your you with by at from as what this that does did not cant'.split(' '));
+  const tok = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w));
+  const DT = DOCS.map(tok); const AVG = DT.reduce((a, d) => a + d.length, 0) / DT.length;
+  function bm25(q) { const qt = tok(q); return DT.map((d) => qt.reduce((s, t) => { const n = DT.filter((x) => x.includes(t)).length; if (!n) return s; const idf = Math.log(1 + (DT.length - n + 0.5) / (n + 0.5)); const f = d.filter((x) => x === t).length; return s + idf * f * 2.5 / (f + 1.5 * (0.25 + 0.75 * d.length / AVG)); }, 0)); }
+  const CONCEPTS = { refund: ['refund', 'refunded', 'money', 'back', 'return', 'returned', 'reimburse', 'cash'], payment: ['payment', 'pay', 'gateway', 'card', 'cash', 'checkout'], error: ['error', 'fails', 'fail', 'failed', 'broken', 'broke', 'timeout', 'times', 'working', 'issue', 'problem'], login: ['login', 'log', 'sign', 'password', 'credentials', 'account', 'security'], delivery: ['delivery', 'ship', 'shipping', 'shipped', 'arrive', 'arrives', 'courier', 'parcel'], cancel: ['cancel', 'cancelled', 'cancellation'], warranty: ['warranty', 'covered', 'cover', 'defects', 'defect', 'damage', 'broke', 'broken', 'repair', 'months'], product: ['product', 'item', 'items', 'order', 'orders', 'frames', 'frame', 'glasses'] };
+  const cvec = (words) => Object.keys(CONCEPTS).map((k) => words.filter((w) => CONCEPTS[k].includes(w)).length);
+  const DV = DT.map(cvec);
+  function dense(q) { const qv = cvec(tok(q)); const qn = Math.hypot(...qv) || 1; return DV.map((d) => { const dn = Math.hypot(...d) || 1; return d.reduce((s, v, i) => s + v * qv[i], 0) / (dn * qn); }); }
+  const order = (sc) => sc.map((s, i) => [s, i]).filter(([s]) => s > 1e-9).sort((a, b) => b[0] - a[0]).map(([, i]) => i);
+  function rrfF(lists, k) { const S = {}; lists.forEach((L) => L.forEach((d, r) => { S[d] = (S[d] || 0) + 1 / (k + r + 1); })); return Object.entries(S).sort((a, b) => b[1] - a[1]).map(([d, s]) => [+d, s]); }
+  const GOLD = (q) => { const t = q.toLowerCase(); if (/e1047/.test(t)) return [1]; if (/money|refund/.test(t)) return [0]; if (/sign|log|password/.test(t)) return [3, 2]; if (/frame|broke|covered|warranty/.test(t)) return [6]; return []; };
+  function list(host, items, gold) { $(host).innerHTML = items.length ? items.slice(0, 4).map(([i, s], r) => '<div class="ritem ' + (gold.includes(i) ? 'rel' : '') + '"><span class="r">' + (r + 1) + '</span><span>' + esc(DOCS[i]) + '</span><span class="s">' + fmt(s, 3) + '</span></div>').join('') : '<p class="small muted">no matches</p>'; }
+  function sDraw() {
+    const q = $('#s-q').value; const gold = GOLD(q);
+    const b = bm25(q), d = dense(q);
+    const bo = order(b), dO = order(d);
+    list('#s-bm', bo.map((i) => [i, b[i]]), gold); list('#s-de', dO.map((i) => [i, d[i]]), gold); list('#s-hy', rrfF([bo, dO], 60), gold);
+  }
+  $('#s-q').addEventListener('input', sDraw);
+  $$('[data-q]').forEach((b) => b.addEventListener('click', () => { $('#s-q').value = b.dataset.q; sDraw(); }));
+
+  /* ===== Rerank ===== */
+  const RQ = ['how do I get my money back for a product?', 'can\'t sign in after changing my password', 'frame broke after 3 months, is it covered?'];
+  let rq = 0;
+  function rDraw() {
+    const q = RQ[rq], gold = GOLD(q);
+    const fused = rrfF([order(bm25(q)), order(dense(q))], 60).map(([i]) => i);
+    const rest = DOCS.map((_, i) => i).filter((i) => !fused.includes(i));
+    const cand = fused.concat(rest).slice(0, 8);
+    const ce = cand.map((i, r) => [i, (gold.includes(i) ? 7.5 - gold.indexOf(i) * 0.8 : 1.5 - r * 0.1) + (((i * 37) % 7) / 10)]);
+    const after = ce.slice().sort((a, b) => b[1] - a[1]);
+    $('#r-before').innerHTML = cand.map((i, r) => '<div class="ritem ' + (gold.includes(i) ? 'rel' : '') + '"><span class="r">' + (r + 1) + '</span><span>' + esc(DOCS[i]) + '</span><span class="s"></span></div>').join('');
+    $('#r-after').innerHTML = after.map(([i, s], r) => '<div class="ritem ' + (gold.includes(i) ? 'rel' : '') + '" style="' + (r >= 3 ? 'opacity:.45' : '') + '"><span class="r">' + (r + 1) + '</span><span>' + esc(DOCS[i]) + '</span><span class="s">' + fmt(s, 1) + '</span></div>').join('');
+    const p3 = (L) => L.slice(0, 3).filter((i) => gold.includes(i)).length / 3;
+    const firstBefore = cand.findIndex((i) => gold.includes(i)) + 1;
+    $('#r-note').innerHTML = '<div class="ok-box">Precision@3: ' + fmt(p3(cand), 2) + ' → ' + fmt(p3(after.map((x) => x[0])), 2) + '. ' + (firstBefore === 1 ? 'The best chunk was already first; the re-ranker\'s job here is pushing loosely related chunks below the cut-off.' : 'The best answer moved from rank ' + firstBefore + ' to rank 1.') + ' Only the top 3 (opaque) go into the prompt.</div>';
+  }
+  segc('r-q', (v) => { rq = +v; rDraw(); });
+
+  MR.init('rag', (id) => { ({ pipeline: pDraw, chunking: cDraw, embeddings: eDraw, search: sDraw, rerank: rDraw })[id](); });
+})();
+</script>
+</body>
+</html>

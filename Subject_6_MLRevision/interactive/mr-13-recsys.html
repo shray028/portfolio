@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recommender System Design: Retrieval, Ranking, Two-Tower, Cold Start, Negatives, Bandits — ML Interview Revision</title>
+  <meta name="description" content="Recommender-system interview questions made interactive: the retrieval → filtering → ranking → re-ranking funnel with a 200 ms latency budget, matrix factorisation you can train in the browser, user and item cold start, positive and negative labels, blending several objectives with hard constraints, and exploration with bandits.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .funnel { display: grid; gap: 6px; }
+    .fn { display: grid; grid-template-columns: 150px 1fr 110px; gap: 10px; align-items: center; font-size: 12.5px; }
+    .fn .bar { height: 30px; border-radius: 7px; background: linear-gradient(90deg, rgba(139,140,255,.55), rgba(240,171,252,.35)); display: flex; align-items: center; padding: 0 10px; font: 600 12px var(--font-mono); color: #fff; white-space: nowrap; overflow: hidden; min-width: 54px; }
+    .fn b { font-size: 13px; }
+    .fn .ms { font: 12px var(--font-mono); color: var(--muted); text-align: right; }
+    .lat { display: grid; gap: 4px; }
+    .latbar { display: flex; height: 26px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
+    .latbar span { display: flex; align-items: center; justify-content: center; font: 10.5px var(--font-mono); color: #04110b; white-space: nowrap; overflow: hidden; }
+    .mx { display: grid; gap: 3px; font: 12.5px var(--font-mono); }
+    .mx span { padding: 7px 2px; text-align: center; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); }
+    .mx .h { background: none; border: 0; color: var(--dim); font-size: 11px; }
+    .mx .obs { color: var(--text); font-weight: 700; }
+    .mx .pred { color: #c7c8ff; font-style: italic; border-style: dashed; }
+    .ladder { display: grid; gap: 5px; }
+    .rung { display: grid; grid-template-columns: 120px 1fr 80px; gap: 10px; align-items: center; font-size: 12.5px; cursor: pointer; }
+    .rung .bar { height: 22px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .rung .bar i { display: block; height: 100%; background: #646d82; }
+    .rung.pos .bar i { background: #4ade80; }
+    .rung .n { font: 12px var(--font-mono); text-align: right; color: var(--muted); }
+    .wt { display: grid; gap: 6px; }
+    .oos { opacity: .5; }
+    .tag { display: inline-block; padding: 1px 6px; border-radius: 5px; font: 10.5px var(--font-mono); border: 1px solid var(--line); }
+    .tag.no { color: #fca5a5; border-color: rgba(248,113,113,.5); }
+    .shares { display: grid; gap: 5px; }
+    .sh { display: grid; grid-template-columns: 110px 1fr 54px; gap: 8px; align-items: center; font: 12px var(--font-mono); }
+    .sh .b { height: 16px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+    .sh .b i { display: block; height: 100%; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 13 · RECOMMENDERS</span>
+      <h1>Recommender <span class="grad">systems</span></h1>
+      <p class="desc">"Design a product recommendation system" is the most common ML design question at e-commerce, ads and content companies. The answer has a standard shape — retrieve candidates, filter, rank, re-rank — and the follow-ups probe labels, negatives, cold start, combining objectives, evaluation and exploration. Examples here use an eyewear store app with physical stores.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Funnel &amp; latency budget · matrix factorisation lab · label ladder · objective blender · bandit simulator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="funnel"><span class="n">1</span>The funnel</button>
+      <button class="tab" data-tab="models"><span class="n">2</span>CF, two-tower &amp; cold start</button>
+      <button class="tab" data-tab="labels"><span class="n">3</span>Positives &amp; negatives</button>
+      <button class="tab" data-tab="blend"><span class="n">4</span>Blending objectives</button>
+      <button class="tab" data-tab="explore"><span class="n">5</span>Exploration</button>
+    </div></div>
+
+    <!-- ============ FUNNEL ============ -->
+    <section class="tab-panel" data-panel="funnel">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Retrieve cheaply from millions, rank carefully over hundreds <span class="imp">Must-know</span></h3>
+        <p><strong>Candidate generation</strong> pulls ~hundreds to a few thousand items from several sources in parallel (two-tower ANN on embeddings, co-viewed/co-bought, similar to recently viewed, trending in the user's city) — optimised for recall and speed. <strong>Filtering</strong> applies hard constraints: in stock (online or at the chosen store), deliverable, not already bought, policy rules. <strong>Ranking</strong> scores each remaining candidate with a richer model (GBDT or deep model predicting click, try-on, purchase) using user, item, context and cross features. <strong>Re-ranking</strong> applies diversity, freshness, business rules and exploration to the final slate. A strong v1: popularity by segment + co-purchase + in-stock filter + simple GBDT ranker.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · a 200 ms p95 latency budget</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">candidates retrieved</span><div class="range-row"><input type="range" id="f-c" min="100" max="5000" step="100" value="1000"><span class="val" id="f-c-v"></span></div></div>
+          <div class="field"><span class="label-t">ranker cost per candidate (µs)</span><div class="range-row"><input type="range" id="f-r" min="5" max="200" step="5" value="40"><span class="val" id="f-r-v"></span></div></div>
+          <div class="field"><span class="label-t">feature fetch (ms)</span><div class="range-row"><input type="range" id="f-f" min="2" max="80" step="1" value="15"><span class="val" id="f-f-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-par" checked> retrieval sources called in parallel</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-llm"> add an LLM call to write explanations (≈ 900 ms)</label>
+        </div>
+        <div>
+          <div class="funnel" id="f-funnel"></div>
+          <div class="label mt" style="margin-bottom:6px">latency (ms)</div>
+          <div class="latbar" id="f-lat"></div>
+          <div id="f-note" class="mt"></div>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="recsys:funnel"></div>
+    </section>
+
+    <!-- ============ MODELS ============ -->
+    <section class="tab-panel" data-panel="models" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3>Collaborative vs content-based vs hybrid <span class="imp">Must-know</span></h3>
+          <p><strong>Collaborative filtering</strong> learns from behaviour alone: users who liked what you liked also liked X. <strong>Matrix factorisation</strong> represents each user and item as a vector so that their dot product predicts the interaction; it finds taste dimensions nobody labelled, but can't handle new users or items. <strong>Content-based</strong> uses item attributes (frame shape, material, colour, price, image embeddings) and the user's own history — works for new items, can be narrow. <strong>Hybrid / two-tower</strong>: a user tower (history, context, demographics) and an item tower (ID + attributes + image) trained so matching pairs score high — attributes rescue cold items, embeddings enable ANN retrieval.</p>
+        </div>
+        <div class="card lesson">
+          <h3>Cold start <span class="imp">Must-know</span></h3>
+          <p><strong>New user:</strong> popular and trending items for their segment (city, device, entry page), short onboarding preferences (face shape, style, budget), session behaviour updated within the visit (clicks, try-ons), and bandit exploration. <strong>New item:</strong> content features and visual embeddings place it near similar items in the item tower; boost or reserve exploration slots so it can earn interactions; borrow signals from the same brand/collection. Always keep a sensible fallback that respects inventory.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · train matrix factorisation (k = 2) on a tiny rating matrix</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="btn-row"><button class="btn btn-primary" id="m-train"><i data-icon="play"></i>Train 300 epochs</button><button class="btn" id="m-reset"><i data-icon="reset"></i>Reset</button></div>
+          <div class="grid-2" id="m-stats"></div>
+          <div class="mx" id="m-mx"></div>
+          <p class="small muted">Bold = observed ratings (1–5). Dashed italics = model predictions for unseen pairs; recommend the highest ones.</p>
+        </div>
+        <div><canvas class="viz" id="m-plot"></canvas><div class="legend"><span><i style="background:#5fb3f9"></i>users</span><span><i style="background:#f472b6"></i>frames</span></div><div id="m-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="two_tower.py">
+import torch, torch.nn as nn, torch.nn.functional as F
+
+class Tower(nn.Module):
+    def __init__(self, n_ids, n_feats, d=64):
+        super().__init__()
+        self.id_emb = nn.Embedding(n_ids, d)                   # learned ID embedding
+        self.mlp = nn.Sequential(nn.Linear(d + n_feats, 128), nn.ReLU(), nn.Linear(128, d))
+    def forward(self, ids, feats):
+        return F.normalize(self.mlp(torch.cat([self.id_emb(ids), feats], -1)), dim=-1)
+
+user_tower, item_tower = Tower(n_users, n_user_feats), Tower(n_items, n_item_feats)
+u = user_tower(user_ids, user_feats); v = item_tower(item_ids, item_feats)   # a batch of positive pairs
+logits = u @ v.T / 0.05                                       # in-batch negatives: other rows' items
+loss = F.cross_entropy(logits, torch.arange(len(u)))          # (correct for popularity bias in practice)
+# serving: precompute item vectors -> ANN index; compute user vector per request -> top-k
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="recsys:models"></div>
+    </section>
+
+    <!-- ============ LABELS ============ -->
+    <section class="tab-panel" data-panel="labels" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>"Not clicked" is not the same as "not liked" <span class="imp">Must-know</span></h3>
+        <p>Interactions form a ladder of intent: impression → click → try-on → add to cart → purchase → kept (not returned). Higher rungs are more valuable but rarer; many systems train multi-task heads on several rungs and combine them. A <strong>negative</strong> needs exposure: an item shown but ignored is weak evidence of disinterest (and depends on position); an item the user never saw tells you nothing — sampled "random negatives" are a convenience for retrieval training, not truth. Watch for leakage: features computed after the impression, same-session future events, or using the label window in aggregates.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · define the training label (one week, one app)</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="label">click a rung: positives = this rung and above</div>
+          <div class="ladder" id="l-ladder"></div>
+          <div class="field mt"><span class="label-t">negatives</span><div class="seg" id="l-neg"><button data-v="shown" class="on">shown, not engaged</button><button data-v="random">random catalogue items</button><button data-v="inbatch">in-batch (other users' positives)</button></div></div>
+        </div>
+        <div><div class="grid-2" id="l-stats"></div><div id="l-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="recsys:labels"></div>
+    </section>
+
+    <!-- ============ BLEND ============ -->
+    <section class="tab-panel" data-panel="blend" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Constraints filter; objectives score; scales must be comparable <span class="imp">Must-know</span></h3>
+        <p>Several signals compete: predicted purchase probability, a fit/compatibility score (e.g. from a face-shape model), popularity, margin, availability. Treat <strong>hard constraints</strong> (out of stock at the user's store, not deliverable, wrong prescription type) as filters, not features — a high score must never surface an unavailable item. Combine soft signals on a <strong>common scale</strong>: calibrated probabilities, or normalise (rank/z-score) first, otherwise the signal with the biggest raw numbers (popularity counts) silently dominates. Hand-set weights are a fine v1; learn the trade-off later by training the ranker on the business outcome (purchases net of returns) with the signals as features, and tune weights by A/B test.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · rank eight frames for one user at one store</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="wt">
+            <div class="field"><span class="label-t">weight: P(purchase)</span><div class="range-row"><input type="range" id="b-wp" min="0" max="1" step="0.05" value="0.5"><span class="val" id="b-wp-v"></span></div></div>
+            <div class="field"><span class="label-t">weight: fit / compatibility</span><div class="range-row"><input type="range" id="b-wf" min="0" max="1" step="0.05" value="0.3"><span class="val" id="b-wf-v"></span></div></div>
+            <div class="field"><span class="label-t">weight: popularity</span><div class="range-row"><input type="range" id="b-wo" min="0" max="1" step="0.05" value="0.2"><span class="val" id="b-wo-v"></span></div></div>
+          </div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="b-norm" checked> normalise each signal to [0, 1] before weighting</label>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="b-filter" checked> availability is a hard filter (not a feature)</label>
+          <div id="b-note"></div>
+        </div>
+        <div><div class="tbl-wrap"><table class="tbl" id="b-tbl"></table></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="recsys:blend"></div>
+    </section>
+
+    <!-- ============ EXPLORE ============ -->
+    <section class="tab-panel" data-panel="explore" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Recommenders create their own training data — so they get stuck <span class="imp">Must-know</span></h3>
+        <p>Items that are shown get clicks, which makes them look better, so they are shown more: the <strong>popularity feedback loop</strong>. New or niche items never get the exposure to prove themselves. Fixes: reserve exploration traffic and use <strong>bandits</strong> — ε-greedy (explore at random ε of the time), UCB, or <strong>Thompson sampling</strong> (sample each item's CTR from its posterior and show the best sample: uncertain items get tried, proven losers fade). Add diversity in re-ranking (MMR), track coverage and long-tail exposure, and correct training for position and exposure bias. Choose the reward carefully — clicks are fast but noisy; purchases are slower but what you want.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · 5,000 impressions, five frames, unknown true CTRs</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">policy</span><div class="seg" id="x-pol"><button data-v="greedy" class="on">greedy (show the best so far)</button><button data-v="eps">ε-greedy (ε = 0.1)</button><button data-v="ts">Thompson sampling</button></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="x-run"><i data-icon="play"></i>Run simulation</button><button class="btn" id="x-seed"><i data-icon="reset"></i>New random seed</button></div>
+          <div class="shares" id="x-shares"></div>
+          <div id="x-note"></div>
+        </div>
+        <div><canvas class="viz" id="x-plot"></canvas><div class="legend"><span><i style="background:#f87171"></i>greedy</span><span><i style="background:#fbbf24"></i>ε-greedy</span><span><i style="background:#4ade80"></i>Thompson</span><span>cumulative regret (lower is better)</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="thompson.py">
+import numpy as np
+alpha = np.ones(n_items); beta = np.ones(n_items)        # Beta(1, 1) prior on each item's CTR
+
+def choose():
+    return int(np.argmax(np.random.beta(alpha, beta)))  # sample a plausible CTR per item, pick the best
+
+def update(item, clicked):
+    alpha[item] += clicked; beta[item] += 1 - clicked    # posterior update
+# contextual bandits (LinUCB, neural Thompson) condition on user/context features
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="recsys:explore"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, fmt, plot, rng } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== Funnel ===== */
+  function fDraw() {
+    const C = +$('#f-c').value, r = +$('#f-r').value, ff = +$('#f-f').value, par = $('#f-par').checked, llm = $('#f-llm').checked;
+    $('#f-c-v').textContent = C.toLocaleString(); $('#f-r-v').textContent = r + ' µs'; $('#f-f-v').textContent = ff + ' ms';
+    const filt = Math.round(C * 0.7);
+    const stages = [['Catalogue', 50000, 'all frames'], ['Candidates', C, '4 sources'], ['After filters', filt, 'in stock · deliverable'], ['Ranked', Math.min(100, filt), 'top by score'], ['Shown', 10, 'after re-ranking']];
+    const maxL = Math.log10(50000);
+    $('#f-funnel').innerHTML = stages.map(([n, c, d]) => '<div class="fn"><span><b>' + n + '</b><br><span class="small muted">' + d + '</span></span><div><div class="bar" style="width:' + Math.max(8, Math.log10(c) / maxL * 100) + '%">' + c.toLocaleString() + '</div></div><span></span></div>').join('');
+    const src = [12, 18, 9, 6];
+    const L = [['network & auth', 15, '#646d82'], ['retrieval', par ? Math.max(...src) : src.reduce((a, b) => a + b), '#5fb3f9'], ['features', ff, '#a78bfa'], ['filters', 5, '#94a3b8'], ['ranking', Math.round(filt * r / 1000), '#8b8cff'], ['re-rank', 6, '#f472b6']];
+    if (llm) L.push(['LLM text', 900, '#f87171']);
+    const total = L.reduce((a, l) => a + l[1], 0);
+    const scale = Math.max(total, 200);
+    $('#f-lat').innerHTML = L.map(([n, ms, c]) => '<span style="width:' + ms / scale * 100 + '%;background:' + c + '" title="' + n + ' ' + ms + ' ms">' + (ms / scale > 0.14 ? n + ' ' + ms : '') + '</span>').join('') + (total < 200 ? '<span style="width:' + (200 - total) / scale * 100 + '%;background:transparent;color:var(--dim)">slack</span>' : '');
+    $('#f-note').innerHTML = total > 200 ? '<div class="err-box">' + total + ' ms > 200 ms budget. ' + (llm ? 'A synchronous LLM call can\'t fit — generate explanations asynchronously, precompute them per item, or stream them after the list renders. ' : '') + (filt * r / 1000 > 80 ? 'Ranking dominates: fewer candidates, a cheaper first-pass ranker (two-stage ranking), batching on GPU, or precomputed item features. ' : '') + (!par ? 'Call retrieval sources in parallel. ' : '') + (ff > 40 ? 'Feature fetch is slow: co-locate the online feature store, batch lookups, cache user features per session. ' : '') + '</div>' : '<div class="ok-box">' + total + ' ms — within budget with ' + (200 - total) + ' ms headroom for tail latency. Every stage needs a timeout and a fallback (cached or popular in-stock items) so one slow dependency never breaks the page.</div>';
+  }
+  ['f-c', 'f-r', 'f-f', 'f-par', 'f-llm'].forEach((id) => $('#' + id).addEventListener('input', fDraw));
+
+  /* ===== Matrix factorisation ===== */
+  const USERS = ['Asha', 'Ravi', 'Meera', 'Kabir', 'Isha', 'Dev'];
+  const ITEMS = ['Aviator', 'Round', 'Cat-eye', 'Wayfarer', 'Rimless', 'Oval', 'Clubmaster', 'Geometric'];
+  const R = [
+    [5, 0, 4, 5, 0, 1, 0, 0],
+    [4, 1, 0, 5, 1, 0, 4, 0],
+    [0, 5, 1, 0, 4, 5, 0, 1],
+    [1, 4, 0, 1, 5, 0, 1, 0],
+    [0, 1, 5, 0, 0, 2, 0, 5],
+    [5, 0, 0, 4, 1, 1, 5, 0],
+  ];
+  let P, Q, ep = 0, rmse = null;
+  function mInit() { const r = rng(3); P = USERS.map(() => [r.normal() * 0.3, r.normal() * 0.3]); Q = ITEMS.map(() => [r.normal() * 0.3, r.normal() * 0.3]); ep = 0; rmse = null; }
+  const mu = (() => { let s = 0, n = 0; R.forEach((row) => row.forEach((v) => { if (v) { s += v; n++; } })); return s / n; })();
+  const pred = (u, i) => mu + P[u][0] * Q[i][0] + P[u][1] * Q[i][1];
+  function epoch() { const lr = 0.03, reg = 0.05; R.forEach((row, u) => row.forEach((v, i) => { if (!v) return; const e = v - pred(u, i); for (let k = 0; k < 2; k++) { const pu = P[u][k], qi = Q[i][k]; P[u][k] += lr * (e * qi - reg * pu); Q[i][k] += lr * (e * pu - reg * qi); } })); ep++; }
+  function mDraw() {
+    let se = 0, n = 0; R.forEach((row, u) => row.forEach((v, i) => { if (v) { se += (v - pred(u, i)) ** 2; n++; } })); rmse = Math.sqrt(se / n);
+    $('#m-mx').style.gridTemplateColumns = '56px repeat(' + ITEMS.length + ', minmax(0, 1fr))';
+    $('#m-mx').innerHTML = '<span class="h"></span>' + ITEMS.map((i) => '<span class="h">' + i.slice(0, 5) + '</span>').join('') + R.map((row, u) => '<span class="h" style="text-align:left">' + USERS[u] + '</span>' + row.map((v, i) => v ? '<span class="obs">' + v + '</span>' : '<span class="pred">' + (ep ? fmt(Math.max(1, Math.min(5, pred(u, i))), 1) : '?') + '</span>').join('')).join('');
+    $('#m-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + ep + '</div><div class="k">epochs</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(rmse, 3) + '</div><div class="k">train RMSE</div></div>';
+    const pts = P.map((p, u) => [p[0], p[1], '#5fb3f9']).concat(Q.map((q) => [q[0], q[1], '#f472b6']));
+    const lim = Math.max(1, ...pts.map((p) => Math.max(Math.abs(p[0]), Math.abs(p[1])))) * 1.25;
+    const PL = plot($('#m-plot'), [{ type: 'points', data: pts, r: 5 }], { h: 300, xmin: -lim, xmax: lim, ymin: -lim, ymax: lim, ticks: 4, xlabel: 'factor 1', ylabel: 'factor 2' });
+    PL.ctx.font = '11px Inter, sans-serif';
+    P.forEach((p, u) => { PL.ctx.fillStyle = '#93c5fd'; PL.ctx.fillText(USERS[u], PL.X(p[0]) + 7, PL.Y(p[1]) - 5); });
+    Q.forEach((q, i) => { PL.ctx.fillStyle = '#f9a8d4'; PL.ctx.fillText(ITEMS[i], PL.X(q[0]) + 7, PL.Y(q[1]) + 12); });
+    const recs = ep ? USERS.map((u, ui) => { const c = ITEMS.map((_, i) => [i, pred(ui, i)]).filter(([i]) => !R[ui][i]).sort((a, b) => b[1] - a[1])[0]; return u + ' → ' + ITEMS[c[0]]; }) : [];
+    $('#m-note').innerHTML = ep ? '<div class="ok-box">Users and frames now share a 2-D taste space: classic shapes (aviator, wayfarer, clubmaster) on one side, soft shapes (round, oval, rimless) on the other. Top unseen pick per user: ' + recs.join(' · ') + '.</div>' : '<div class="callout blue">' + MR.icon('info') + '<div>Random embeddings: predictions are meaningless. Train to see taste dimensions emerge from ratings alone — no frame attributes were given.</div></div>';
+  }
+  $('#m-train').addEventListener('click', () => { let k = 0; const go = () => { for (let j = 0; j < 15; j++) epoch(); mDraw(); if ((k += 15) < 300) requestAnimationFrame(go); }; go(); });
+  $('#m-reset').addEventListener('click', () => { mInit(); mDraw(); });
+
+  /* ===== Labels ===== */
+  const LAD = [['impression', 100000], ['click', 4200], ['try-on (virtual)', 1300], ['add to cart', 420], ['purchase', 160], ['kept (not returned)', 128]];
+  let rung = 1, neg = 'shown';
+  function lDraw() {
+    $('#l-ladder').innerHTML = LAD.map(([n, c], i) => '<div class="rung ' + (i >= rung ? 'pos' : '') + '" data-i="' + i + '"><span>' + n + '</span><div class="bar"><i style="width:' + Math.max(1, Math.log10(c) / 5 * 100) + '%"></i></div><span class="n">' + c.toLocaleString() + '</span></div>').join('');
+    const pos = LAD[rung][1];
+    const negN = neg === 'shown' ? LAD[0][1] - LAD[1][1] : neg === 'random' ? pos * 20 : pos * 255;
+    $('#l-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + pos.toLocaleString() + '</div><div class="k">positives / week</div></div><div class="stat"><div class="v" style="font-size:17px">' + Math.round(negN).toLocaleString() + '</div><div class="k">negatives</div></div>';
+    const RN = ['Impressions as positives make no sense — nothing was expressed.', 'Clicks: plenty of data and fast feedback, but noisy (curiosity, attractive thumbnails, misclicks) and biased by position. Good for retrieval training; risky as the only ranking objective.', 'Try-ons: stronger intent signal specific to eyewear; fewer but cleaner. A useful intermediate head in a multi-task model.', 'Add to cart: strong intent; still includes window-shopping.', 'Purchases: closest to revenue, but rare (sparse labels, slower to learn, harder to evaluate quickly).', 'Kept purchases: the true business outcome (purchase minus returns), but labels arrive weeks later — train on it with delayed-label handling or as a correction to the purchase head.'];
+    const NN = { shown: 'Shown-but-not-engaged negatives come from real exposure, so they are informative — but weight by position (a frame at slot 30 was barely seen) and remember they depend on what the old system chose to show.', random: 'Random catalogue items are mostly "never seen", so they are not true dislikes. Cheap and fine for training retrieval (most random items really are irrelevant), but they make the task too easy for a ranker — add hard negatives (shown, similar, not chosen).', inbatch: 'In-batch negatives reuse other users\' positives in the same batch — efficient for two-tower training, but popular items appear as negatives more often, so apply a log-popularity (logQ) correction.' };
+    $('#l-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div><b>Positive = ' + LAD[rung][0] + '.</b> ' + RN[rung] + '</div></div><div class="callout amber mt">' + MR.icon('alert') + '<div>' + NN[neg] + '</div></div><div class="err-box mt">Leakage traps: "number of times this user viewed this frame today" computed over the whole day (includes post-impression views); purchase-time features joined to impression rows; random splits that put the same session in train and test. Use time-based splits and point-in-time features.</div>';
+  }
+  $('#l-ladder').addEventListener('click', (e) => { const r = e.target.closest('[data-i]'); if (!r) return; rung = Math.max(1, +r.dataset.i); lDraw(); });
+  segc('l-neg', (v) => { neg = v; lDraw(); });
+
+  /* ===== Blend ===== */
+  const FR = [['Titan round', 0.081, 0.92, 820, true], ['Classic aviator', 0.064, 0.55, 15400, true], ['Bold wayfarer', 0.095, 0.88, 9100, false], ['Slim rimless', 0.042, 0.81, 640, true], ['Retro clubmaster', 0.058, 0.62, 4300, true], ['Kids flex', 0.012, 0.20, 12800, true], ['Cat-eye acetate', 0.070, 0.74, 2100, true], ['Sport wrap', 0.030, 0.35, 7600, true]];
+  function bDraw() {
+    const wp = +$('#b-wp').value, wf = +$('#b-wf').value, wo = +$('#b-wo').value, norm = $('#b-norm').checked, filt = $('#b-filter').checked;
+    $('#b-wp-v').textContent = wp.toFixed(2); $('#b-wf-v').textContent = wf.toFixed(2); $('#b-wo-v').textContent = wo.toFixed(2);
+    const col = (j) => FR.map((f) => f[j]); const mm = (a) => [Math.min(...a), Math.max(...a)];
+    const [p0, p1] = mm(col(1)), [f0, f1] = mm(col(2)), [o0, o1] = mm(col(3));
+    const sc = FR.map((f) => { const p = norm ? (f[1] - p0) / (p1 - p0) : f[1], fi = norm ? (f[2] - f0) / (f1 - f0) : f[2], po = norm ? (f[3] - o0) / (o1 - o0) : f[3]; return { f, s: wp * p + wf * fi + wo * po }; });
+    let rows = sc.slice().sort((a, b) => b.s - a.s);
+    const hidden = filt ? rows.filter((r) => !r.f[4]) : [];
+    if (filt) rows = rows.filter((r) => r.f[4]);
+    $('#b-tbl').innerHTML = '<thead><tr><th>#</th><th>frame</th><th>P(buy)</th><th>fit</th><th>popularity</th><th>score</th></tr></thead><tbody>' + rows.map((r, i) => '<tr class="' + (r.f[4] ? '' : 'oos') + '"><td>' + (i + 1) + '</td><td>' + esc(r.f[0]) + (r.f[4] ? '' : ' <span class="tag no">out of stock</span>') + '</td><td>' + r.f[1].toFixed(3) + '</td><td>' + r.f[2].toFixed(2) + '</td><td>' + r.f[3].toLocaleString() + '</td><td>' + fmt(r.s, norm ? 3 : 0) + '</td></tr>').join('') + '</tbody>';
+    const top = rows[0];
+    let note = '';
+    if (!norm && wo > 0) note += '<div class="err-box">Raw popularity counts (hundreds to 15,000) swamp probabilities (≈0.01–0.1) — any non-zero popularity weight turns the ranking into a bestseller list. Normalise or calibrate signals first.</div>';
+    if (!filt && rows.findIndex((r) => !r.f[4]) < 3) note += '<div class="err-box mt">An out-of-stock frame is in the top 3. Availability must be a hard filter (or at least a gate), not one weight among many.</div>';
+    if (filt && hidden.length) note += '<div class="callout blue mt">' + MR.icon('info') + '<div><b>' + esc(hidden[0].f[0]) + '</b> would rank high but is out of stock at this store: filter it, then offer the most similar in-stock frame, "available at a nearby store / home delivery", or a back-in-stock alert.</div></div>';
+    if (!note) note = '<div class="ok-box">Top pick: ' + esc(top.f[0]) + '. Hand-tuned weights are a reasonable v1; validate any weighting change with an A/B test on purchases net of returns.</div>';
+    $('#b-note').innerHTML = note;
+  }
+  ['b-wp', 'b-wf', 'b-wo', 'b-norm', 'b-filter'].forEach((id) => $('#' + id).addEventListener('input', bDraw));
+
+  /* ===== Bandits ===== */
+  const ARMS = [['Bestseller A', 0.050], ['New launch B', 0.080], ['Niche C', 0.030], ['Classic D', 0.045], ['Seasonal E', 0.040]];
+  let xpol = 'greedy', xseed = 11, last = null;
+  function simulate(pol, seed) {
+    const r = rng(seed); const n = ARMS.length; const s = new Array(n).fill(0), c = new Array(n).fill(0); const shows = new Array(n).fill(0);
+    s[0] = 50; c[0] = 1000; // the bestseller starts with history
+    const best = Math.max(...ARMS.map((a) => a[1])); let regret = 0; const curve = [];
+    const gamma = (k) => { if (k < 1) return gamma(k + 1) * Math.pow(r(), 1 / k); const d = k - 1 / 3, c2 = 1 / Math.sqrt(9 * d); for (;;) { let x, v; do { x = r.normal(); v = 1 + c2 * x; } while (v <= 0); v = v * v * v; const u = r(); if (u < 1 - 0.0331 * x ** 4 || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v; } };
+    const beta = (a, b) => { const x = gamma(a), y = gamma(b); return x / (x + y); }; // exact Beta sample via two Gammas
+    for (let t = 0; t < 5000; t++) {
+      let k;
+      if (pol === 'ts') { let bv = -1; for (let i = 0; i < n; i++) { const v = beta(1 + s[i], 1 + c[i] - s[i]); if (v > bv) { bv = v; k = i; } } }
+      else if (pol === 'eps' && r() < 0.1) k = Math.floor(r() * n);
+      else { let bv = -1; for (let i = 0; i < n; i++) { const v = c[i] ? s[i] / c[i] : 0; if (v > bv) { bv = v; k = i; } } }
+      const click = r() < ARMS[k][1] ? 1 : 0; s[k] += click; c[k]++; shows[k]++;
+      regret += best - ARMS[k][1]; if (t % 50 === 0) curve.push([t, regret]);
+    }
+    return { shows, curve, regret };
+  }
+  function xRun() {
+    const all = { greedy: simulate('greedy', xseed), eps: simulate('eps', xseed), ts: simulate('ts', xseed) };
+    last = all; const R2 = all[xpol];
+    $('#x-shares').innerHTML = '<div class="label">share of impressions · true CTR</div>' + ARMS.map(([n, p], i) => '<div class="sh"><span>' + n + '</span><div class="b"><i style="width:' + R2.shows[i] / 50 + '%;background:' + (p === 0.08 ? '#4ade80' : '#8b8cff') + '"></i></div><span>' + (p * 100).toFixed(1) + '%</span></div>').join('');
+    plot($('#x-plot'), [{ type: 'line', data: all.greedy.curve, color: '#f87171' }, { type: 'line', data: all.eps.curve, color: '#fbbf24' }, { type: 'line', data: all.ts.curve, color: '#4ade80' }], { h: 260, xmin: 0, xmax: 5000, ymin: 0, ticks: 4, xlabel: 'impressions', ylabel: 'clicks lost vs always showing the best', xfmt: (v) => Math.round(v) });
+    const share = R2.shows[1] / 5000;
+    const N = { greedy: 'Greedy keeps showing the bestseller because it already has a good history; the better new launch (8% CTR) is never tried. This is the popularity feedback loop.', eps: 'ε-greedy finds the better item eventually but keeps wasting 10% of traffic on random items forever (linear regret).', ts: 'Thompson sampling tries uncertain items while they might be best, then concentrates on the winner — its regret flattens out. Try a few seeds: it usually beats ε-greedy, which keeps paying for random exploration forever, but any single run is noisy.' };
+    $('#x-note').innerHTML = '<div class="' + (xpol === 'ts' ? 'ok-box' : 'callout amber') + '">' + (xpol === 'ts' ? '' : MR.icon('alert')) + '<div>' + N[xpol] + ' New launch B got ' + Math.round(share * 100) + '% of impressions.</div></div>';
+  }
+  segc('x-pol', (v) => { xpol = v; xRun(); });
+  $('#x-run').addEventListener('click', xRun);
+  $('#x-seed').addEventListener('click', () => { xseed += 7; xRun(); });
+
+  MR.init('recsys', (id) => { ({ funnel: fDraw, models: () => { if (!P) mInit(); mDraw(); }, labels: lDraw, blend: bDraw, explore: xRun })[id](); });
+})();
+</script>
+</body>
+</html>

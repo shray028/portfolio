@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Missing Values, Encoding, Scaling, Outliers & Skew — ML Interview Revision</title>
+  <meta name="description" content="Feature engineering interview questions made interactive: imputation under MCAR vs MNAR, one-hot vs target vs hashing encoding, which models need scaling, standard vs min-max vs robust scaling, outlier detection and log transforms.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .strip { position: relative; height: 34px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); margin: 4px 0 2px; }
+    .strip i { position: absolute; top: 9px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #8b8cff; opacity: .85; }
+    .strip i.o { background: #f87171; }
+    .srow { display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: center; font: 12px var(--font-mono); color: var(--muted); }
+    .scn { padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel-2); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .scn .opts { display: flex; gap: 6px; }
+    .scn .opts button { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font: 600 12px var(--font-mono); }
+    .scn .opts button.right { border-color: rgba(74,222,128,.7); background: rgba(74,222,128,.12); }
+    .scn .opts button.wrong { border-color: rgba(248,113,113,.7); background: rgba(248,113,113,.1); }
+    .scn .why { flex-basis: 100%; font-size: 12.5px; color: var(--text-2); }
+    .sc { display: grid; gap: 6px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 06 · DATA</span>
+      <h1>Data &amp; feature <span class="grad">engineering</span></h1>
+      <p class="desc">Better features beat better models. These are the data questions that show up in almost every ML round: what to do with missing values, how to encode categories, which models need scaling, and how to treat outliers and skewed features — always fitting the transformation on training data only.</p>
+      <div class="hero-meta"><span class="chip ember">4 sections</span><span class="chip">Imputation bias lab · encoder playground · scaling quiz · skew &amp; outlier lab</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="missing"><span class="n">1</span>Missing values</button>
+      <button class="tab" data-tab="encoding"><span class="n">2</span>Categorical encoding</button>
+      <button class="tab" data-tab="scaling"><span class="n">3</span>Scaling</button>
+      <button class="tab" data-tab="outliers"><span class="n">4</span>Outliers &amp; skew</button>
+    </div></div>
+
+    <!-- ============ MISSING ============ -->
+    <section class="tab-panel" data-panel="missing">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>First ask <em>why</em> it is missing <span class="imp">Must-know</span></h3>
+        <p><strong>MCAR</strong> (completely at random — a sensor glitch): dropping or simple imputation is unbiased. <strong>MAR</strong> (depends on observed features — older users skip a field): impute from other features (KNN, iterative/model-based). <strong>MNAR</strong> (depends on the missing value itself — high earners hide income): every imputation is biased; the <em>fact</em> of missingness is informative, so add a missing-indicator feature. Mean imputation also shrinks variance and weakens correlations. Tree boosters (XGBoost, LightGBM) can route missing values natively.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · impute income</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">missingness mechanism</span><div class="seg" id="i-mech"><button data-v="mcar" class="on">MCAR</button><button data-v="mnar">MNAR (rich hide income)</button></div></div>
+          <div class="field"><span class="label-t">fraction missing</span><div class="range-row"><input type="range" id="i-f" min="0.05" max="0.6" step="0.05" value="0.3"><span class="val" id="i-f-v"></span></div></div>
+          <div class="field"><span class="label-t">strategy</span><div class="seg" id="i-s"><button data-v="drop" class="on">drop rows</button><button data-v="mean">mean</button><button data-v="median">median</button><button data-v="model">regress on age</button></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="i-tbl"></table></div>
+          <div id="i-note"></div>
+        </div>
+        <div><canvas class="viz" id="i-plot"></canvas><div class="legend"><span><i style="background:#646d82"></i>true distribution</span><span><i style="background:#8b8cff"></i>after handling missing values</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="impute.py">
+from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.experimental import enable_iterative_imputer  # noqa
+from sklearn.impute import IterativeImputer
+
+num = SimpleImputer(strategy="median", add_indicator=True)   # + "was_missing" column
+knn = KNNImputer(n_neighbors=5)                               # MAR: borrow from similar rows
+it  = IterativeImputer(max_iter=10, random_state=0)           # model each feature from the others
+# always inside a Pipeline so the statistics come from the training fold only
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="features:missing"></div>
+    </section>
+
+    <!-- ============ ENCODING ============ -->
+    <section class="tab-panel" data-panel="encoding" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Match the encoding to the cardinality and the model <span class="imp">Must-know</span></h3>
+        <p><strong>One-hot</strong>: one column per category — safe for linear models, explodes with high cardinality. <strong>Label/ordinal</strong>: integers — only meaningful for ordered categories (or tree models). <strong>Target (mean) encoding</strong>: replace a category by the average label — compact and powerful for high cardinality, but leaks the label unless done out-of-fold with smoothing. <strong>Hashing</strong>: hash into a fixed number of columns — handles unseen categories and huge vocabularies, with collisions. <strong>Embeddings</strong>: learned dense vectors (deep models, IDs in recommenders).</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · encode the "city" column</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">encoder</span><div class="seg" id="e-m"><button data-v="onehot" class="on">one-hot</button><button data-v="label">label</button><button data-v="target">target (naive)</button><button data-v="targetcv">target (out-of-fold)</button><button data-v="hash">hashing (4 buckets)</button></div></div>
+          <div class="field"><span class="label-t">cardinality of the real column</span><div class="range-row"><input type="range" id="e-c" min="1" max="6" step="1" value="2"><span class="val" id="e-c-v"></span></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="e-size"></table></div>
+        </div>
+        <div><div class="tbl-wrap"><table class="tbl" id="e-tbl"></table></div><div id="e-note" class="mt"></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="features:encoding"></div>
+    </section>
+
+    <!-- ============ SCALING ============ -->
+    <section class="tab-panel" data-panel="scaling" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Scale when the model uses distances, dot products or gradients <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \text{standard: } \frac{x-\mu}{\sigma} \qquad \text{min-max: } \frac{x-\min}{\max-\min} \qquad \text{robust: } \frac{x-\text{median}}{\text{IQR}} \)</p>
+        <p>k-NN, k-means, SVM, PCA and regularized linear models compare feature magnitudes; neural nets and gradient descent converge faster on similar scales. Tree models split on thresholds, so monotonic scaling changes nothing. Min-max squeezes everything into [0, 1] but one outlier compresses the rest; robust scaling uses median and IQR to ignore it.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one outlier, three scalers</div>
+      <div class="card card-pad">
+        <div class="field" style="max-width:460px"><span class="label-t">outlier value (others are 20–60)</span><div class="range-row"><input type="range" id="s-o" min="60" max="1000" step="10" value="400"><span class="val" id="s-o-v"></span></div></div>
+        <div id="s-strips" class="mt"></div>
+        <div id="s-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Drill · does this model need scaled features?</div>
+      <div class="card card-pad"><div class="sc" id="q-list"></div><div class="mt" id="q-score"></div></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="features:scaling"></div>
+    </section>
+
+    <!-- ============ OUTLIERS ============ -->
+    <section class="tab-panel" data-panel="outliers" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Detect, understand, then decide</h3>
+        <p>Detect with the IQR rule (outside Q1 − 1.5·IQR or Q3 + 1.5·IQR), z-scores (|z| &gt; 3, assumes roughly normal data), or model-based methods (Isolation Forest, LOF). Then ask whether it is an error (fix or drop) or a real rare event (keep — in fraud it <em>is</em> the signal). Options: cap/winsorize, transform (log, Box-Cox, Yeo-Johnson), robust losses (Huber, MAE) and robust models (trees). For right-skewed features (income, prices, counts), a log transform makes the distribution more symmetric and relationships more linear.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · a right-skewed feature</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">transform</span><div class="seg" id="o-t"><button data-v="none" class="on">none</button><button data-v="sqrt">√x</button><button data-v="log">log(1+x)</button></div></div>
+          <div class="field"><span class="label-t">outlier rule</span><div class="seg" id="o-r"><button data-v="iqr" class="on">IQR × 1.5</button><button data-v="z">|z| &gt; 3</button></div></div>
+          <div class="grid-2" id="o-stats"></div>
+          <div id="o-note"></div>
+        </div>
+        <div><canvas class="viz" id="o-plot"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>histogram</span><span><i style="background:#f87171"></i>flagged as outliers</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="features:outliers"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  const sd = (a) => { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length); };
+  const quant = (a, q) => { const s = a.slice().sort((x, y) => x - y); const p = (s.length - 1) * q; const i = Math.floor(p); return s[i] + (s[Math.min(i + 1, s.length - 1)] - s[i]) * (p - i); };
+  function hist(vals, lo, hi, nb) { const b = new Array(nb).fill(0); vals.forEach((v) => { const i = Math.min(nb - 1, Math.max(0, Math.floor((v - lo) / (hi - lo) * nb))); b[i]++; }); return b.map((c, i) => [lo + (i + 0.5) * (hi - lo) / nb, c / vals.length]); }
+  const bars = (H, color, alpha) => H.map(([x, y], i) => ({ type: 'area', data: [[x - (H[1][0] - H[0][0]) * 0.45, y], [x + (H[1][0] - H[0][0]) * 0.45, y]], color, alpha }));
+
+  /* ===== Missing ===== */
+  const R = rng(4); const AGE = [], INC = [];
+  for (let i = 0; i < 800; i++) { const a = 22 + R() * 40; AGE.push(a); INC.push(Math.max(3, 4 + 0.35 * (a - 22) + 5 * Math.exp(0.45 * R.normal()) - 5)); }
+  let mech = 'mcar', strat = 'drop';
+  function iDraw() {
+    const f = +$('#i-f').value; $('#i-f-v').textContent = Math.round(f * 100) + '%';
+    const r = rng(77);
+    const cut = quant(INC, 1 - f);
+    const miss = INC.map((v) => (mech === 'mcar' ? r() < f : v >= cut && r() < 0.9) || (mech === 'mnar' && r() < f * 0.1));
+    const obs = INC.filter((_, i) => !miss[i]); const obsA = AGE.filter((_, i) => !miss[i]);
+    let after;
+    if (strat === 'drop') after = obs;
+    else if (strat === 'mean' || strat === 'median') { const v = strat === 'mean' ? mean(obs) : quant(obs, 0.5); after = INC.map((x, i) => (miss[i] ? v : x)); }
+    else { const ma = mean(obsA), mi = mean(obs); let sxy = 0, sxx = 0; obsA.forEach((a, i) => { sxy += (a - ma) * (obs[i] - mi); sxx += (a - ma) ** 2; }); const b = sxy / sxx; after = INC.map((x, i) => (miss[i] ? mi + b * (AGE[i] - ma) : x)); }
+    const H0 = hist(INC, 0, 40, 32), H1 = hist(after, 0, 40, 32);
+    plot($('#i-plot'), [...bars(H0, '#646d82', 0.55), { type: 'line', data: H1, color: '#8b8cff', width: 2.5 }], { h: 260, xmin: 0, xmax: 40, ymin: 0, ticks: 4, xlabel: 'income (LPA)', yfmt: () => '' });
+    const rows = [['mean', mean(INC), mean(after)], ['std', sd(INC), sd(after)], ['rows kept', INC.length, after.length]];
+    $('#i-tbl').innerHTML = '<thead><tr><th></th><th>true</th><th>after</th></tr></thead><tbody>' + rows.map(([k, a, b]) => '<tr><td>' + k + '</td><td>' + fmt(a, 2) + '</td><td>' + fmt(b, 2) + '</td></tr>').join('') + '</tbody>';
+    const bias = mean(after) - mean(INC);
+    let note = '';
+    if (mech === 'mnar') note = '<div class="err-box">MNAR: the missing values are the high incomes, so every strategy underestimates the mean (bias ' + fmt(bias, 2) + '). No imputation can recover what the data never shows — add an <code>income_missing</code> indicator so the model can learn from the pattern itself.</div>';
+    else if (strat === 'mean' || strat === 'median') note = '<div class="callout amber">' + MR.icon('alert') + '<div>MCAR + ' + strat + ': the centre is fine but a spike appears at the fill value and the spread shrinks (std ' + fmt(sd(after), 2) + ' vs ' + fmt(sd(INC), 2) + ') — correlations with other features weaken.</div></div>';
+    else if (strat === 'drop') note = '<div class="callout blue">' + MR.icon('info') + '<div>MCAR + drop: unbiased, but you lose ' + Math.round(f * 100) + '% of rows (and in real data, rows missing <em>any</em> of many columns).</div></div>';
+    else note = '<div class="ok-box">Model-based imputation uses the age–income relationship, so it keeps more of the spread than a constant fill.</div>';
+    $('#i-note').innerHTML = note;
+  }
+  segc('i-mech', (v) => { mech = v; iDraw(); });
+  segc('i-s', (v) => { strat = v; iDraw(); });
+  $('#i-f').addEventListener('input', iDraw);
+
+  /* ===== Encoding ===== */
+  const ROWS = [['Pune', 1], ['Delhi', 0], ['Pune', 1], ['Jaipur', 0], ['Delhi', 1], ['Pune', 0], ['Indore', 1], ['Jaipur', 0]];
+  const CITIES = ['Delhi', 'Indore', 'Jaipur', 'Pune'];
+  let em = 'onehot';
+  const hashB = (s) => { let h = 7; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 4; };
+  function eDraw() {
+    const cpow = +$('#e-c').value; const card = Math.pow(10, cpow); $('#e-c-v').textContent = card.toLocaleString();
+    let head, body;
+    if (em === 'onehot') { head = ['city'].concat(CITIES.map((c) => 'is_' + c)); body = ROWS.map(([c]) => [c].concat(CITIES.map((x) => (x === c ? 1 : 0)))); }
+    else if (em === 'label') { head = ['city', 'city_id']; body = ROWS.map(([c]) => [c, CITIES.indexOf(c)]); }
+    else if (em === 'hash') { head = ['city', 'h0', 'h1', 'h2', 'h3']; body = ROWS.map(([c]) => [c].concat([0, 1, 2, 3].map((b) => (hashB(c) === b ? 1 : 0)))); }
+    else if (em === 'target') { head = ['city', 'y', 'city_te']; const m = {}; CITIES.forEach((c) => { const r = ROWS.filter((x) => x[0] === c); m[c] = mean(r.map((x) => x[1])); }); body = ROWS.map(([c, y]) => [c, y, fmt(m[c], 2)]); }
+    else { head = ['city', 'y', 'fold', 'city_te (oof, smoothed)']; const prior = mean(ROWS.map((r) => r[1])); body = ROWS.map(([c, y], i) => { const fold = i % 2; const others = ROWS.filter((r, j) => j % 2 !== fold && r[0] === c); const n = others.length, k = 2; const te = (others.reduce((s, r) => s + r[1], 0) + k * prior) / (n + k); return [c, y, fold, fmt(te, 2)]; }); }
+    $('#e-tbl').innerHTML = '<thead><tr>' + head.map((h) => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>' + body.map((r) => '<tr>' + r.map((v) => '<td>' + v + '</td>').join('') + '</tr>').join('') + '</tbody>';
+    $('#e-size').innerHTML = '<thead><tr><th>encoder</th><th>columns for ' + card.toLocaleString() + ' categories</th></tr></thead><tbody><tr><td>one-hot</td><td>' + card.toLocaleString() + (card >= 1e4 ? ' ⚠' : '') + '</td></tr><tr><td>label</td><td>1</td></tr><tr><td>target</td><td>1</td></tr><tr><td>hashing</td><td>fixed (e.g. 2¹⁸)</td></tr><tr><td>embedding</td><td>d (e.g. 16–64)</td></tr></tbody>';
+    const N = { onehot: 'No false ordering, works with any model. Fine for a handful of categories; with thousands it creates a huge sparse matrix and rare categories get few examples.', label: 'Implies Delhi < Indore < Jaipur < Pune — meaningless for linear models or k-NN. OK for tree models (they can split on any threshold) and for genuinely ordinal features (low/medium/high).', target: 'Leak! Each row\'s own label is inside its encoding: Indore appears once, so its encoding equals its label exactly. The model will trust this feature far too much and disappoint on new data.', targetcv: 'Out-of-fold: each row is encoded using labels from the <em>other</em> fold only, blended with the global prior (smoothing) so rare categories don\'t get extreme values.', hash: 'Each city is hashed into one of 4 buckets — no vocabulary to store, unseen cities still map somewhere. With few buckets, collisions merge unrelated categories.' };
+    $('#e-note').innerHTML = '<div class="' + (em === 'target' ? 'err-box' : em === 'label' ? 'callout amber' : 'callout blue') + '">' + (em === 'target' ? '' : MR.icon(em === 'label' ? 'alert' : 'info')) + '<div>' + N[em] + '</div></div>';
+  }
+  segc('e-m', (v) => { em = v; eDraw(); });
+  $('#e-c').addEventListener('input', eDraw);
+
+  /* ===== Scaling ===== */
+  const BASE = [21, 25, 28, 33, 36, 40, 44, 47, 52, 58];
+  function sDraw() {
+    const o = +$('#s-o').value; $('#s-o-v').textContent = o;
+    const xs = BASE.concat([o]);
+    const m = mean(xs), s = sd(xs), mn = Math.min(...xs), mx = Math.max(...xs), md = quant(xs, 0.5), iqr = quant(xs, 0.75) - quant(xs, 0.25);
+    const S = { 'raw': xs, 'standard': xs.map((v) => (v - m) / s), 'min-max': xs.map((v) => (v - mn) / (mx - mn)), 'robust': xs.map((v) => (v - md) / iqr) };
+    const LO = -2, HI = 4;
+    $('#s-strips').innerHTML = Object.entries(S).map(([k, arr]) => { const raw = k === 'raw'; const lo = raw ? Math.min(...arr) : LO, hi = raw ? Math.max(...arr) : HI; const normals = arr.slice(0, 10); return '<div class="srow"><span>' + k + '<br><span class="small">normal values ' + fmt(Math.min(...normals), 2) + ' … ' + fmt(Math.max(...normals), 2) + '</span></span><div class="strip">' + arr.map((v, i) => { const c = Math.max(lo, Math.min(hi, v)); const clipped = c !== v; return '<i class="' + (i === arr.length - 1 ? 'o' : '') + '" style="left:calc(10px + ' + ((c - lo) / (hi - lo || 1)) * 96 + '%)" title="' + fmt(v, 2) + '"></i>' + (clipped ? '<span style="position:absolute;right:30px;top:8px;font:11px var(--font-mono);color:#fca5a5">outlier → ' + fmt(v, 1) + '</span>' : ''); }).join('') + '</div></div>'; }).join('') + '<div class="srow"><span></span><div class="small muted" style="display:flex;justify-content:space-between"><span>−2</span><span>0</span><span>2</span><span>4 (scaled rows share this axis)</span></div></div>';
+    const spreadMM = (Math.max(...S['min-max'].slice(0, 10)) - Math.min(...S['min-max'].slice(0, 10)));
+    $('#s-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>With min-max scaling the ten normal values occupy only ' + fmt(spreadMM * 100, 0) + '% of [0, 1] — the outlier (red) takes the rest. Standard scaling is also distorted because the outlier inflates σ. Robust scaling (median/IQR) keeps the ten normal values spread over a useful range and simply leaves the outlier far away. Scaled rows share one axis.</div></div>';
+  }
+  $('#s-o').addEventListener('input', sDraw);
+  const QZ = [['k-nearest neighbours', 'yes', 'Distances are dominated by large-scale features.'], ['Random forest', 'no', 'Threshold splits are invariant to monotonic scaling.'], ['Ridge / Lasso regression', 'yes', 'The penalty compares weight sizes, which depend on feature units.'], ['XGBoost / LightGBM', 'no', 'Tree-based: scaling changes nothing (but it doesn\'t hurt).'], ['SVM with RBF kernel', 'yes', 'The kernel is a function of Euclidean distance.'], ['k-means', 'yes', 'Euclidean distance again.'], ['Neural network', 'yes', 'Unscaled inputs slow down and destabilise gradient descent.'], ['PCA', 'yes', 'Variance-based: large-unit features dominate the components.'], ['Decision tree', 'no', 'Same reason as random forest.'], ['Plain linear regression (OLS, no penalty)', 'no', 'Predictions are unchanged — but coefficients become comparable and gradient-based solvers converge faster if you do.']];
+  const qa2 = {};
+  function qDraw() {
+    $('#q-list').innerHTML = QZ.map(([m, r, why], i) => '<div class="scn"><span>' + m + '</span><div class="opts">' + ['yes', 'no'].map((o) => '<button data-i="' + i + '" data-o="' + o + '" class="' + (qa2[i] ? (o === r ? 'right' : o === qa2[i] ? 'wrong' : '') : '') + '">' + o + '</button>').join('') + '</div>' + (qa2[i] ? '<div class="why">' + why + '</div>' : '') + '</div>').join('');
+    const n = Object.keys(qa2).length, c = Object.entries(qa2).filter(([i, o]) => QZ[i][1] === o).length;
+    $('#q-score').innerHTML = n ? '<span class="chip">' + c + ' / ' + n + ' correct</span>' : '';
+  }
+  $('#q-list').addEventListener('click', (e) => { const b = e.target.closest('button[data-i]'); if (!b || qa2[b.dataset.i]) return; qa2[b.dataset.i] = b.dataset.o; qDraw(); });
+
+  /* ===== Outliers ===== */
+  const SK = (() => { const r = rng(12); return Array.from({ length: 600 }, () => Math.exp(2.2 + 0.9 * r.normal())); })();
+  let ot = 'none', orule = 'iqr';
+  function oDraw() {
+    const T = { none: (x) => x, sqrt: Math.sqrt, log: (x) => Math.log1p(x) };
+    const v = SK.map(T[ot]);
+    const q1 = quant(v, 0.25), q3 = quant(v, 0.75), iq = q3 - q1, m = mean(v), s = sd(v);
+    const flag = v.map((x) => (orule === 'iqr' ? x < q1 - 1.5 * iq || x > q3 + 1.5 * iq : Math.abs((x - m) / s) > 3));
+    const lo = Math.min(...v), hi = ot === 'none' ? quant(v, 0.995) : Math.max(...v);
+    const H = hist(v.filter((x) => x <= hi), lo, hi, 40);
+    const skew = v.reduce((a, x) => a + ((x - m) / s) ** 3, 0) / v.length;
+    const fl = v.filter((x, i) => flag[i]);
+    plot($('#o-plot'), [...bars(H, '#8b8cff', 0.75), { type: 'points', data: fl.filter((x) => x <= hi).map((x) => [x, 0.003]), color: '#f87171', r: 3.5 }], { h: 260, xmin: lo, xmax: hi, ymin: 0, ticks: 4, yfmt: () => '' });
+    $('#o-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(skew, 2) + '</div><div class="k">skewness</div></div><div class="stat"><div class="v" style="font-size:17px">' + fl.length + '</div><div class="k">points flagged</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(m, 2) + '</div><div class="k">mean</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(quant(v, 0.5), 2) + '</div><div class="k">median</div></div>';
+    $('#o-note').innerHTML = ot === 'none' ? '<div class="callout amber">' + MR.icon('alert') + '<div>Raw: long right tail, mean well above median, and the IQR rule flags dozens of perfectly legitimate large values. "Outlier" depends on the scale you look at.</div></div>' : ot === 'log' ? '<div class="ok-box">After log(1+x) the distribution is roughly symmetric (skew ≈ ' + fmt(skew, 2) + ') and almost nothing is flagged — the "outliers" were just the tail of a log-normal feature.</div>' : '<div class="callout blue">' + MR.icon('info') + '<div>√x reduces the skew partly; log is stronger. Box-Cox / Yeo-Johnson (PowerTransformer) pick the power automatically.</div></div>';
+  }
+  segc('o-t', (v) => { ot = v; oDraw(); });
+  segc('o-r', (v) => { orule = v; oDraw(); });
+
+  MR.init('features', (id) => { ({ missing: iDraw, encoding: eDraw, scaling: () => { sDraw(); qDraw(); }, outliers: oDraw })[id](); });
+})();
+</script>
+</body>
+</html>

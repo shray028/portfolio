@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>k-Means, Choosing k, PCA — ML Interview Revision</title>
+  <meta name="description" content="Step through k-means (assign, update, repeat), compare random and k-means++ initialisation, choose k with the elbow and silhouette, and rotate a projection axis until it becomes the first principal component.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .sq { width: 100%; max-width: 540px; aspect-ratio: 1.35; display: block; margin: 0 auto; border-radius: 12px; border: 1px solid var(--line); background: #0a0d14; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 05 · UNSUPERVISED</span>
+      <h1>Clustering &amp; <span class="grad">PCA</span></h1>
+      <p class="desc">No labels: find structure. k-means is the clustering question every interviewer asks ("walk me through it, how do you pick k, when does it fail?"), and PCA is the dimensionality-reduction one ("what are the principal components, and why scale first?").</p>
+      <div class="hero-meta"><span class="chip ember">3 sections</span><span class="chip">k-means stepper · elbow &amp; silhouette · PCA rotator</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="kmeans"><span class="n">1</span>k-means</button>
+      <button class="tab" data-tab="choosek"><span class="n">2</span>Choosing k &amp; other methods</button>
+      <button class="tab" data-tab="pca"><span class="n">3</span>PCA</button>
+    </div></div>
+
+    <!-- ============ KMEANS ============ -->
+    <section class="tab-panel" data-panel="kmeans">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Assign to nearest centroid, move centroid to the mean, repeat <span class="imp">Must-know</span></h3>
+        <p class="formula">\( \min_{C_1..C_k}\ \sum_{j=1}^{k}\sum_{x\in C_j}\lVert x-\mu_j\rVert^2 \)  (within-cluster sum of squares, WCSS)</p>
+        <p>Each iteration can only lower WCSS, so it converges — but to a <em>local</em> minimum that depends on the starting centroids. <strong>k-means++</strong> picks initial centroids far apart (probability ∝ squared distance), and running several restarts (<code>n_init</code>) keeps the best. k-means assumes roughly spherical, similar-sized clusters and needs scaled features.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · one step at a time</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">k</span><div class="range-row"><input type="range" id="m-k" min="2" max="6" value="3"><span class="val" id="m-k-v"></span></div></div>
+          <div class="field"><span class="label-t">initialisation</span><div class="seg" id="m-init"><button data-v="random" class="on">random points</button><button data-v="pp">k-means++</button></div></div>
+          <div class="field"><span class="label-t">data</span><div class="seg" id="m-data"><button data-v="blobs" class="on">blobs</button><button data-v="moons">elongated / non-convex</button></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="m-step"><i data-icon="step"></i>Next step</button><button class="btn" id="m-run"><i data-icon="play"></i>Run to convergence</button><button class="btn" id="m-reset"><i data-icon="reset"></i>New init</button></div>
+          <div class="grid-2" id="m-stats"></div>
+          <div id="m-note"></div>
+        </div>
+        <div><canvas class="sq" id="m-plot"></canvas></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="unsup:kmeans"></div>
+    </section>
+
+    <!-- ============ CHOOSE K ============ -->
+    <section class="tab-panel" data-panel="choosek" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>WCSS always falls with k — look for the elbow, and check silhouette <span class="imp">Must-know</span></h3>
+        <p>Adding clusters always reduces within-cluster distance (k = n gives zero), so you can't just minimise it. The <strong>elbow method</strong> looks for where extra clusters stop paying off. The <strong>silhouette score</strong> \(s=(b-a)/\max(a,b)\) compares each point's distance to its own cluster (a) with the nearest other cluster (b): close to 1 is good, near 0 means overlapping clusters. Also use the gap statistic, BIC for GMMs, stability across resamples — and whether the clusters are useful for the business.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · the data really has <b id="c-true"></b> clusters</div>
+      <div class="card card-pad">
+        <div class="field" style="max-width:420px"><span class="label-t">true number of blobs</span><div class="range-row"><input type="range" id="c-n" min="2" max="6" value="4"><span class="val" id="c-n-v"></span></div></div>
+        <div class="grid-2 mt">
+          <div><div class="label" style="margin-bottom:6px">elbow · WCSS vs k</div><canvas class="viz" id="c-elbow"></canvas></div>
+          <div><div class="label" style="margin-bottom:6px">silhouette vs k</div><canvas class="viz" id="c-sil"></canvas></div>
+        </div>
+        <div id="c-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="layers"></i>Which clustering algorithm?</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Method</th><th>How</th><th>Good for</th><th>Weak at</th></tr></thead>
+        <tbody>
+          <tr><td>k-means</td><td>Centroids, minimise WCSS</td><td>Large data, spherical clusters</td><td>Need k; non-convex shapes; outliers; varied sizes</td></tr>
+          <tr><td>Hierarchical (agglomerative)</td><td>Merge closest clusters bottom-up; dendrogram</td><td>Small data, choosing k after the fact, nested structure</td><td>O(n²) memory/time</td></tr>
+          <tr><td>DBSCAN / HDBSCAN</td><td>Dense regions grow clusters; sparse points = noise</td><td>Arbitrary shapes, outlier detection, unknown k</td><td>Varying densities (DBSCAN), choosing ε</td></tr>
+          <tr><td>Gaussian mixture</td><td>Soft assignments via EM, per-cluster covariance</td><td>Elliptical clusters, probabilities, BIC for k</td><td>Local optima; needs k</td></tr>
+        </tbody>
+      </table></div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="unsup:choosek"></div>
+    </section>
+
+    <!-- ============ PCA ============ -->
+    <section class="tab-panel" data-panel="pca" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>The first principal component is the direction of maximum variance <span class="imp">Must-know</span></h3>
+        <p>PCA finds orthogonal directions (eigenvectors of the covariance matrix) ordered by how much variance they capture (eigenvalues). Projecting onto the top k components keeps most of the information in fewer dimensions and removes correlation between features. Maximising variance along an axis is the same as minimising the squared distance of points to it. Always <strong>standardise</strong> first, or features with big units dominate; fit PCA on training data only.</p>
+        <p class="formula">\( \Sigma=\tfrac1n X_c^\top X_c = V\Lambda V^\top,\qquad \text{explained ratio}_i=\lambda_i/\textstyle\sum_j\lambda_j \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · rotate the projection axis</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">axis angle</span><div class="range-row"><input type="range" id="p-a" min="0" max="179" value="100"><span class="val" id="p-a-v"></span></div></div>
+          <div class="field"><span class="label-t">feature correlation</span><div class="range-row"><input type="range" id="p-r" min="0" max="0.98" step="0.02" value="0.85"><span class="val" id="p-r-v"></span></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="p-snap"><i data-icon="target"></i>Snap to PC1</button></div>
+          <div class="grid-2" id="p-stats"></div>
+          <div id="p-bar"></div>
+        </div>
+        <div><canvas class="sq" id="p-plot"></canvas><div class="legend"><span><i style="background:#5fb3f9"></i>data (standardised)</span><span><i style="background:#fbbf24"></i>projection axis</span><span><i style="background:#8b8cff"></i>projections</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="pca.py">
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+pca = make_pipeline(StandardScaler(), PCA(n_components=0.95))   # keep 95% of variance
+Z = pca.fit_transform(X_train)                                  # fit on train only
+print(pca[-1].explained_variance_ratio_.cumsum())
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="unsup:pca"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt, canvas } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+  const COLS = ['#8b8cff', '#f472b6', '#4ade80', '#fbbf24', '#5fb3f9', '#fb923c'];
+  const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+  function blobs(n, seed, per) { const r = rng(seed); const C = []; for (let i = 0; i < n; i++) C.push([1.5 + r() * 7, 1.5 + r() * 7]); let tries = 0; while (tries++ < 200) { let ok = true; for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (d2(C[i], C[j]) < 6) { C[j] = [1.5 + r() * 7, 1.5 + r() * 7]; ok = false; } if (ok) break; } const P = []; C.forEach((c) => { for (let i = 0; i < (per || 30); i++) P.push([c[0] + 0.6 * r.normal(), c[1] + 0.6 * r.normal()]); }); return P; }
+  function moons(seed) { const r = rng(seed); const P = []; for (let i = 0; i < 70; i++) { const t = Math.PI * r(); P.push([3 + 2.5 * Math.cos(t) + 0.25 * r.normal(), 4.2 + 2.5 * Math.sin(t) + 0.25 * r.normal()]); P.push([5.5 - 2.5 * Math.cos(t) + 0.25 * r.normal(), 5.6 - 2.5 * Math.sin(t) + 0.25 * r.normal()]); } return P; }
+  function initC(P, k, how, seed) {
+    const r = rng(seed); if (how === 'random') return Array.from({ length: k }, () => P[Math.floor(r() * P.length)].slice());
+    const C = [P[Math.floor(r() * P.length)].slice()];
+    while (C.length < k) { const D = P.map((p) => Math.min(...C.map((c) => d2(p, c)))); const s = D.reduce((a, v) => a + v, 0); let u = r() * s, i = 0; while (u > D[i]) { u -= D[i]; i++; } C.push(P[Math.min(i, P.length - 1)].slice()); }
+    return C;
+  }
+  const assign = (P, C) => P.map((p) => { let b = 0; C.forEach((c, j) => { if (d2(p, c) < d2(p, C[b])) b = j; }); return b; });
+  const wcss = (P, C, A) => P.reduce((a, p, i) => a + d2(p, C[A[i]]), 0);
+  function kmeans(P, k, how, seed) { let C = initC(P, k, how, seed), A; for (let it = 0; it < 50; it++) { A = assign(P, C); const N = C.map((c, j) => { const m = P.filter((_, i) => A[i] === j); return m.length ? [m.reduce((a, p) => a + p[0], 0) / m.length, m.reduce((a, p) => a + p[1], 0) / m.length] : c; }); if (N.every((c, j) => d2(c, C[j]) < 1e-9)) break; C = N; } A = assign(P, C); return { C, A, w: wcss(P, C, A) }; }
+
+  /* ===== k-means stepper ===== */
+  let mk = 3, minit = 'random', mdata = 'blobs', mseed = 4, P, C, A, phase, iter, hist;
+  function mReset() { P = mdata === 'blobs' ? blobs(3, 17, 35) : moons(5); C = initC(P, mk, minit, mseed); A = null; phase = 'init'; iter = 0; hist = []; mDraw(); }
+  function mStep() {
+    if (phase === 'done') return;
+    if (phase === 'init' || phase === 'update') { A = assign(P, C); phase = 'assign'; hist.push(wcss(P, C, A)); }
+    else { const N = C.map((c, j) => { const m = P.filter((_, i) => A[i] === j); return m.length ? [m.reduce((a, p) => a + p[0], 0) / m.length, m.reduce((a, p) => a + p[1], 0) / m.length] : c; }); const moved = N.some((c, j) => d2(c, C[j]) > 1e-9); C = N; iter++; phase = moved ? 'update' : 'done'; }
+    mDraw();
+  }
+  function mDraw() {
+    const cv = $('#m-plot'); const { ctx, w, h } = canvas(cv, cv.clientWidth / 1.35);
+    const X = (x) => 14 + x / 10 * (w - 28), Y = (y) => h - 14 - y / 10 * (h - 28);
+    ctx.clearRect(0, 0, w, h);
+    P.forEach((p, i) => { ctx.fillStyle = A ? COLS[A[i]] : '#646d82'; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 3.6, 0, 7); ctx.fill(); });
+    ctx.globalAlpha = 1;
+    C.forEach((c, j) => { ctx.fillStyle = COLS[j]; ctx.strokeStyle = '#090b12'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(c[0]), Y(c[1]) - 11); ctx.lineTo(X(c[0]) + 10, Y(c[1]) + 7); ctx.lineTo(X(c[0]) - 10, Y(c[1]) + 7); ctx.closePath(); ctx.stroke(); ctx.fill(); });
+    const W = A ? wcss(P, C, A) : null;
+    $('#m-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + iter + '</div><div class="k">iterations</div></div><div class="stat"><div class="v" style="font-size:17px">' + (W == null ? '—' : fmt(W, 1)) + '</div><div class="k">WCSS</div></div>';
+    const msg = { init: 'Centroids (triangles) placed. Next: assign every point to its nearest centroid.', assign: 'Points coloured by nearest centroid. Next: move each centroid to the mean of its points.', update: 'Centroids moved. Next: re-assign.', done: 'Converged: no centroid moved. WCSS = ' + fmt(W, 1) + '.' };
+    let extra = '';
+    if (phase === 'done' && mdata === 'moons') extra = ' k-means cuts the crescents with straight boundaries — it assumes convex, roughly spherical clusters. DBSCAN or spectral clustering would follow the shapes.';
+    else if (phase === 'done' && mdata === 'blobs' && mk !== 3) extra = ' The data has 3 blobs; with k = ' + mk + ' some blob is split or two are merged.';
+    else if (phase === 'done' && minit === 'random') extra = ' Try "New init" a few times — random starts sometimes put two centroids in one blob and converge to a worse local optimum.';
+    $('#m-note').innerHTML = '<div class="' + (phase === 'done' ? (extra && !extra.includes('Try') ? 'err-box' : 'ok-box') : 'callout blue') + '">' + (phase === 'done' ? '' : MR.icon('info')) + '<div>' + msg[phase] + extra + '</div></div>';
+  }
+  $('#m-step').addEventListener('click', mStep);
+  $('#m-run').addEventListener('click', () => { let n = 0; const go = () => { if (phase !== 'done' && n++ < 100) { mStep(); setTimeout(go, 220); } }; go(); });
+  $('#m-reset').addEventListener('click', () => { mseed += 13; mReset(); });
+  $('#m-k').addEventListener('input', () => { mk = +$('#m-k').value; $('#m-k-v').textContent = mk; mReset(); });
+  segc('m-init', (v) => { minit = v; mReset(); });
+  segc('m-data', (v) => { mdata = v; mReset(); });
+
+  /* ===== Choose k ===== */
+  function cDraw() {
+    const n = +$('#c-n').value; $('#c-n-v').textContent = n; $('#c-true').textContent = n;
+    const D = blobs(n, 40 + n, 22); const ks = [1, 2, 3, 4, 5, 6, 7, 8];
+    const res = ks.map((k) => { let best = null; for (let s = 0; s < 6; s++) { const r = kmeans(D, k, 'pp', 100 + s * 31); if (!best || r.w < best.w) best = r; } return best; });
+    const sil = res.map((r, idx) => { const k = ks[idx]; if (k === 1) return null; let tot = 0; D.forEach((p, i) => { const own = D.filter((q, j) => r.A[j] === r.A[i] && j !== i); const a = own.length ? own.reduce((s, q) => s + Math.sqrt(d2(p, q)), 0) / own.length : 0; let b = Infinity; for (let c = 0; c < k; c++) { if (c === r.A[i]) continue; const o = D.filter((_, j) => r.A[j] === c); if (o.length) b = Math.min(b, o.reduce((s, q) => s + Math.sqrt(d2(p, q)), 0) / o.length); } tot += (b - a) / Math.max(a, b); }); return tot / D.length; });
+    plot($('#c-elbow'), [{ type: 'vline', data: n, color: '#4ade8088', dash: [4, 4], width: 1.5 }, { type: 'line', data: ks.map((k, i) => [k, res[i].w]), color: '#8b8cff' }, { type: 'points', data: ks.map((k, i) => [k, res[i].w]), color: '#8b8cff' }], { h: 220, xmin: 1, xmax: 8, ymin: 0, ticks: 7, xlabel: 'k', xfmt: (v) => Math.round(v), yfmt: (v) => Math.round(v) });
+    const sk = ks.slice(1), sv = sil.slice(1);
+    plot($('#c-sil'), [{ type: 'vline', data: n, color: '#4ade8088', dash: [4, 4], width: 1.5 }, { type: 'line', data: sk.map((k, i) => [k, sv[i]]), color: '#f472b6' }, { type: 'points', data: sk.map((k, i) => [k, sv[i]]), color: '#f472b6' }], { h: 220, xmin: 1, xmax: 8, ymin: 0, ymax: 1, ticks: 7, xlabel: 'k', xfmt: (v) => Math.round(v) });
+    const bestK = sk[sv.indexOf(Math.max(...sv))];
+    $('#c-note').innerHTML = '<div class="' + (bestK === n ? 'ok-box' : 'callout amber') + '">' + (bestK === n ? '' : MR.icon('alert')) + '<div>Silhouette peaks at k = ' + bestK + (bestK === n ? ', matching the truth' : ' (truth: ' + n + ' — blobs that overlap look like one)') + '. The elbow is where the WCSS curve bends; with real data the bend is often ambiguous, which is why you combine criteria.</div></div>';
+  }
+  $('#c-n').addEventListener('input', cDraw);
+
+  /* ===== PCA ===== */
+  let PD = null;
+  function pData() { const r = rng(9), rho = +$('#p-r').value; const pts = []; for (let i = 0; i < 120; i++) { const a = r.normal(), b = r.normal(); pts.push([a, rho * a + Math.sqrt(1 - rho * rho) * b]); } const m = [0, 1].map((j) => pts.reduce((s, p) => s + p[j], 0) / pts.length); const sd = [0, 1].map((j) => Math.sqrt(pts.reduce((s, p) => s + (p[j] - m[j]) ** 2, 0) / pts.length)); return pts.map((p) => [(p[0] - m[0]) / sd[0], (p[1] - m[1]) / sd[1]]); }
+  function pc1() { const n = PD.length; const sxx = PD.reduce((s, p) => s + p[0] * p[0], 0) / n, syy = PD.reduce((s, p) => s + p[1] * p[1], 0) / n, sxy = PD.reduce((s, p) => s + p[0] * p[1], 0) / n; const tr = sxx + syy, det = sxx * syy - sxy * sxy; const l1 = tr / 2 + Math.sqrt(tr * tr / 4 - det), l2 = tr / 2 - Math.sqrt(tr * tr / 4 - det); const ang = Math.atan2(l1 - sxx, sxy); return { l1, l2, ang: ((ang * 180 / Math.PI) + 180) % 180 }; }
+  function pDraw() {
+    $('#p-r-v').textContent = (+$('#p-r').value).toFixed(2);
+    const ang = +$('#p-a').value; $('#p-a-v').textContent = ang + '°';
+    const u = [Math.cos(ang * Math.PI / 180), Math.sin(ang * Math.PI / 180)];
+    const proj = PD.map((p) => p[0] * u[0] + p[1] * u[1]);
+    const varAx = proj.reduce((s, v) => s + v * v, 0) / PD.length;
+    const total = PD.reduce((s, p) => s + p[0] * p[0] + p[1] * p[1], 0) / PD.length;
+    const E = pc1();
+    const cv = $('#p-plot'); const { ctx, w, h } = canvas(cv, cv.clientWidth / 1.35);
+    const S = Math.min(w, h) / 8; const X = (x) => w / 2 + x * S, Y = (y) => h / 2 - y * S;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#1d2335'; ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
+    PD.forEach((p, i) => { const q = [proj[i] * u[0], proj[i] * u[1]]; ctx.strokeStyle = 'rgba(139,140,255,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(p[0]), Y(p[1])); ctx.lineTo(X(q[0]), Y(q[1])); ctx.stroke(); });
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(-5 * u[0]), Y(-5 * u[1])); ctx.lineTo(X(5 * u[0]), Y(5 * u[1])); ctx.stroke();
+    PD.forEach((p) => { ctx.fillStyle = '#5fb3f9'; ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 3.2, 0, 7); ctx.fill(); });
+    PD.forEach((p, i) => { ctx.fillStyle = '#8b8cff'; ctx.beginPath(); ctx.arc(X(proj[i] * u[0]), Y(proj[i] * u[1]), 2.4, 0, 7); ctx.fill(); });
+    const resid = total - varAx;
+    $('#p-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + fmt(varAx / total * 100, 1) + '%</div><div class="k">variance kept on this axis</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(resid, 3) + '</div><div class="k">mean squared distance to axis</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(E.ang, 0) + '°</div><div class="k">PC1 direction</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(E.l1 / (E.l1 + E.l2) * 100, 1) + '%</div><div class="k">PC1 explained variance</div></div>';
+    const r1 = E.l1 / (E.l1 + E.l2), bar = (k, v, c) => '<div style="display:grid;grid-template-columns:44px 1fr 56px;gap:8px;align-items:center;font:12px var(--font-mono);margin-top:6px"><span>' + k + '</span><div style="height:14px;border-radius:4px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden"><div style="height:100%;width:' + v * 100 + '%;background:' + c + '"></div></div><span>' + fmt(v * 100, 1) + '%</span></div>';
+    $('#p-bar').innerHTML = '<div class="label">explained variance ratio</div>' + bar('PC1', r1, '#8b8cff') + bar('PC2', 1 - r1, '#f472b6');
+  }
+  $('#p-a').addEventListener('input', pDraw);
+  $('#p-r').addEventListener('input', () => { PD = pData(); pDraw(); });
+  $('#p-snap').addEventListener('click', () => { const E = pc1(); let a = +$('#p-a').value; const target = Math.round(E.ang); const go = () => { if (a === target) return; a += a < target ? 1 : -1; $('#p-a').value = a; pDraw(); requestAnimationFrame(go); }; go(); });
+
+  MR.init('unsup', (id) => { if (id === 'kmeans') { $('#m-k-v').textContent = mk; mReset(); } if (id === 'choosek') cDraw(); if (id === 'pca') { PD = PD || pData(); pDraw(); } });
+})();
+</script>
+</body>
+</html>

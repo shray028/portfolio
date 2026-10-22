@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ML Interview Q&A Bank, Flashcards & Cheat Sheet — ML Revision</title>
+  <meta name="description" content="Every ML, deep learning, LLM, RAG, system design and recommender interview question from the ML Revision hub in one searchable place, with must-know flashcards, a formula cheat sheet and a playbook for structuring answers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .toolbar .input { max-width: 340px; }
+    .toolbar select.input { max-width: 260px; }
+    .tog { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font-size: 13px; cursor: pointer; }
+    .tog input { accent-color: var(--amber); }
+    .grp-h { margin: 22px 0 8px; font: 700 13px var(--font-mono); color: var(--acc); letter-spacing: .04em; }
+    .flash { padding: 22px; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--panel-2); }
+    .flash .q { font-size: 18px; font-weight: 700; line-height: 1.45; }
+    .flash .a { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); color: var(--text-2); font-size: 14.5px; line-height: 1.7; }
+    .flash .a ul, .flash .a ol { padding-left: 18px; }
+    .cheat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .cheat h4 { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+    .cheat h4 svg { width: 16px; height: 16px; color: var(--acc); }
+    .cheat table { width: 100%; border-collapse: collapse; }
+    .cheat td { padding: 7px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 12.8px; color: var(--text-2); }
+    .cheat td:first-child { width: 48%; font: 12px var(--font-mono); color: #cfd0ff; word-break: break-word; }
+    .cheat tr:last-child td { border-bottom: 0; }
+    .cheat tr.star td:first-child::before { content: '★ '; color: var(--amber); }
+    @media (max-width: 900px) { .cheat-grid { grid-template-columns: minmax(0, 1fr); } }
+      .lvl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .lvl .card { padding: 18px; }
+    .lvl h4 { font-size: 16px; margin-bottom: 4px; }
+    .lvl .big { font: 800 26px var(--font-mono); color: var(--acc); margin: 8px 0 2px; }
+    .ms { display: grid; gap: 8px; }
+    .ms label { display: grid; grid-template-columns: 22px 70px 1fr; gap: 8px; align-items: start; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13.5px; }
+    .ms label b { font-family: var(--font-mono); color: var(--acc); }
+    .ms input { accent-color: var(--acc); margin-top: 3px; }
+    @media (max-width: 900px) { .lvl { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 14 · REVISION</span>
+      <h1>Q&amp;A bank &amp; <span class="grad">cheat sheet</span></h1>
+      <p class="desc">Every question from the thirteen modules in one place. Search it, filter to the must-know set, or drill yourself with flashcards the night before. The cheat sheet fits the formulas and one-liners on one screen, and the playbook shows how to structure answers so they sound senior.</p>
+      <div class="hero-meta"><span class="chip ember" id="h-count"></span><span class="imp" id="h-imp"></span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="all"><span class="n">1</span>All questions</button>
+      <button class="tab" data-tab="flash"><span class="n">2</span>Flashcards</button>
+      <button class="tab" data-tab="cheat"><span class="n">3</span>Cheat sheet</button>
+      <button class="tab" data-tab="playbook"><span class="n">4</span>Answer playbook</button>
+      <button class="tab" data-tab="map"><span class="n">5</span>Map &amp; sources</button>
+    </div></div>
+
+    <section class="tab-panel" data-panel="all">
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <input class="input" id="q-search" type="search" placeholder="Search… e.g. bias, chunk, NDCG, LoRA, cold start">
+          <select class="input" id="q-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="q-imp"> ★ Must-know only</label>
+          <button class="btn btn-sm" id="q-open">Expand all</button>
+          <button class="btn btn-sm" id="q-close">Collapse all</button>
+          <span class="small muted" id="q-n"></span>
+        </div>
+      </div>
+      <div id="q-list"></div>
+    </section>
+
+    <section class="tab-panel" data-panel="flash" hidden>
+      <div class="card card-pad mt">
+        <div class="toolbar">
+          <select class="input" id="f-mod"><option value="">All modules</option></select>
+          <label class="tog"><input type="checkbox" id="f-imp" checked> ★ Must-know only</label>
+          <span class="small muted" id="f-pos"></span>
+        </div>
+      </div>
+      <div class="flash mt" id="f-card"></div>
+      <div class="btn-row mt"><button class="btn" id="f-prev">← Previous</button><button class="btn btn-primary" id="f-show">Show answer</button><button class="btn" id="f-next">Next →</button><button class="btn" id="f-shuf"><i data-icon="reset"></i>Shuffle</button></div>
+      <p class="small muted mt">Keyboard: ← / → to move, space to reveal. Say your answer out loud before revealing.</p>
+    </section>
+
+    <section class="tab-panel" data-panel="cheat" hidden>
+      <div class="card card-pad mt"><div class="toolbar"><input class="input" id="c-search" type="search" placeholder="Filter… e.g. recall, Adam, RRF, KV"><span class="small muted">★ = asked constantly</span></div></div>
+      <div class="cheat-grid mt" id="c-grid"></div>
+    </section>
+
+    <section class="tab-panel" data-panel="playbook" hidden>
+      <div class="block-title"><i data-icon="book"></i>How to answer so it sounds senior</div>
+      <div class="cheat-grid">
+        <div class="card lesson"><h3>Concept questions</h3><ol><li><b>One-line definition</b> in plain words.</li><li><b>Intuition</b> or a tiny example (a picture you could draw).</li><li><b>Formula or mechanism</b> if relevant.</li><li><b>When it breaks</b> / trade-offs.</li><li><b>What you'd do in practice</b>, ideally from your own work.</li></ol><p class="small muted">"Bias is being consistently wrong, variance is being inconsistently right…"</p></div>
+        <div class="card lesson"><h3>"It broke in production" questions</h3><ol><li><b>Localise</b>: data, pipeline, model, serving or experiment?</li><li><b>Cheapest checks first</b>: bugs, logging, recent deploys.</li><li><b>Hypotheses</b> ranked by likelihood, each with the evidence that would confirm it.</li><li><b>Fix</b> with the smallest change.</li><li><b>Prevent</b>: a monitor, a test, an eval case.</li></ol></div>
+        <div class="card lesson"><h3>Design questions</h3><ol><li>Clarify goal, users, scale, latency, constraints.</li><li>Metrics: offline, online, guardrails.</li><li>Data and labels (and their biases).</li><li>Baseline v1 → stronger model.</li><li>Serving architecture and fallbacks.</li><li>Experiment, monitoring, iteration.</li></ol><p class="small muted">Narrate trade-offs; draw the boxes.</p></div>
+        <div class="card lesson"><h3>"Tell me about a project"</h3><ol><li>Problem and why it mattered (a number).</li><li>Your role, specifically.</li><li>Data, labels, baseline.</li><li>Approach and what failed first.</li><li>How you proved it worked (offline and online).</li><li>Impact, and what you'd do differently.</li></ol></div>
+      </div>
+      <div class="block-title"><i data-icon="target"></i>Rapid fire · answer in one sentence</div>
+      <div class="card card-pad"><div id="rf"></div><div class="btn-row mt"><button class="btn btn-primary" id="rf-next"><i data-icon="step"></i>Next</button><button class="btn" id="rf-show">Reveal</button></div></div>
+    </section>
+
+    <section class="tab-panel" data-panel="map" hidden>
+      <div class="block-title"><i data-icon="book"></i>How this hub is organised</div>
+      <div class="card lesson">
+        <p>Modules 01–06 cover classic ML (bias–variance, metrics, optimisation, models, clustering, features), 07–08 deep learning and LLMs, 09–11 RAG and agents, 12–13 ML system design and recommenders. Questions were selected by cross-checking widely shared interview question lists (sources below) and practical scenario questions from production RAG and recommender work; the answers are written for this hub.</p>
+      </div>
+      <div class="mod-grid mt" id="m-grid"></div>
+      <div class="block-title"><i data-icon="search"></i>Question sources consulted</div>
+      <div class="card lesson"><ul>
+        <li><a href="https://datalemur.com/blog/machine-learning-interview-questions" target="_blank" rel="noopener">DataLemur — 70 Machine Learning Interview Questions</a></li>
+        <li><a href="https://www.interviewpal.com/blog/25-machine-learning-interview-questions-for-2026-and-how-senior-candidates-actually-answer-them" target="_blank" rel="noopener">InterviewPal — 25 ML interview questions for 2026</a></li>
+        <li><a href="https://letsdatascience.com/blog/50-llm-and-ai-engineer-interview-questions-for-2026" target="_blank" rel="noopener">Let's Data Science — 50 LLM and AI Engineer interview questions</a></li>
+        <li><a href="https://github.com/KalyanKS-NLP/RAG-Interview-Questions-and-Answers-Hub" target="_blank" rel="noopener">RAG Interview Questions and Answers Hub (GitHub)</a></li>
+        <li><a href="https://levelup.gitconnected.com/chunking-strategies-in-rag-systems-insights-from-80-genai-interviews-8ceb4a17701a" target="_blank" rel="noopener">Chunking strategies — insights from 80 GenAI interviews</a></li>
+        <li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Liu et al., "Lost in the Middle: How Language Models Use Long Contexts" (2023)</a></li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, MODULES, qaItem } = MR;
+  const QA = window.MR_QA;
+  const modName = (id) => { const m = MODULES.find((x) => x.id === id); return m ? m.num + ' · ' + m.title : id; };
+  $('#h-count').textContent = QA.length + ' questions';
+  $('#h-imp').textContent = 'Must-know: ' + QA.filter((q) => q.imp).length;
+  const opts = MODULES.filter((m) => QA.some((q) => q.m === m.id)).map((m) => '<option value="' + m.id + '">' + m.num + ' · ' + esc(m.title) + '</option>').join('');
+  $('#q-mod').insertAdjacentHTML('beforeend', opts); $('#f-mod').insertAdjacentHTML('beforeend', opts);
+  const strip = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').toLowerCase();
+
+  function list() {
+    const q = $('#q-search').value.trim().toLowerCase(), mod = $('#q-mod').value, imp = $('#q-imp').checked;
+    const items = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp) && (!q || strip(x.q + ' ' + x.a).includes(q)));
+    const host = $('#q-list'); host.innerHTML = '';
+    let n = 0;
+    MODULES.forEach((m) => {
+      const group = items.filter((x) => x.m === m.id); if (!group.length) return;
+      host.insertAdjacentHTML('beforeend', '<div class="grp-h">' + esc(modName(m.id)) + '</div>');
+      const box = document.createElement('div'); box.className = 'qa-list';
+      group.forEach((it) => box.appendChild(qaItem(it, ++n, true)));
+      host.appendChild(box);
+    });
+    if (!items.length) host.innerHTML = '<p class="muted mt">No questions match.</p>';
+    if (q) $$('#q-list details').forEach((d) => { d.open = true; });
+    $('#q-n').textContent = items.length + ' shown';
+    MR.math(host);
+  }
+  ['q-search', 'q-mod', 'q-imp'].forEach((id) => $('#' + id).addEventListener('input', list));
+  $('#q-open').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = true; }));
+  $('#q-close').addEventListener('click', () => $$('#q-list details').forEach((d) => { d.open = false; }));
+  list();
+
+  let deck = [], pos = 0, shown = false;
+  function buildDeck(shuffle) {
+    const mod = $('#f-mod').value, imp = $('#f-imp').checked;
+    deck = QA.filter((x) => (!mod || x.m === mod) && (!imp || x.imp));
+    if (shuffle) for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    pos = 0; shown = false; card();
+  }
+  function card() {
+    const host = $('#f-card');
+    if (!deck.length) { host.innerHTML = '<p class="muted">No cards.</p>'; return; }
+    const it = deck[pos];
+    host.innerHTML = '<div class="label" style="margin-bottom:8px">' + esc(modName(it.m)) + (it.imp ? ' &nbsp;<span class="imp">Must-know</span>' : '') + '</div><div class="q">' + it.q + '</div>' + (shown ? '<div class="a">' + it.a + '</div>' : '');
+    $('#f-pos').textContent = 'card ' + (pos + 1) + ' / ' + deck.length;
+    $('#f-show').textContent = shown ? 'Hide answer' : 'Show answer';
+    MR.math(host);
+  }
+  $('#f-show').addEventListener('click', () => { shown = !shown; card(); });
+  $('#f-next').addEventListener('click', () => { pos = (pos + 1) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-prev').addEventListener('click', () => { pos = (pos - 1 + deck.length) % Math.max(1, deck.length); shown = false; card(); });
+  $('#f-shuf').addEventListener('click', () => buildDeck(true));
+  ['f-mod', 'f-imp'].forEach((id) => $('#' + id).addEventListener('input', () => buildDeck(false)));
+  document.addEventListener('keydown', (e) => {
+    if (location.hash !== '#flash' || e.target.matches('input, select, textarea')) return;
+    if (e.key === 'ArrowRight') $('#f-next').click(); else if (e.key === 'ArrowLeft') $('#f-prev').click(); else if (e.key === ' ') { e.preventDefault(); $('#f-show').click(); }
+  });
+  buildDeck(false);
+
+  const CHEAT = [
+    ['Generalisation', 'layers', [
+      ['*E[(y−ŷ)²] = bias² + variance + σ²', 'Bias–variance decomposition'],
+      ['*train ≪ val error → variance; both high → bias', 'Read the learning curve'],
+      ['*L2: λΣw² (shrink) · L1: λΣ|w| (sparse)', 'Regularization'],
+      ['*Pipeline + split matching production', 'Prevent leakage'],
+      ['Stratified · TimeSeriesSplit · GroupKFold', 'CV for imbalance · time · repeated entities'],
+    ]],
+    ['Classification metrics', 'target', [
+      ['*P = TP/(TP+FP) · R = TP/(TP+FN)', 'Precision · recall'],
+      ['*F1 = 2PR/(P+R)', 'Harmonic mean'],
+      ['*ROC-AUC = P(score⁺ > score⁻)', 'Ranking quality; ignores prevalence'],
+      ['*PR-AUC baseline = positive rate', 'Use for rare positives'],
+      ['log-loss = −mean[y log p + (1−y) log(1−p)]', 'Proper scoring rule; calibration'],
+      ['Brier = mean (p − y)²', 'Calibration + sharpness'],
+    ]],
+    ['Regression metrics', 'sliders', [
+      ['*MSE / RMSE vs MAE', 'Mean vs median; outlier-sensitive vs robust'],
+      ['R² = 1 − SS_res / SS_tot', 'Can be negative on test data'],
+      ['Huber loss', 'Quadratic near 0, linear in the tails'],
+    ]],
+    ['Optimisation & training', 'zap', [
+      ['*w ← w − η ∇L', 'Gradient descent'],
+      ['*Adam: m (momentum) + v (RMS) + bias correction', 'Default optimizer; AdamW for decay'],
+      ['*noise ∝ 1/√B', 'Mini-batch gradient noise'],
+      ['*sigmoid′ ≤ 0.25 → vanishing', 'Use ReLU, He init, residuals, norm'],
+      ['clip_grad_norm_(…, 1.0)', 'Exploding gradients'],
+      ['*Dropout: scale 1/(1−p) in train, off in eval', 'Inverted dropout'],
+      ['BatchNorm: batch stats (train) / running stats (eval)', 'LayerNorm: per example'],
+    ]],
+    ['Classic models', 'box', [
+      ['*Gini = 1 − Σp² · Entropy = −Σp log p', 'Tree split criteria'],
+      ['*Bagging ↓variance · Boosting ↓bias', 'RF vs GBM'],
+      ['SVM: ½‖w‖² + C Σ hinge', 'Large C → narrow margin'],
+      ['k-NN: small k overfits, large k underfits', 'Scale features'],
+      ['k-means: assign → update → repeat', 'k-means++ init, elbow + silhouette'],
+      ['*PCA: eigenvectors of covariance', 'Standardise first'],
+    ]],
+    ['Transformers & LLMs', 'cpu', [
+      ['*softmax(QKᵀ/√d)V', 'Scaled dot-product attention'],
+      ['*KV = 2·L·n_kv·d_head·seq·batch·bytes', 'KV-cache memory'],
+      ['MHA → GQA → MQA', 'Fewer KV heads, smaller cache'],
+      ['*T ↓ greedy · top-k · top-p (nucleus)', 'Decoding'],
+      ['*LoRA: W + (α/r)·BA, B=0 at start', 'Trainable params 2rd per matrix'],
+      ['*Pre-train → SFT → RLHF / DPO', 'Alignment pipeline'],
+      ['~1 token ≈ 4 chars (English)', 'Budgeting rule of thumb'],
+    ]],
+    ['RAG', 'search', [
+      ['*load → parse → chunk → embed → index', 'Indexing'],
+      ['*rewrite → hybrid retrieve → re-rank → generate + cite', 'Query time'],
+      ['*256–1024 tokens, 10–20% overlap', 'Chunking starting point; then tune'],
+      ['*cos(q,d) = q·d / ‖q‖‖d‖', 'Similarity; = dot for unit vectors'],
+      ['*RRF(d) = Σ 1/(60 + rank)', 'Hybrid fusion'],
+      ['*bi-encoder retrieves · cross-encoder re-ranks', 'Two stages'],
+      ['HNSW · IVF · PQ', 'ANN indexes'],
+    ]],
+    ['RAG evaluation', 'git', [
+      ['*Recall@k = rel in top k / all rel', 'Retriever coverage (most important)'],
+      ['MRR = 1 / rank of first rel', 'Single-answer queries'],
+      ['*nDCG@k = Σ rel/log₂(i+1) / ideal', 'Order-aware, graded'],
+      ['*context recall/precision · faithfulness · answer relevance', 'RAGAS quartet'],
+      ['retrieved but wrong → generation; not retrieved → retrieval', 'Localise the failure'],
+    ]],
+    ['System design', 'grid', [
+      ['*clarify → metrics → data → features → baseline → eval → serve → monitor', 'Framework'],
+      ['*n ≈ (z₁₋α/₂+z₁₋β)²·(p₁q₁+p₂q₂)/(p₂−p₁)²', 'A/B sample size per arm'],
+      ['*PSI = Σ(a−e)·ln(a/e): <0.1 / 0.1–0.25 / >0.25', 'Drift thresholds'],
+      ['shadow → canary → A/B → rollout', 'Safe deployment'],
+      ['timeout + circuit breaker + fallback', 'Dependency failure'],
+    ]],
+    ['Recommenders', 'layers', [
+      ['*retrieve → filter → rank → re-rank', 'The funnel'],
+      ['*two-tower: user·item dot product + ANN', 'Retrieval model'],
+      ['*constraints filter, objectives score', 'Availability is never a weight'],
+      ['unseen ≠ negative; shown-not-clicked is weak negative', 'Labels'],
+      ['*Thompson: sample Beta(1+s, 1+f), pick max', 'Exploration'],
+      ['NDCG@K offline ≠ conversion online', 'Selection bias, latency, objective'],
+    ]],
+  ];
+  function cheat() {
+    const q = $('#c-search').value.trim().toLowerCase();
+    $('#c-grid').innerHTML = CHEAT.map(([title, ic, rows]) => {
+      const r = rows.filter(([f, d]) => !q || (f + ' ' + d).toLowerCase().includes(q));
+      if (!r.length) return '';
+      return '<div class="card cheat"><h4>' + MR.icon(ic) + esc(title) + '</h4><table>' + r.map(([f, d]) => '<tr class="' + (f.startsWith('*') ? 'star' : '') + '"><td>' + esc(f.replace(/^\*/, '')) + '</td><td>' + esc(d) + '</td></tr>').join('') + '</table></div>';
+    }).join('') || '<p class="muted">Nothing matches.</p>';
+  }
+  $('#c-search').addEventListener('input', cheat); cheat();
+
+  const RF = [
+    ['Does more data reduce bias or variance?', 'Variance.'], ['Which metric for 0.1% fraud: ROC-AUC or PR-AUC?', 'PR-AUC (plus recall at a fixed precision/FPR).'], ['L1 or L2 for feature selection?', 'L1 — it drives weights to exactly zero.'], ['Do random forests need feature scaling?', 'No — tree splits are scale-invariant.'], ['Why divide attention scores by √d?', 'To keep score variance ≈ 1 so softmax doesn\'t saturate.'], ['What does the KV cache trade?', 'Memory for compute — it avoids recomputing past keys/values.'], ['Temperature for a RAG answer?', 'Low (≈ 0–0.3) for grounded, consistent answers.'], ['Fine-tune or RAG for frequently changing facts?', 'RAG.'], ['Why hybrid search?', 'BM25 catches exact IDs/terms, dense catches meaning.'], ['Bi-encoder vs cross-encoder?', 'Bi-encoder for fast retrieval, cross-encoder for accurate re-ranking.'], ['Most important retriever metric for RAG?', 'Recall@k — the answer must be in the context.'], ['Retrieved the right chunk but wrong answer?', 'Generation problem: context assembly, prompt, model.'], ['Is an item the user never saw a negative?', 'No — no exposure, no evidence.'], ['Availability: feature or filter?', 'Hard filter.'], ['Why not stop an A/B test when p < 0.05?', 'Peeking inflates false positives.'], ['First check when a model degrades in production?', 'Pipeline bugs and data quality, before blaming drift.'], ['Batch norm at inference uses…?', 'Running averages from training.'], ['Bagging or boosting reduces bias?', 'Boosting.'], ['k-means assumes clusters are…?', 'Roughly spherical, similar size, in scaled Euclidean space.'], ['Why use ReLU over sigmoid in hidden layers?', 'Non-saturating gradient — avoids vanishing gradients.'],
+  ];
+  let rfi = 0, rfShow = false;
+  function rfDraw() { const [q, a] = RF[rfi]; $('#rf').innerHTML = '<div class="flash"><div class="label" style="margin-bottom:6px">' + (rfi + 1) + ' / ' + RF.length + '</div><div class="q">' + esc(q) + '</div>' + (rfShow ? '<div class="a">' + esc(a) + '</div>' : '') + '</div>'; }
+  $('#rf-next').addEventListener('click', () => { rfi = (rfi + 1) % RF.length; rfShow = false; rfDraw(); });
+  $('#rf-show').addEventListener('click', () => { rfShow = !rfShow; rfDraw(); });
+  rfDraw();
+
+  $('#m-grid').innerHTML = MODULES.map((m) => '<a class="mod-card" href="' + m.file + '"><span class="num">' + m.num + '</span><h4>' + esc(m.title) + '</h4><p>' + esc(m.short) + '</p><span class="small muted">' + QA.filter((q) => q.m === m.id).length + ' questions</span></a>').join('');
+
+  MR.init('qa');
+})();
+</script>
+</body>
+</html>

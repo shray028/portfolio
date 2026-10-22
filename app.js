@@ -1254,9 +1254,251 @@
   ];
 
   /* ----------------------------------------------------------
+     ML REVISION — most-asked ML / DL / LLM / RAG / design interview
+     questions with interactive intuition. Labs live in
+     Subject_6_MLRevision/interactive (mr-lab.css/js + mr-qa.js).
+     ---------------------------------------------------------- */
+  const MR_V = '?v=2026-10-22';
+  const mr = (file, hash) => file + MR_V + (hash ? '#' + hash : '');
+  const MR_ICON = {
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    tree: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-5h14v5"/></svg>',
+    spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  };
+  const MLREV_CONCEPTS = [
+    {
+      id: 'mr-fundamentals',
+      title: 'ML Fundamentals',
+      icon: MR_ICON.target,
+      topics: [
+        {
+          title: 'Bias–Variance, Regularization & Validation',
+          notes: 'The most-asked ML question, made visible: fit the same model to 30 noisy datasets and watch bias² and variance trade off as complexity grows. L1 vs L2 with the diamond-vs-circle picture and live coefficients, learning-curve diagnosis, k-fold vs stratified vs time-series vs grouped CV, and a data-leakage drill.',
+          formulas: [],
+          interactive: { file: mr('mr-01-generalization.html', 'tradeoff'), label: 'Bias–Variance Decomposer' },
+          extras: [
+            { file: mr('mr-01-generalization.html', 'regularization'), label: 'L1 vs L2 Lab' },
+            { file: mr('mr-01-generalization.html', 'curves'), label: 'Learning-Curve Doctor' },
+            { file: mr('mr-01-generalization.html', 'validation'), label: 'CV & Leakage Drill' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Interview prep'],
+        },
+        {
+          title: 'Evaluation Metrics: Precision, Recall, ROC vs PR, Calibration',
+          notes: 'Move a decision threshold and watch the confusion matrix, precision, recall and F1 change; see why ROC-AUC barely moves under heavy imbalance while PR-AUC collapses; the accuracy paradox; MSE vs MAE with a draggable outlier; and a reliability diagram for calibration.',
+          formulas: [],
+          interactive: { file: mr('mr-02-metrics.html', 'confusion'), label: 'Threshold Explorer' },
+          extras: [
+            { file: mr('mr-02-metrics.html', 'curves'), label: 'ROC vs PR' },
+            { file: mr('mr-02-metrics.html', 'imbalance'), label: 'Class Imbalance' },
+            { file: mr('mr-02-metrics.html', 'regression'), label: 'Regression Metrics' },
+            { file: mr('mr-02-metrics.html', 'calibration'), label: 'Calibration' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Metrics'],
+        },
+        {
+          title: 'Gradient Descent, Optimizers & Training Stability',
+          notes: 'Learning rates that crawl, converge, oscillate and diverge; SGD vs momentum vs RMSprop vs Adam racing across a narrow valley; how batch size adds noise; vanishing and exploding gradients by depth, activation and initialisation; dropout masks and batch-norm train vs eval.',
+          formulas: [],
+          interactive: { file: mr('mr-03-optimization.html', 'gd'), label: 'Learning-Rate Stepper' },
+          extras: [
+            { file: mr('mr-03-optimization.html', 'optimizers'), label: 'Optimizer Race' },
+            { file: mr('mr-03-optimization.html', 'batch'), label: 'Batch Size' },
+            { file: mr('mr-03-optimization.html', 'gradients'), label: 'Vanishing Gradients' },
+            { file: mr('mr-03-optimization.html', 'norm'), label: 'Dropout & BatchNorm' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Deep learning'],
+        },
+      ],
+    },
+    {
+      id: 'mr-models',
+      title: 'Models & Data',
+      icon: MR_ICON.tree,
+      topics: [
+        {
+          title: 'Classic Models: Logistic, Trees, Bagging vs Boosting, SVM, k-NN',
+          notes: 'Why logistic beats linear regression for classification, a Gini/entropy split finder, random-forest averaging vs gradient-boosted stumps fitting residuals, an SVM whose margin you control with C, and k-NN boundaries plus the curse of dimensionality.',
+          formulas: [],
+          interactive: { file: mr('mr-04-models.html', 'linear'), label: 'Linear vs Logistic' },
+          extras: [
+            { file: mr('mr-04-models.html', 'trees'), label: 'Split Finder' },
+            { file: mr('mr-04-models.html', 'ensembles'), label: 'Bagging vs Boosting' },
+            { file: mr('mr-04-models.html', 'svm'), label: 'SVM Margin' },
+            { file: mr('mr-04-models.html', 'knn'), label: 'k-NN & Dimensionality' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Classic ML'],
+        },
+        {
+          title: 'Clustering & PCA',
+          notes: 'Step through k-means (assign, update, repeat) with random vs k-means++ starts and a non-convex failure case; choose k with the elbow and silhouette; compare k-means, hierarchical, DBSCAN and GMMs; rotate a projection axis until it becomes the first principal component.',
+          formulas: [],
+          interactive: { file: mr('mr-05-unsupervised.html', 'kmeans'), label: 'k-Means Stepper' },
+          extras: [
+            { file: mr('mr-05-unsupervised.html', 'choosek'), label: 'Choosing k' },
+            { file: mr('mr-05-unsupervised.html', 'pca'), label: 'PCA Rotator' },
+          ],
+          tags: ['Interactive', 'Unsupervised'],
+        },
+        {
+          title: 'Data & Feature Engineering',
+          notes: 'Imputation under MCAR vs MNAR (and why missing indicators matter), one-hot vs label vs target vs hashing encoding with a target-leakage demo, which models need scaling and how min-max, standard and robust scalers react to an outlier, and log transforms for skewed features.',
+          formulas: [],
+          interactive: { file: mr('mr-06-features.html', 'missing'), label: 'Imputation Lab' },
+          extras: [
+            { file: mr('mr-06-features.html', 'encoding'), label: 'Encoder Playground' },
+            { file: mr('mr-06-features.html', 'scaling'), label: 'Scaling Quiz' },
+            { file: mr('mr-06-features.html', 'outliers'), label: 'Outliers & Skew' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Data'],
+        },
+      ],
+    },
+    {
+      id: 'mr-llm',
+      title: 'Transformers & LLMs',
+      icon: MR_ICON.spark,
+      topics: [
+        {
+          title: 'Self-Attention, Positional Encoding & the KV Cache',
+          notes: 'An attention heatmap with causal masking, why scores are divided by √d (softmax saturation demo), sinusoidal positional encodings vs RoPE, encoder vs decoder vs encoder–decoder, and a KV-cache memory calculator comparing MHA, GQA and MQA.',
+          formulas: [],
+          interactive: { file: mr('mr-07-transformers.html', 'attention'), label: 'Attention Heatmap' },
+          extras: [
+            { file: mr('mr-07-transformers.html', 'positional'), label: 'Positional Encoding' },
+            { file: mr('mr-07-transformers.html', 'architectures'), label: 'Encoder vs Decoder' },
+            { file: mr('mr-07-transformers.html', 'kvcache'), label: 'KV-Cache Calculator' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Transformers'],
+        },
+        {
+          title: 'LLMs: Tokenization, Sampling, Fine-Tuning & Alignment',
+          notes: 'Watch BPE merges build a vocabulary, tune temperature, top-k and top-p and sample tokens, decide between prompting, RAG and fine-tuning, count LoRA parameters and memory, and follow pre-training → SFT → RLHF/DPO.',
+          formulas: [],
+          interactive: { file: mr('mr-08-llms.html', 'tokens'), label: 'BPE Stepper' },
+          extras: [
+            { file: mr('mr-08-llms.html', 'decoding'), label: 'Sampling Lab' },
+            { file: mr('mr-08-llms.html', 'adapt'), label: 'Prompt vs RAG vs Fine-Tune' },
+            { file: mr('mr-08-llms.html', 'align'), label: 'SFT, RLHF & DPO' },
+          ],
+          tags: ['Interactive', 'Must-know', 'GenAI'],
+        },
+      ],
+    },
+    {
+      id: 'mr-rag',
+      title: 'RAG & Agents',
+      icon: MR_ICON.search,
+      topics: [
+        {
+          title: 'RAG Fundamentals: Chunking, Embeddings, Hybrid Search, Re-ranking',
+          notes: 'The indexing and query pipeline step by step, a chunk-size and overlap playground on a real policy document, cosine similarity in embedding space, BM25 vs dense vs hybrid with reciprocal rank fusion computed live, and cross-encoder re-ranking.',
+          formulas: [],
+          interactive: { file: mr('mr-09-rag.html', 'pipeline'), label: 'Pipeline Stepper' },
+          extras: [
+            { file: mr('mr-09-rag.html', 'chunking'), label: 'Chunking Playground' },
+            { file: mr('mr-09-rag.html', 'embeddings'), label: 'Embeddings' },
+            { file: mr('mr-09-rag.html', 'search'), label: 'Hybrid Search' },
+            { file: mr('mr-09-rag.html', 'rerank'), label: 'Re-ranking' },
+          ],
+          tags: ['Interactive', 'Must-know', 'RAG'],
+        },
+        {
+          title: 'RAG Evaluation & Production Debugging',
+          notes: 'Click relevant results to compute precision@k, recall@k, MRR, MAP and nDCG; diagnose faithfulness vs context recall; ten practical production scenarios ("right docs, wrong answer", stale answers, product codes, follow-ups, latency, access control, prompt injection); lost-in-the-middle and advanced RAG.',
+          formulas: [],
+          interactive: { file: mr('mr-10-rag-eval.html', 'debug'), label: 'Production Scenarios' },
+          extras: [
+            { file: mr('mr-10-rag-eval.html', 'retrieval'), label: 'Retrieval Metrics' },
+            { file: mr('mr-10-rag-eval.html', 'generation'), label: 'Faithfulness' },
+            { file: mr('mr-10-rag-eval.html', 'advanced'), label: 'Advanced RAG' },
+          ],
+          tags: ['Interactive', 'Must-know', 'RAG'],
+        },
+        {
+          title: 'Agents, Tool Calling, Prompt Injection & LLMOps',
+          notes: 'Step through a ReAct agent with a failing tool and a retry, see the full tool-call round trip, toggle defences against an email prompt-injection attack, and estimate latency and monthly cost with caching and model routing.',
+          formulas: [],
+          interactive: { file: mr('mr-11-agents.html', 'react'), label: 'ReAct Stepper' },
+          extras: [
+            { file: mr('mr-11-agents.html', 'tools'), label: 'Tool Calling' },
+            { file: mr('mr-11-agents.html', 'safety'), label: 'Injection Defence' },
+            { file: mr('mr-11-agents.html', 'serving'), label: 'Cost & Latency' },
+          ],
+          tags: ['Interactive', 'Agents', 'LLMOps'],
+        },
+      ],
+    },
+    {
+      id: 'mr-design',
+      title: 'ML System Design',
+      icon: MR_ICON.grid,
+      topics: [
+        {
+          title: 'ML System Design: Framework, A/B Tests, Drift & Rollouts',
+          notes: 'A worked eight-step answer to a design question, an A/B-test sample-size and duration calculator, a checklist for "offline NDCG up, online conversion down", a PSI drift calculator that tells drift from pipeline bugs, and shadow → canary → A/B rollouts.',
+          formulas: [],
+          interactive: { file: mr('mr-12-system-design.html', 'framework'), label: 'Design Framework' },
+          extras: [
+            { file: mr('mr-12-system-design.html', 'abtest'), label: 'A/B Sample Size' },
+            { file: mr('mr-12-system-design.html', 'offline'), label: 'Offline vs Online' },
+            { file: mr('mr-12-system-design.html', 'monitor'), label: 'Drift & Deployment' },
+          ],
+          tags: ['Interactive', 'Must-know', 'System design'],
+        },
+        {
+          title: 'Recommender Systems: Retrieval → Ranking, Cold Start, Bandits',
+          notes: 'The retrieval → filter → rank → re-rank funnel with a 200 ms latency budget, matrix factorisation you can train in the browser, two-tower models and cold start, which events count as positives and negatives, blending objectives with availability as a hard constraint, and Thompson-sampling exploration.',
+          formulas: [],
+          interactive: { file: mr('mr-13-recsys.html', 'funnel'), label: 'Funnel & Latency' },
+          extras: [
+            { file: mr('mr-13-recsys.html', 'models'), label: 'Matrix Factorisation' },
+            { file: mr('mr-13-recsys.html', 'labels'), label: 'Positives & Negatives' },
+            { file: mr('mr-13-recsys.html', 'blend'), label: 'Blending Objectives' },
+            { file: mr('mr-13-recsys.html', 'explore'), label: 'Bandit Simulator' },
+          ],
+          tags: ['Interactive', 'Must-know', 'Recommenders'],
+        },
+      ],
+    },
+    {
+      id: 'mr-revision',
+      title: 'Revision',
+      icon: MR_ICON.book,
+      topics: [
+        {
+          title: 'Q&A Bank, Flashcards, Cheat Sheet & Answer Playbook',
+          notes: 'All 190 questions with model answers in one searchable place, a must-know filter and flashcard mode, a one-screen formula cheat sheet, rapid-fire one-liners, and templates for answering concept, debugging, design and project questions.',
+          formulas: [],
+          interactive: { file: mr('mr-14-qa-bank.html', 'all'), label: 'Q&A Bank' },
+          extras: [
+            { file: mr('mr-14-qa-bank.html', 'flash'), label: 'Flashcards' },
+            { file: mr('mr-14-qa-bank.html', 'cheat'), label: 'Cheat Sheet' },
+            { file: mr('mr-14-qa-bank.html', 'playbook'), label: 'Answer Playbook' },
+          ],
+          tags: ['Interactive', 'Revision', 'Interview prep'],
+        },
+      ],
+    },
+  ];
+
+  /* ----------------------------------------------------------
      SUBJECTS — each wraps its concept groups
      ---------------------------------------------------------- */
   const SUBJECTS = [
+    {
+      id: 'mlrevision',
+      title: 'ML Revision',
+      code: 'ML Interview Revision',
+      description: 'The most frequently asked ML, deep learning, LLM, RAG and ML-system-design interview questions — each with a model answer, must-know markers and an interactive lab that makes the answer obvious: bias vs variance, ROC vs PR, attention, chunking, hybrid search, RAG debugging, A/B tests and recommenders. 190 Q&As.',
+      emoji: '🎯',
+      accent: 'iris',
+      folder: 'Subject_6_MLRevision',
+      conceptGroups: MLREV_CONCEPTS,
+    },
     {
       id: 'pytorch',
       title: 'PyTorch for Deep Learning',

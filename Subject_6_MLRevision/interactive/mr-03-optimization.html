@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gradient Descent, Adam, Batch Size, Vanishing Gradients, Dropout & BatchNorm — ML Interview Revision</title>
+  <meta name="description" content="Watch gradient descent with a too-small, good and too-large learning rate; race SGD, momentum, RMSprop and Adam across a narrow valley; see how batch size adds noise; measure vanishing and exploding gradients by depth, activation and initialisation; and play with dropout and batch norm.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="mr-lab.css?v=2026-10-22">
+  <style>
+    .gbars { display: flex; align-items: flex-end; gap: 3px; height: 190px; padding: 6px 4px 0; border-bottom: 1px solid var(--line); }
+    .gbars div { flex: 1; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .25s, background .25s; }
+    .gax { display: flex; justify-content: space-between; font: 10.5px var(--font-mono); color: var(--dim); margin-top: 4px; }
+    .net svg { width: 100%; height: 230px; }
+    .bn { display: grid; grid-template-columns: 70px repeat(6, minmax(0, 1fr)); gap: 4px; font: 12px var(--font-mono); align-items: center; }
+    .bn span { padding: 6px 4px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); text-align: center; }
+    .bn .h { background: none; border: 0; color: var(--dim); text-align: left; font-size: 11px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <section class="lab-hero">
+      <span class="badge">MODULE 03 · TRAINING</span>
+      <h1>Gradient descent &amp; <span class="grad">training</span></h1>
+      <p class="desc">Training is walking downhill on the loss with noisy directions and a step size you choose. Most "why isn't my model training?" interview questions come down to the learning rate, the optimizer, the batch size, how gradients survive many layers, and how dropout and normalization behave in training vs inference.</p>
+      <div class="hero-meta"><span class="chip ember">5 sections</span><span class="chip">Learning-rate stepper · optimizer race · batch-noise paths · gradient-flow meter · dropout &amp; batch-norm labs</span></div>
+    </section>
+
+    <div class="tabs-wrap"><div class="tabs" role="tablist">
+      <button class="tab" data-tab="gd"><span class="n">1</span>Learning rate</button>
+      <button class="tab" data-tab="optimizers"><span class="n">2</span>SGD, momentum, Adam</button>
+      <button class="tab" data-tab="batch"><span class="n">3</span>Batch size</button>
+      <button class="tab" data-tab="gradients"><span class="n">4</span>Vanishing &amp; exploding</button>
+      <button class="tab" data-tab="norm"><span class="n">5</span>Dropout &amp; BatchNorm</button>
+    </div></div>
+
+    <!-- ============ GD ============ -->
+    <section class="tab-panel" data-panel="gd">
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>\( w \leftarrow w - \eta\, \nabla_w L \) — the learning rate is the most important hyperparameter <span class="imp">Must-know</span></h3>
+        <p>Too small: painfully slow and can stall in flat regions. Too large: overshoots, oscillates and diverges (loss becomes NaN). Just right: fast, steady descent. On non-convex losses the starting point and step size also decide <em>which</em> minimum you land in. In practice: run an LR range test, use warm-up and a decay schedule (cosine, step), and watch the loss curve.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · step down the loss</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">loss surface</span><div class="seg" id="g-surf"><button data-v="convex" class="on">convex bowl</button><button data-v="nonconvex">non-convex</button></div></div>
+          <div class="field"><span class="label-t">learning rate η</span><div class="range-row"><input type="range" id="g-lr" min="0.01" max="1.1" step="0.01" value="0.1"><span class="val" id="g-lr-v"></span></div></div>
+          <div class="field"><span class="label-t">start w₀</span><div class="range-row"><input type="range" id="g-w0" min="-3" max="3" step="0.1" value="2.6"><span class="val" id="g-w0-v"></span></div></div>
+          <div class="presets btn-row"><button class="btn btn-sm" data-lr="0.02">too small</button><button class="btn btn-sm" data-lr="0.3">good</button><button class="btn btn-sm" data-lr="0.95">oscillating</button><button class="btn btn-sm" data-lr="1.05">diverging</button></div>
+          <div id="g-note"></div>
+        </div>
+        <div><canvas class="viz" id="g-plot"></canvas><canvas class="viz mt" id="g-loss"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>loss per step</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optim:gd"></div>
+    </section>
+
+    <!-- ============ OPTIMIZERS ============ -->
+    <section class="tab-panel" data-panel="optimizers" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Momentum remembers direction; Adam adapts the step per parameter <span class="imp">Must-know</span></h3>
+        <p>In a long narrow valley plain SGD zig-zags across the steep direction and crawls along the shallow one. <strong>Momentum</strong> keeps a running average of gradients so oscillations cancel and the consistent direction accelerates. <strong>RMSprop</strong> divides by a running RMS of gradients, shrinking steps where gradients are large. <strong>Adam</strong> combines both (with bias correction) and works well with little tuning; SGD + momentum with a good schedule often generalises slightly better on vision tasks. <strong>AdamW</strong> decouples weight decay and is the default for transformers.</p>
+        <p class="formula">\( m_t=\beta_1 m_{t-1}+(1-\beta_1)g_t,\quad v_t=\beta_2 v_{t-1}+(1-\beta_2)g_t^2,\quad w \leftarrow w-\eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon} \)</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · race across a narrow valley</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">learning rate (shared)</span><div class="range-row"><input type="range" id="o-lr" min="0.005" max="0.1" step="0.005" value="0.045"><span class="val" id="o-lr-v"></span></div></div>
+          <div class="field"><span class="label-t">valley steepness ratio</span><div class="range-row"><input type="range" id="o-k" min="2" max="40" step="1" value="20"><span class="val" id="o-k-v"></span></div></div>
+          <div class="field"><span class="label-t">steps</span><div class="range-row"><input type="range" id="o-n" min="5" max="120" step="1" value="40"><span class="val" id="o-n-v"></span></div></div>
+          <div class="tbl-wrap"><table class="tbl" id="o-tbl"></table></div>
+        </div>
+        <div><canvas class="viz" id="o-plot"></canvas><div class="legend"><span><i style="background:#f87171"></i>SGD</span><span><i style="background:#fbbf24"></i>momentum 0.8</span><span><i style="background:#5fb3f9"></i>RMSprop</span><span><i style="background:#4ade80"></i>Adam</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="code"></i>Code</div>
+      <textarea class="py" data-title="optimizers.py">
+import torch
+opt = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, nesterov=True, weight_decay=5e-4)
+opt = torch.optim.AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.999), weight_decay=0.01)
+sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=3e-4, total_steps=num_steps)  # warm-up + decay
+
+for x, y in loader:
+    opt.zero_grad()
+    loss = loss_fn(model(x), y)
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)   # tame exploding gradients
+    opt.step(); sched.step()
+      </textarea>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optim:optimizers"></div>
+    </section>
+
+    <!-- ============ BATCH ============ -->
+    <section class="tab-panel" data-panel="batch" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Batch, mini-batch and stochastic gradient descent</h3>
+        <p>The true gradient is an average over all data. <strong>Batch GD</strong> computes it exactly — smooth but one slow step per epoch. <strong>SGD</strong> uses one example — very noisy, many cheap steps. <strong>Mini-batch</strong> (32–1024) is the practical middle: vectorised on GPUs, noise σ/√B. Some noise helps escape sharp minima and saddle points; very large batches need a larger learning rate (linear scaling + warm-up) and can generalise slightly worse.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · 8 runs with different random batches</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">batch size B (dataset = 1,024)</span><div class="range-row"><input type="range" id="b-b" min="0" max="10" step="1" value="3"><span class="val" id="b-b-v"></span></div></div>
+          <div class="grid-2" id="b-stats"></div>
+          <div id="b-note"></div>
+        </div>
+        <div><canvas class="viz" id="b-plot"></canvas><div class="legend"><span><i style="background:#8b8cff"></i>8 training runs (20 steps each)</span><span><i style="background:#e5e7eb"></i>minimum</span></div></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optim:batch"></div>
+    </section>
+
+    <!-- ============ GRADIENTS ============ -->
+    <section class="tab-panel" data-panel="gradients" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="card lesson">
+        <h3>Backprop multiplies one factor per layer — so gradients shrink or blow up exponentially <span class="imp">Must-know</span></h3>
+        <p>The gradient reaching layer 1 is a product of every later layer's weights and activation derivatives. If the typical factor is below 1 (sigmoid's derivative is at most 0.25), early layers get almost no signal: <strong>vanishing gradients</strong>. Above 1 (large weights, long RNN sequences), updates explode: <strong>exploding gradients</strong>. Fixes: ReLU-family activations, He/Xavier initialisation, normalization layers, <strong>residual connections</strong> (an identity path for the gradient), gradient clipping, and LSTM/GRU gates for sequences.</p>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · gradient size reaching each layer</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">activation</span><div class="seg" id="v-act"><button data-v="sigmoid" class="on">sigmoid</button><button data-v="tanh">tanh</button><button data-v="relu">ReLU</button></div></div>
+          <div class="field"><span class="label-t">weight initialisation</span><div class="seg" id="v-init"><button data-v="small">N(0, 0.01)</button><button data-v="xavier" class="on">Xavier</button><button data-v="he">He</button><button data-v="large">too large</button></div></div>
+          <div class="field"><span class="label-t">depth (layers)</span><div class="range-row"><input type="range" id="v-L" min="2" max="50" value="20"><span class="val" id="v-L-v"></span></div></div>
+          <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="v-res"> residual connections (x + F(x))</label>
+          <div id="v-note"></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">‖∂L/∂W‖ per layer, log scale (output layer = 1)</div>
+          <div class="gbars" id="v-bars"></div><div class="gax"><span>layer 1 (input side)</span><span>output layer</span></div>
+          <p class="small muted mt">Idealised: per-layer factor = √n · σ<sub>w</sub> · rms(f′) for a width-n MLP with unit-variance pre-activations.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optim:gradients"></div>
+    </section>
+
+    <!-- ============ NORM ============ -->
+    <section class="tab-panel" data-panel="norm" hidden>
+      <div class="block-title"><i data-icon="book"></i>Concept</div>
+      <div class="grid-2">
+        <div class="card lesson">
+          <h3>Dropout: train a different thinned network every step <span class="imp">Must-know</span></h3>
+          <p>Each training step zeroes each activation with probability p and scales survivors by 1/(1−p) ("inverted dropout"), so units can't co-adapt and the network behaves like an ensemble of sub-networks. At inference dropout is <strong>off</strong> and no rescaling is needed — which is why <code>model.eval()</code> matters.</p>
+        </div>
+        <div class="card lesson">
+          <h3>BatchNorm: normalise each feature over the batch</h3>
+          <p>\( \hat x = \frac{x-\mu_B}{\sqrt{\sigma_B^2+\epsilon}},\; y=\gamma\hat x+\beta \). It stabilises and speeds up training, allows higher learning rates and adds mild regularization. In training it uses the <em>batch</em> statistics; at inference it uses <em>running averages</em> collected during training. <strong>LayerNorm</strong> normalises across features of one example instead — independent of batch size, so it is used in transformers and RNNs.</p>
+        </div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · dropout masks</div>
+      <div class="card card-pad split">
+        <div class="controls">
+          <div class="field"><span class="label-t">dropout rate p</span><div class="range-row"><input type="range" id="d-p" min="0" max="0.8" step="0.05" value="0.5"><span class="val" id="d-p-v"></span></div></div>
+          <div class="field"><span class="label-t">mode</span><div class="seg" id="d-mode"><button data-v="train" class="on">model.train()</button><button data-v="eval">model.eval()</button></div></div>
+          <div class="btn-row"><button class="btn btn-primary" id="d-new"><i data-icon="reset"></i>Next training step</button></div>
+          <div id="d-note"></div>
+        </div>
+        <div class="net"><svg id="d-net" viewBox="0 0 420 230"></svg></div>
+      </div>
+      <div class="block-title"><i data-icon="flask"></i>Try it · batch norm on one feature</div>
+      <div class="card card-pad">
+        <div class="grid-4">
+          <div class="field"><label for="n-x">batch values (comma-separated)</label><input class="input mono" id="n-x" value="12, 15, 9, 30, 14, 10"></div>
+          <div class="field"><label for="n-g">γ (scale)</label><input class="input mono" id="n-g" type="number" step="0.1" value="1"></div>
+          <div class="field"><label for="n-b">β (shift)</label><input class="input mono" id="n-b" type="number" step="0.1" value="0"></div>
+          <div class="field"><span class="label-t">mode</span><div class="seg" id="n-mode"><button data-v="train" class="on">train (batch stats)</button><button data-v="eval">eval (running stats)</button></div></div>
+        </div>
+        <div class="bn mt" id="n-out"></div>
+        <div id="n-note" class="mt"></div>
+      </div>
+      <div class="block-title"><i data-icon="help"></i>Questions</div>
+      <div data-qa="optim:norm"></div>
+    </section>
+  </div>
+</main>
+
+<script src="mr-qa.js?v=2026-10-22"></script>
+<script src="mr-lab.js?v=2026-10-22"></script>
+<script>
+(function () {
+  const { $, $$, esc, plot, rng, fmt } = MR;
+  const segc = (id, cb) => $('#' + id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; $$('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); cb(b.dataset.v); });
+
+  /* ===== GD 1-D ===== */
+  let surf = 'convex';
+  const L = { convex: (w) => w * w, nonconvex: (w) => 0.25 * w ** 4 - 1.2 * w * w + 0.45 * w + 1.6 };
+  const dL = { convex: (w) => 2 * w, nonconvex: (w) => w ** 3 - 2.4 * w + 0.45 };
+  function gDraw() {
+    const lr = +$('#g-lr').value, w0 = +$('#g-w0').value; $('#g-lr-v').textContent = lr.toFixed(2); $('#g-w0-v').textContent = w0.toFixed(1);
+    const f = L[surf], df = dL[surf];
+    const path = [w0]; let w = w0, div = false;
+    for (let i = 0; i < 30; i++) { w = w - lr * df(w); if (!isFinite(w) || Math.abs(w) > 6) { div = true; path.push(Math.sign(w) * 6); break; } path.push(w); }
+    const xs = Array.from({ length: 241 }, (_, i) => -3.2 + i * (6.4 / 240));
+    const ymax = surf === 'convex' ? 10 : 6;
+    const P = plot($('#g-plot'), [
+      { type: 'line', data: xs.map((x) => [x, f(x)]), color: '#646d82', width: 2 },
+      { type: 'line', data: path.map((p) => [Math.max(-3.2, Math.min(3.2, p)), Math.min(ymax, f(p))]), color: '#8b8cff88', width: 1.2 },
+      { type: 'points', data: path.map((p, i) => [Math.max(-3.2, Math.min(3.2, p)), Math.min(ymax, f(p)), i === 0 ? '#fbbf24' : '#8b8cff']), r: 4 },
+    ], { h: 250, xmin: -3.2, xmax: 3.2, ymin: surf === 'convex' ? 0 : -1, ymax, ticks: 4, xlabel: 'w', ylabel: 'L(w)' });
+    plot($('#g-loss'), [{ type: 'line', data: path.map((p, i) => [i, Math.min(ymax, f(p))]), color: '#8b8cff' }], { h: 150, xmin: 0, xmax: 30, ymin: surf === 'convex' ? 0 : -1, ymax, ticks: 3, xlabel: 'step', xfmt: (v) => Math.round(v) });
+    const last = path[path.length - 1];
+    let note;
+    if (div) note = '<div class="err-box">Diverged: each step overshoots further (loss → NaN in a real run). Lower η.</div>';
+    else if (surf === 'convex' && lr > 0.9) note = '<div class="err-box">Oscillating: η is just under the stability limit (2/curvature = 1.0 here), so w flips sign every step and converges slowly.</div>';
+    else if (Math.abs(last - path[path.length - 2]) > 0.02 && lr < 0.05) note = '<div class="err-box">Too small: after 30 steps it is still far from the minimum.</div>';
+    else if (surf === 'nonconvex' && L.nonconvex(last) > -0.5) note = '<div class="callout amber">' + MR.icon('alert') + '<div>Converged to a <b>local</b> minimum at w ≈ ' + fmt(last, 2) + '. Try another start or a bigger step: the global minimum is on the left.</div></div>';
+    else note = '<div class="ok-box">Converged to w ≈ ' + fmt(last, 3) + ' in a few steps.</div>';
+    $('#g-note').innerHTML = note;
+  }
+  segc('g-surf', (v) => { surf = v; gDraw(); });
+  ['g-lr', 'g-w0'].forEach((id) => $('#' + id).addEventListener('input', gDraw));
+  $$('[data-lr]').forEach((b) => b.addEventListener('click', () => { $('#g-lr').value = b.dataset.lr; gDraw(); }));
+
+  /* ===== Optimizers 2-D ===== */
+  function run(kind, lr, k, n, noise, seed) {
+    const r = rng(seed || 1);
+    let x = -4, y = 1.6, mx = 0, my = 0, vx = 0, vy = 0; const P = [[x, y]];
+    for (let t = 1; t <= n; t++) {
+      let gx = x, gy = k * y;
+      if (noise) { gx += noise * r.normal(); gy += noise * k * 0.3 * r.normal(); }
+      if (kind === 'sgd') { x -= lr * gx; y -= lr * gy; }
+      else if (kind === 'mom') { mx = 0.8 * mx + gx; my = 0.8 * my + gy; x -= lr * mx; y -= lr * my; }
+      else if (kind === 'rms') { vx = 0.9 * vx + 0.1 * gx * gx; vy = 0.9 * vy + 0.1 * gy * gy; x -= lr * 4 * gx / (Math.sqrt(vx) + 1e-8); y -= lr * 4 * gy / (Math.sqrt(vy) + 1e-8); }
+      else { mx = 0.9 * mx + 0.1 * gx; my = 0.9 * my + 0.1 * gy; vx = 0.999 * vx + 0.001 * gx * gx; vy = 0.999 * vy + 0.001 * gy * gy; const mh = 1 - 0.9 ** t, vh = 1 - 0.999 ** t; x -= lr * 4 * (mx / mh) / (Math.sqrt(vx / vh) + 1e-8); y -= lr * 4 * (my / mh) / (Math.sqrt(vy / vh) + 1e-8); }
+      if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 50 || Math.abs(y) > 50) { P.push([Math.max(-5, Math.min(5, x || 5)), Math.max(-2.5, Math.min(2.5, y || 2.5))]); return { P, div: true }; }
+      P.push([x, y]);
+    }
+    return { P, div: false };
+  }
+  function contours(k) { const L2 = []; [0.5, 2, 5, 10, 18].forEach((c) => { const pts = []; for (let i = 0; i <= 80; i++) { const a = i / 80 * 2 * Math.PI; pts.push([Math.sqrt(2 * c) * Math.cos(a), Math.sqrt(2 * c / k) * Math.sin(a)]); } L2.push({ type: 'line', data: pts, color: '#2a3148', width: 1 }); }); return L2; }
+  function oDraw() {
+    const lr = +$('#o-lr').value, k = +$('#o-k').value, n = +$('#o-n').value;
+    $('#o-lr-v').textContent = lr.toFixed(3); $('#o-k-v').textContent = k + '×'; $('#o-n-v').textContent = n;
+    const R = { sgd: run('sgd', lr, k, n), mom: run('mom', lr, k, n), rms: run('rms', lr, k, n), adam: run('adam', lr, k, n) };
+    const col = { sgd: '#f87171', mom: '#fbbf24', rms: '#5fb3f9', adam: '#4ade80' };
+    const layers = contours(k);
+    Object.keys(R).forEach((key) => { const d = R[key].P.map(([x, y]) => [Math.max(-5, Math.min(5, x)), Math.max(-2.5, Math.min(2.5, y))]); layers.push({ type: 'line', data: d, color: col[key], width: 1.8 }); layers.push({ type: 'points', data: [d[d.length - 1]], color: col[key], r: 4.5 }); });
+    layers.push({ type: 'points', data: [[0, 0]], color: '#e5e7eb', r: 3 });
+    plot($('#o-plot'), layers, { h: 300, xmin: -5, xmax: 5, ymin: -2.5, ymax: 2.5, ticks: 4, grid: false });
+    const loss = ([x, y]) => 0.5 * (x * x + k * y * y);
+    const names = { sgd: 'SGD', mom: 'Momentum (β=0.8)', rms: 'RMSprop', adam: 'Adam' };
+    $('#o-tbl').innerHTML = '<thead><tr><th>optimizer</th><th>final loss</th></tr></thead><tbody>' + Object.keys(R).map((key) => '<tr><td><span style="color:' + col[key] + '">●</span> ' + names[key] + '</td><td>' + (R[key].div ? '<b style="color:#f87171">diverged</b>' : fmt(loss(R[key].P[R[key].P.length - 1]), 4)) + '</td></tr>').join('') + '</tbody>';
+  }
+  ['o-lr', 'o-k', 'o-n'].forEach((id) => $('#' + id).addEventListener('input', oDraw));
+
+  /* ===== Batch ===== */
+  const BS = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+  function bDraw() {
+    const B = BS[+$('#b-b').value]; $('#b-b-v').textContent = B;
+    const noise = B >= 1024 ? 0 : 3.2 * Math.sqrt((1024 - B) / (1023 * B));
+    const layers = contours(8);
+    for (let s = 0; s < 8; s++) { const r = run('sgd', 0.12, 8, 20, noise, 11 + s * 97); layers.push({ type: 'line', data: r.P.map(([x, y]) => [Math.max(-5, Math.min(5, x)), Math.max(-2.5, Math.min(2.5, y))]), color: '#8b8cffaa', width: 1.3 }); }
+    layers.push({ type: 'points', data: [[0, 0]], color: '#e5e7eb', r: 4 });
+    plot($('#b-plot'), layers, { h: 290, xmin: -5, xmax: 5, ymin: -2.5, ymax: 2.5, ticks: 4, grid: false });
+    $('#b-stats').innerHTML = '<div class="stat"><div class="v" style="font-size:17px">' + (1024 / B) + '</div><div class="k">updates per epoch</div></div><div class="stat"><div class="v" style="font-size:17px">' + fmt(noise, 2) + '</div><div class="k">gradient noise (relative)</div></div>';
+    $('#b-note').innerHTML = B === 1 ? '<div class="callout amber">' + MR.icon('alert') + '<div>Pure SGD: 1,024 cheap updates per epoch, but each direction is very noisy — runs scatter.</div></div>' : B === 1024 ? '<div class="callout blue">' + MR.icon('info') + '<div>Full-batch GD: exact gradient, all 8 runs identical, but only one update per epoch.</div></div>' : '<div class="ok-box">Mini-batch: noise shrinks like 1/√B while each step stays GPU-friendly.</div>';
+  }
+  $('#b-b').addEventListener('input', bDraw);
+
+  /* ===== Vanishing / exploding ===== */
+  let act = 'sigmoid', init = 'xavier';
+  const RMS = { sigmoid: 0.21, tanh: 0.63, relu: Math.SQRT1_2 };
+  const SIG = { small: 0.01 * Math.sqrt(256), xavier: 1, he: Math.SQRT2, large: 3 };
+  function vDraw() {
+    const Ln = +$('#v-L').value, res = $('#v-res').checked; $('#v-L-v').textContent = Ln;
+    const m = SIG[init] * RMS[act];
+    const factor = res ? 1 + 0.35 * m : m;
+    const vals = Array.from({ length: Ln }, (_, i) => Math.pow(factor, Ln - 1 - i));
+    const lg = vals.map((v) => Math.log10(Math.max(1e-30, v)));
+    const lo = -12, hi = 6;
+    $('#v-bars').innerHTML = lg.map((v) => { const h = (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * 100; const c = v < -4 ? '#5fb3f9' : v > 3 ? '#f87171' : '#4ade80'; return '<div style="height:' + Math.max(1, h) + '%;background:' + c + '" title="' + v.toFixed(1) + '"></div>'; }).join('');
+    const first = vals[0];
+    let note;
+    if (first < 1e-4) note = '<div class="err-box">Vanishing: layer 1 receives ~10^' + Math.round(Math.log10(first)) + ' of the output gradient — early layers barely learn. ' + (act === 'sigmoid' ? 'Sigmoid\'s derivative is ≤ 0.25, so each layer multiplies the signal by a small number.' : 'The per-layer factor is ' + fmt(m, 2) + ' < 1.') + '</div>';
+    else if (first > 1e3) note = '<div class="err-box">Exploding: the gradient at layer 1 is ~10^' + Math.round(Math.log10(first)) + '× the output\'s. Updates blow up (NaN). Smaller init, clipping, normalization.</div>';
+    else note = '<div class="ok-box">Stable: per-layer factor ≈ ' + fmt(factor, 2) + ', so the signal survives ' + Ln + ' layers.' + (res ? ' The identity path in x + F(x) lets the gradient flow even through bad blocks.' : act === 'relu' && init === 'he' ? ' This is why ReLU is paired with He initialisation.' : '') + '</div>';
+    $('#v-note').innerHTML = note;
+  }
+  segc('v-act', (v) => { act = v; vDraw(); });
+  segc('v-init', (v) => { init = v; vDraw(); });
+  $('#v-L').addEventListener('input', vDraw); $('#v-res').addEventListener('change', vDraw);
+
+  /* ===== Dropout ===== */
+  let dmode = 'train', dseed = 3;
+  function dDraw() {
+    const p = +$('#d-p').value; $('#d-p-v').textContent = p.toFixed(2);
+    const layers = [4, 6, 6, 2]; const r = rng(dseed);
+    const pos = layers.map((n, li) => Array.from({ length: n }, (_, i) => [40 + li * 113, 115 + (i - (n - 1) / 2) * 34]));
+    const drop = layers.map((n, li) => Array.from({ length: n }, () => dmode === 'train' && li > 0 && li < 3 && r() < p));
+    let svg = '';
+    for (let li = 0; li < 3; li++) pos[li].forEach((a, i) => pos[li + 1].forEach((b, j) => { const off = drop[li][i] || drop[li + 1][j]; svg += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + (off ? '#1d2335' : '#8b8cff55') + '" stroke-width="1"/>'; }));
+    pos.forEach((L2, li) => L2.forEach(([x, y], i) => { const off = drop[li][i]; svg += '<circle cx="' + x + '" cy="' + y + '" r="11" fill="' + (off ? '#121624' : li === 0 ? '#5fb3f9' : li === 3 ? '#4ade80' : '#8b8cff') + '" stroke="' + (off ? '#323c55' : 'none') + '" stroke-dasharray="3 2"/>' + (off ? '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" fill="#646d82" font-size="11">×</text>' : ''); }));
+    $('#d-net').innerHTML = svg;
+    const dropped = drop.flat().filter(Boolean).length;
+    $('#d-note').innerHTML = dmode === 'eval' ? '<div class="ok-box">Inference: every unit is active and nothing is rescaled — the survivors were already scaled by 1/(1−p) during training, so expected activations match.</div>' : '<div class="callout blue">' + MR.icon('info') + '<div>' + dropped + ' of 12 hidden units dropped this step; survivors are multiplied by 1/(1−p) = ' + (p < 1 ? fmt(1 / (1 - p), 2) : '∞') + '. Each step trains a different sub-network.</div></div>';
+  }
+  $('#d-p').addEventListener('input', dDraw);
+  $('#d-new').addEventListener('click', () => { dseed += 17; dDraw(); });
+  segc('d-mode', (v) => { dmode = v; dDraw(); });
+
+  /* ===== BatchNorm ===== */
+  let nmode = 'train';
+  function nDraw() {
+    const xs = $('#n-x').value.split(',').map((v) => parseFloat(v)).filter((v) => isFinite(v)).slice(0, 6);
+    const g = +$('#n-g').value, b = +$('#n-b').value;
+    if (!xs.length) { $('#n-out').innerHTML = ''; return; }
+    const mu = nmode === 'train' ? xs.reduce((a, v) => a + v, 0) / xs.length : 13.0;
+    const varr = nmode === 'train' ? xs.reduce((a, v) => a + (v - mu) ** 2, 0) / xs.length : 16.0;
+    const xh = xs.map((v) => (v - mu) / Math.sqrt(varr + 1e-5)), y = xh.map((v) => g * v + b);
+    const row = (h, arr) => '<span class="h">' + h + '</span>' + arr.map((v) => '<span>' + fmt(v, 2) + '</span>').join('') + '<span style="visibility:hidden"></span>'.repeat(6 - arr.length);
+    $('#n-out').innerHTML = row('x', xs) + row('x̂', xh) + row('y = γx̂+β', y);
+    $('#n-note').innerHTML = '<div class="callout blue">' + MR.icon('info') + '<div>' + (nmode === 'train' ? 'Batch statistics: μ<sub>B</sub> = ' + fmt(mu, 2) + ', σ²<sub>B</sub> = ' + fmt(varr, 2) + '. Every output depends on the other examples in the batch — why tiny batches make BatchNorm noisy. Running averages of μ and σ² are updated for inference.' : 'Inference uses the running averages saved during training (here μ = 13, σ² = 16), so a single example gives the same output whatever else is in the batch. Forgetting <code>model.eval()</code> keeps using batch stats — a classic bug.') + '</div></div>';
+  }
+  ['n-x', 'n-g', 'n-b'].forEach((id) => $('#' + id).addEventListener('input', nDraw));
+  segc('n-mode', (v) => { nmode = v; nDraw(); });
+
+  MR.init('optim', (id) => { ({ gd: gDraw, optimizers: oDraw, batch: bDraw, gradients: vDraw, norm: () => { dDraw(); nDraw(); } })[id](); });
+})();
+</script>
+</body>
+</html>
