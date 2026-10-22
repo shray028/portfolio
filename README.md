@@ -2,6 +2,10 @@
 
 Static portfolio published at [shray028.github.io/portfolio](https://shray028.github.io/portfolio/). Project cards and case studies are defined in `app.js`; their images live under `Projects/`.
 
+## Career page
+
+[Career](https://shray028.github.io/portfolio/#career) is a top-level tab next to Projects and Interactive Labs: an experience timeline, engineering principles, an architecture diagram of the production RAG system with metric cards for each part, a toolbox and awards. It is plain HTML in the `#career-section` block of `index.html`, styled by the `CAREER` block in `styles.css` and routed by `handleRoute()` in `app.js`.
+
 ## ML Revision hub
 
 [ML Revision](https://shray028.github.io/portfolio/#subjects/mlrevision) collects the most frequently asked machine-learning interview questions — classic ML, deep learning, transformers and LLMs, RAG, agents, ML system design and recommender systems — as 14 interactive modules with 190 model answers (60 marked must-know). Each concept has a lab that makes the answer visible: a bias–variance decomposer, threshold/ROC/PR explorers, an optimizer race, attention and KV-cache tools, a chunking playground, hybrid search with RRF, RAG evaluation and production-debugging scenarios, an A/B sample-size calculator, matrix factorisation and a bandit simulator. Pages live in `Subject_6_MLRevision/interactive/` and share `mr-lab.css`, `mr-lab.js` and `mr-qa.js`.

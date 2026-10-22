@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
-  <link rel="stylesheet" href="styles.css?v=2026-10-22">
+  <link rel="stylesheet" href="styles.css?v=2026-10-23">
   <!-- MathJax for LaTeX formula rendering -->
   <script>
     window.MathJax = {
@@ -58,6 +58,14 @@
             <rect x="14" y="14" width="7" height="7" rx="1.5" />
           </svg>
           <span>Projects</span>
+        </a>
+        <a href="#career" data-section="career">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+          <span>Career</span>
         </a>
         <a href="#subjects" data-section="subjects">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -257,6 +265,272 @@
     </section>
 
     <!-- ============================================
+         CAREER SECTION
+         ============================================ -->
+    <section class="page-section career-section container" id="career-section" aria-labelledby="career-heading">
+      <div class="section-header">
+        <div>
+          <span class="section-eyebrow">Career</span>
+          <h2 id="career-heading">Systems I've shipped, and how I think about them</h2>
+          <p>Four years of building GenAI and automation for automotive software engineering, from first prototype to tools engineers use every week.</p>
+        </div>
+        <nav class="career-jump" aria-label="Career sections">
+          <a href="#career" data-jump="career-experience">Experience</a>
+          <a href="#career" data-jump="career-philosophy">Principles</a>
+          <a href="#career" data-jump="career-systems">Systems</a>
+          <a href="#career" data-jump="career-stack">Toolbox</a>
+        </nav>
+      </div>
+
+      <dl class="stats-strip career-stats">
+        <div class="stat-item"><dt>Years in industry</dt><dd>4+</dd></div>
+        <div class="stat-item"><dt>Engineers using my tools</dt><dd>100+</dd></div>
+        <div class="stat-item"><dt>Assistant queries / week</dt><dd>1,000+</dd></div>
+        <div class="stat-item"><dt>Change-request turnaround</dt><dd>2–3 d <span class="stat-arrow">→</span> 5 min</dd></div>
+      </dl>
+
+      <!-- Experience -->
+      <div class="career-block" id="career-experience">
+        <div class="career-block-head">
+          <span class="career-index">// experience</span>
+          <h3>Where I've worked and studied</h3>
+        </div>
+
+        <ol class="career-timeline">
+          <li class="career-role reveal">
+            <div class="career-when">
+              <span class="career-dates">2022 — Present</span>
+              <span class="career-place">Bengaluru</span>
+            </div>
+            <div class="career-card">
+              <div class="career-card-top">
+                <div>
+                  <h4>AI Engineer</h4>
+                  <p class="career-org">Mercedes-Benz Research and Development India (MBRDI)</p>
+                </div>
+                <span class="career-pill"><span class="pulse-dot" aria-hidden="true"></span>Current</span>
+              </div>
+              <ul class="career-points">
+                <li>Led an agentic RAG system for AUTOSAR change requests from prototype to production, cutting turnaround from <strong>2–3 days to about 5 minutes</strong>.</li>
+                <li>Built grounded assistants and workflow automation used by <strong>100+ engineers</strong>, handling <strong>1,000+ queries a week</strong>.</li>
+                <li>Modelled the AUTOSAR metamodel as a knowledge graph of <strong>551 classes from 270 UML diagrams</strong>, with schema guards so no generated XML ships unvalidated.</li>
+                <li>Automated ECU configuration in DaVinci Configurator with Groovy: ECU grouping, variant creation, file loading with retries and validation reports.</li>
+                <li>Set up evaluation for every release: Hit@k, RAGAS-style answer checks and regression suites.</li>
+              </ul>
+              <div class="career-tags">
+                <span>Agentic RAG</span><span>Knowledge graphs</span><span>MCP</span><span>Claude · AWS Bedrock</span><span>FastAPI</span><span>AUTOSAR / ARXML</span>
+              </div>
+            </div>
+          </li>
+
+          <li class="career-role reveal">
+            <div class="career-when">
+              <span class="career-dates">2025 — 2027</span>
+              <span class="career-place">Work-integrated</span>
+            </div>
+            <div class="career-card">
+              <div class="career-card-top">
+                <div>
+                  <h4>M.Tech, Artificial Intelligence &amp; Machine Learning</h4>
+                  <p class="career-org">BITS Pilani (WILP)</p>
+                </div>
+                <span class="career-pill career-pill-muted">CGPA 9.75</span>
+              </div>
+              <ul class="career-points">
+                <li>Coursework in NLP, deep reinforcement learning, deep neural networks and software engineering for ML.</li>
+                <li>Projects include demand forecasting, a deployed cancer-detection service and LSTM vs Transformer forecasting. <a href="#projects">See the projects →</a></li>
+                <li>I rebuild the course concepts as hands-on visualisers. <a href="#subjects">Open the labs →</a></li>
+              </ul>
+            </div>
+          </li>
+
+          <li class="career-role reveal">
+            <div class="career-when">
+              <span class="career-dates">2018 — 2022</span>
+              <span class="career-place">Tumkur</span>
+            </div>
+            <div class="career-card">
+              <div class="career-card-top">
+                <div>
+                  <h4>B.E., Electronics &amp; Communication Engineering</h4>
+                  <p class="career-org">Siddaganga Institute of Technology</p>
+                </div>
+                <span class="career-pill career-pill-muted">CGPA 8.76</span>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Engineering principles -->
+      <div class="career-block" id="career-philosophy">
+        <div class="career-block-head">
+          <span class="career-index">// engineering_principles</span>
+          <h3>How I think about AI systems</h3>
+        </div>
+        <div class="principles-grid">
+          <article class="principle reveal">
+            <span class="principle-num">[01]</span>
+            <h4>Deterministic first, LLM last</h4>
+            <p>If a rule, a template or a graph lookup can answer, it should. The model handles what is left, and its output is checked before anyone sees it.</p>
+          </article>
+          <article class="principle reveal">
+            <span class="principle-num">[02]</span>
+            <h4>Grounded or it doesn't ship</h4>
+            <p>Answers cite the spec they came from, and generated XML is validated against the schema. A confident wrong answer costs engineers more than no answer.</p>
+          </article>
+          <article class="principle reveal">
+            <span class="principle-num">[03]</span>
+            <h4>Measure, then trust</h4>
+            <p>Retrieval hit rates, answer checks and regression suites run before every change, so "it feels better" becomes a number.</p>
+          </article>
+          <article class="principle reveal">
+            <span class="principle-num">[04]</span>
+            <h4>Adoption is the metric</h4>
+            <p>A tool only counts when engineers use it every week. It has to fit the workflow they already have, not ask them to learn a new one.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- Production systems -->
+      <div class="career-block" id="career-systems">
+        <div class="career-block-head">
+          <span class="career-index">// production_systems</span>
+          <h3>Three systems behind one result</h3>
+          <p>How a plain-language change request becomes a validated ARXML edit. Highlighted boxes are the parts I designed and built; dashed ones are platforms and sources I build on.</p>
+        </div>
+
+        <figure class="arch reveal" aria-label="Architecture of the change-request agent">
+          <div class="arch-lane">
+            <span class="arch-lane-label">Request path</span>
+            <div class="arch-flow">
+              <div class="arch-node ext">Engineer<small>chat or tool</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Orchestrator agent<small>plans the change</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Graph + hybrid retrieval<small>finds affected elements</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node ext">LLM<small>Claude · AWS Bedrock</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Schema guards<small>validate before output</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node out">Validated ARXML edit</div>
+            </div>
+          </div>
+          <div class="arch-link" aria-hidden="true"><span>↑ graph + vectors feed retrieval</span></div>
+          <div class="arch-lane">
+            <span class="arch-lane-label">Knowledge path</span>
+            <div class="arch-flow">
+              <div class="arch-node ext">AUTOSAR specs<small>UML diagrams · ARXML</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Streaming parser<small>two-pass, reference-aware</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Knowledge graph<small>551 classes</small></div>
+              <span class="arch-arrow" aria-hidden="true"></span>
+              <div class="arch-node own">Vector index<small>document chunks</small></div>
+            </div>
+          </div>
+          <figcaption>
+            <span><i class="key key-own"></i>Built by me</span>
+            <span><i class="key key-ext"></i>Platform or source</span>
+          </figcaption>
+        </figure>
+
+        <div class="systems-grid">
+          <article class="system-card reveal">
+            <span class="system-tag">Agentic RAG · Production</span>
+            <h4>Change-request agent</h4>
+            <div class="system-metric"><strong>5 min</strong><span>per change request, down from 2–3 days</span></div>
+            <p>Engineers describe an AUTOSAR change in plain language. The agent finds the affected elements in the knowledge graph, drafts the ARXML edit and runs it through schema guards before handing it back. I chose <strong>graph retrieval with schema guards over a single LLM call</strong>, so every edit is traceable and <strong>no hallucinated XML reaches a file</strong>.</p>
+            <h5>What made it hard</h5>
+            <ul>
+              <li>The metamodel is deep, and references cross files.</li>
+              <li>One invalid element can break an ECU build, so "mostly right" isn't good enough.</li>
+              <li>Engineers need to see why something changed, not just the diff.</li>
+            </ul>
+            <div class="career-tags"><span>Python</span><span>Claude · Bedrock</span><span>Knowledge graph</span><span>MCP</span><span>FastAPI</span></div>
+          </article>
+
+          <article class="system-card reveal">
+            <span class="system-tag">Grounded assistants · Adoption</span>
+            <h4>Engineering assistants</h4>
+            <div class="system-metric"><strong>1,000+</strong><span>queries a week from 100+ engineers</span></div>
+            <p>Assistants that answer questions about specs, tools and processes from internal documents, <strong>with sources attached</strong>, plus automation for repetitive configuration steps. Built so engineers can check an answer in seconds instead of searching for it.</p>
+            <h5>What made it hard</h5>
+            <ul>
+              <li>Documents are long and full of tables and IDs that plain embeddings handle badly.</li>
+              <li>Answers have to stay right as documents change.</li>
+              <li>Trust is earned one cited answer at a time.</li>
+            </ul>
+            <div class="career-tags"><span>Hybrid search</span><span>Re-ranking</span><span>ChromaDB</span><span>RAGAS</span><span>Docker</span><span>GitLab CI/CD</span></div>
+          </article>
+
+          <article class="system-card reveal">
+            <span class="system-tag">Data layer · Knowledge graph</span>
+            <h4>AUTOSAR knowledge graph</h4>
+            <div class="system-metric"><strong>551</strong><span>metamodel classes parsed from 270 UML diagrams</span></div>
+            <p>A streaming, two-pass parser turns ARXML and UML into an object model with <strong>references in both directions</strong>. That model becomes the graph the agent queries, so retrieval follows real relationships instead of text similarity alone.</p>
+            <h5>What made it hard</h5>
+            <ul>
+              <li>Files are large, so the parser streams instead of loading everything into memory.</li>
+              <li>References point forwards and backwards; a second pass resolves them.</li>
+              <li>The graph has to match the official metamodel exactly.</li>
+            </ul>
+            <div class="career-tags"><span>Python</span><span>XML streaming</span><span>Graph modelling</span><span>Schema validation</span></div>
+          </article>
+        </div>
+
+        <article class="design-card reveal">
+          <div class="design-copy">
+            <span class="system-tag">In design</span>
+            <h4>Deterministic-first query generator</h4>
+            <p>A four-tier cascade for generating database queries. Each tier is cheaper and more predictable than the next, and queries that reach the LLM and pass validation become new templates, so the library improves itself.</p>
+          </div>
+          <ol class="cascade">
+            <li><span>1</span>Exact cache</li>
+            <li><span>2</span>Parameterised templates</li>
+            <li><span>3</span>Schema-graph composition</li>
+            <li><span>4</span>LLM fallback</li>
+          </ol>
+        </article>
+      </div>
+
+      <!-- Toolbox -->
+      <div class="career-block" id="career-stack">
+        <div class="career-block-head">
+          <span class="career-index">// toolbox</span>
+          <h3>What I build with</h3>
+        </div>
+        <div class="stack-grid">
+          <div class="stack-group reveal"><h5>GenAI &amp; agents</h5><div class="career-tags"><span>RAG</span><span>Agentic orchestration</span><span>MCP</span><span>Knowledge graphs</span><span>Transformers</span><span>Claude · AWS Bedrock</span></div></div>
+          <div class="stack-group reveal"><h5>Retrieval</h5><div class="career-tags"><span>ChromaDB</span><span>FAISS</span><span>Hybrid search</span><span>Re-ranking</span><span>Chunking</span></div></div>
+          <div class="stack-group reveal"><h5>Evaluation</h5><div class="career-tags"><span>Hit@k</span><span>RAGAS</span><span>Regression testing</span><span>Schema validation</span></div></div>
+          <div class="stack-group reveal"><h5>Engineering &amp; serving</h5><div class="career-tags"><span>Python</span><span>C++</span><span>FastAPI</span><span>Pydantic</span><span>Docker</span><span>GitLab CI/CD</span><span>MLflow</span></div></div>
+          <div class="stack-group reveal"><h5>ML</h5><div class="career-tags"><span>PyTorch</span><span>scikit-learn</span><span>Pandas</span><span>NumPy</span></div></div>
+          <div class="stack-group reveal"><h5>Automotive</h5><div class="career-tags"><span>AUTOSAR</span><span>ARXML</span><span>DaVinci Configurator</span><span>Groovy</span></div></div>
+        </div>
+      </div>
+
+      <!-- Recognition -->
+      <div class="career-block">
+        <div class="career-block-head">
+          <span class="career-index">// recognition</span>
+          <h3>Awards &amp; certifications</h3>
+        </div>
+        <div class="awards-grid">
+          <div class="award reveal"><span class="award-icon" aria-hidden="true">🏆</span><div><strong>Bronze Award</strong><span>Strategic Planning &amp; Delivery Excellence · MBRDI</span></div></div>
+          <div class="award reveal"><span class="award-icon" aria-hidden="true">⭐</span><div><strong>Spontan Award</strong><span>Ownership and reliability · MBRDI</span></div></div>
+          <div class="award reveal"><span class="award-icon" aria-hidden="true">📜</span><div><strong>Prompt Design in Vertex AI</strong><span>Google Cloud · 2025</span></div></div>
+        </div>
+      </div>
+
+      <div class="career-foot">
+        <a class="career-term" href="#subjects">$ cd ~/labs &amp;&amp; ls <span>→</span></a>
+        <p>Internal system names are abstracted and figures are approximate.</p>
+      </div>
+    </section>
+
+    <!-- ============================================
          CONTACT
          ============================================ -->
     <section class="contact container" id="contact" aria-labelledby="contact-heading">
@@ -385,7 +659,7 @@
     </div>
   </footer>
 
-  <script src="app.js?v=2026-10-22"></script>
+  <script src="app.js?v=2026-10-23"></script>
 </body>
 
 </html>
